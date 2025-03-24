@@ -1,0 +1,8 @@
+---
+BasedOnStyle: Microsoft
+ColumnLimit: 0
+UseTab: AlignWithSpaces
+PointerAlignment: Left
+NamespaceIndentation: All
+BreakTemplateDeclarations: Yes
+SpaceAfterTemplateKeyword: false
