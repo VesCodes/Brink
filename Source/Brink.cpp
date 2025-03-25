@@ -13,6 +13,8 @@ struct GpuContext
 	WGPUAdapter adapter;
 	WGPUDevice device;
 	WGPUQueue queue;
+
+	WGPURenderPipeline renderPipeline;
 } gpuContext;
 
 void OnAdapterAcquired(WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* userData);
@@ -60,6 +62,50 @@ void OnDeviceAcquired(WGPURequestDeviceStatus status, WGPUDevice device, const c
 	gpuContext.surface = wgpuInstanceCreateSurface(gpuContext.instance, &surfaceDesc);
 
 	ConfigureSurface();
+
+	{
+		WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
+		shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
+		shaderCodeDesc.code = R"(
+			@vertex
+			fn VsMain(@builtin(vertex_index) position: u32) -> @builtin(position) vec4f {
+				let x = f32(i32(position) - 1);
+				let y = f32(i32(position & 1u) * 2 - 1);
+				return vec4f(x, y, 0.0, 1.0);
+			}
+
+			@fragment
+			fn FsMain() -> @location(0) vec4f {
+				return vec4f(1.0, 0.0, 0.0, 1.0);
+			}
+		)";
+
+		WGPUShaderModuleDescriptor shaderDesc = {};
+		shaderDesc.nextInChain = &shaderCodeDesc.chain;
+
+		WGPUShaderModule shader = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+
+		WGPUColorTargetState fragmentTarget = {};
+		fragmentTarget.format = wgpuSurfaceGetPreferredFormat(gpuContext.surface, gpuContext.adapter);
+		fragmentTarget.writeMask = WGPUColorWriteMask_All;
+
+		WGPUFragmentState fragmentState = {};
+		fragmentState.module = shader;
+		fragmentState.entryPoint = "FsMain";
+		fragmentState.targetCount = 1;
+		fragmentState.targets = &fragmentTarget;
+
+		WGPURenderPipelineDescriptor renderPipelineDesc = {};
+		renderPipelineDesc.vertex.module = shader;
+		renderPipelineDesc.vertex.entryPoint = "VsMain";
+		renderPipelineDesc.fragment = &fragmentState;
+		renderPipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+		renderPipelineDesc.multisample.count = 1;
+		renderPipelineDesc.multisample.mask = 0xFFFFFFFF;
+
+		gpuContext.renderPipeline = wgpuDeviceCreateRenderPipeline(gpuContext.device, &renderPipelineDesc);
+		printf("Created render pipeline: %p\n", gpuContext.renderPipeline);
+	}
 }
 
 void OnDeviceError(WGPUErrorType type, const char* message, void* userData)
@@ -97,14 +143,15 @@ bool OnFrame(double time, void* userData)
 		.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
 		.loadOp = WGPULoadOp_Clear,
 		.storeOp = WGPUStoreOp_Store,
-		.clearValue = (WGPUColor){0.8f, 0.2f, 0.3f, 1.0f},
+		.clearValue = (WGPUColor){0.0f, 0.2f, 0.3f, 1.0f},
 	};
 
 	renderPassDesc.colorAttachments = &colorAttachment;
 
 	WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder, &renderPassDesc);
 
-	// TODO: ...
+	wgpuRenderPassEncoderSetPipeline(renderPass, gpuContext.renderPipeline);
+	wgpuRenderPassEncoderDraw(renderPass, 3, 1, 0, 0);
 
 	wgpuRenderPassEncoderEnd(renderPass);
 
@@ -116,8 +163,8 @@ bool OnFrame(double time, void* userData)
 
 void ConfigureSurface()
 {
-	int32_t canvasWidth, canvasHeight;
-	emscripten_get_canvas_element_size("#canvas", &canvasWidth, &canvasHeight);
+	double canvasWidth, canvasHeight;
+	emscripten_get_element_css_size("#canvas", &canvasWidth, &canvasHeight);
 
 	gpuContext.surfaceConfig.device = gpuContext.device;
 	gpuContext.surfaceConfig.format = wgpuSurfaceGetPreferredFormat(gpuContext.surface, gpuContext.adapter);
@@ -128,4 +175,6 @@ void ConfigureSurface()
 	gpuContext.surfaceConfig.presentMode = WGPUPresentMode_Fifo;
 
 	wgpuSurfaceConfigure(gpuContext.surface, &gpuContext.surfaceConfig);
+
+	printf("Configured surface: (%d x %d)\n", gpuContext.surfaceConfig.width, gpuContext.surfaceConfig.height);
 }
