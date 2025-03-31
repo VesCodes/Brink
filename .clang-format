@@ -6,3 +6,4 @@ PointerAlignment: Left
 NamespaceIndentation: All
 BreakTemplateDeclarations: Yes
 SpaceAfterTemplateKeyword: false
+SkipMacroDefinitionBody: true
