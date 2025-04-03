@@ -83,7 +83,7 @@ namespace Bk
 	template<typename ItemType, typename HandleType = uint32, size_t GenerationBits = 12>
 	struct Pool
 	{
-		static_assert(sizeof(ItemType) > sizeof(uintptr_t), "Pool item type must be at least the size of a pointer");
+		static_assert(sizeof(ItemType) >= sizeof(uintptr_t), "Pool item type must be at least the size of a pointer");
 		static_assert(GenerationBits < sizeof(HandleType) * 8, "Pool handle type can't fit generation bits");
 
 		static constexpr size_t GenerationBytes = (GenerationBits + 7) / 8;
@@ -149,6 +149,30 @@ namespace Bk
 		size_t capacity;
 		size_t count;
 	};
+
+	// Graphics
+
+	enum class ShaderType : uint8
+	{
+		Vertex,
+		Pixel,
+	};
+
+	struct ShaderDesc
+	{
+		ShaderType type;
+		const char* entrypoint;
+		const char* code;
+	};
+
+	struct PipelineDesc
+	{
+		uint32 vertexShader;
+		uint32 pixelShader;
+	};
+
+	uint32 CreateShader(const ShaderDesc& desc);
+	uint32 CreatePipeline(const PipelineDesc& desc);
 
 	//
 	//
