@@ -9,7 +9,7 @@
 #define BK_CLAMP(x, min, max) (((x) > (max)) ? (max) : ((x) < (min)) ? (min) : (x))
 
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
-#define BK_ALIGN(addr, alignment) (((addr) + ((alignment) - 1)) & ~((alignment) - 1))
+#define BK_ALIGN(x, alignment) (((x) + ((alignment) - 1)) & ~((alignment) - 1))
 
 #define BK_KILOBYTES(x) ((x) * 1024)
 #define BK_MEGABYTES(x) (BK_KILOBYTES(x) * 1024)
@@ -80,72 +80,23 @@ namespace Bk
 		size_t position;
 	};
 
-	template<typename ItemType, typename HandleType = uint32, size_t GenerationBits = 12>
+	template<typename ItemType>
 	struct Pool
 	{
 		static_assert(sizeof(ItemType) >= sizeof(uintptr_t), "Pool item type must be at least the size of a pointer");
-		static_assert(GenerationBits < sizeof(HandleType) * 8, "Pool handle type can't fit generation bits");
 
-		static constexpr size_t GenerationBytes = (GenerationBits + 7) / 8;
-		static constexpr HandleType GenerationMask = (HandleType(1) << GenerationBits) - 1;
-		static constexpr size_t IndexBits = (sizeof(HandleType) * 8) - GenerationBits;
-		static constexpr HandleType IndexMask = (HandleType(1) << IndexBits) - 1;
+		void Initialize(Arena* arena, uint16 size);
 
-		void Initialize(Arena* arena, size_t inCapacity);
+		ItemType* AllocateItem(uint32* handle = nullptr);
+		void FreeItem(uint32 handle);
 
-		ItemType* AllocateItem(HandleType* handle = nullptr);
-		void FreeItem(HandleType handle);
-
-		HandleType GetHandle(ItemType* item);
-		HandleType GetHandleFromIndex(size_t index);
-
-		ItemType* GetItem(HandleType handle);
-		ItemType* GetItemFromIndex(size_t index);
-
-		struct Iterator
-		{
-			Iterator() = default;
-
-			Iterator(Pool& pool, size_t index = 0)
-				: pool(pool), index(index)
-			{
-				index = BitsetFindNextSet(pool.aliveBitset, pool.count, index);
-				if (index == -1)
-				{
-					index = pool.count;
-				}
-			}
-
-			bool operator!=(const Iterator& other) const
-			{
-				return index != other.index;
-			}
-
-			Iterator& operator++()
-			{
-				index = BitsetFindNextSet(pool.aliveBitset, pool.count, index + 1);
-				if (index == -1)
-				{
-					index = pool.count;
-				}
-
-				return *this;
-			}
-
-			ItemType* operator*() const
-			{
-				return pool->GetItemFromIndex(index);
-			}
-
-			Pool& pool;
-			size_t index;
-		};
+		uint32 GetHandle(ItemType* item);
+		ItemType* GetItem(uint32 handle);
 
 		ItemType* items;
-		uint8* generations;
-		uint32* aliveBitset;
+		uint16* generations;
+		uint32* alive;
 		uintptr_t nextFree;
-
 		size_t capacity;
 		size_t count;
 	};
@@ -173,50 +124,50 @@ namespace Bk
 
 	uint32 CreateShader(const ShaderDesc& desc);
 	uint32 CreatePipeline(const PipelineDesc& desc);
+} // namespace Bk
 
-	//
-	//
-	//
+// =========================================================================================================================
 
+namespace Bk
+{
 	template<typename Type>
-	inline Type* Arena::Push(size_t count)
+	Type* Arena::Push(size_t count)
 	{
-		return (Type*)Push(sizeof(Type) * count, alignof(Type));
+		uint8* result = Push(sizeof(Type) * count, alignof(Type));
+		return reinterpret_cast<Type*>(result);
 	}
 
 	template<typename Type>
-	inline Type* Arena::PushZeroed(size_t count)
+	Type* Arena::PushZeroed(size_t count)
 	{
-		return (Type*)PushZeroed(sizeof(Type) * count, alignof(Type));
+		uint8* result = PushZeroed(sizeof(Type) * count, alignof(Type));
+		return reinterpret_cast<Type*>(result);
 	}
 
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline void Pool<ItemType, HandleType, GenerationBits>::Initialize(Arena* arena, size_t inCapacity)
+	template<typename ItemType>
+	void Pool<ItemType>::Initialize(Arena* arena, uint16 size)
 	{
-		// Can't fit more items than max index
-		BK_ASSERT(inCapacity <= IndexMask);
-
-		items = arena->Push<ItemType>(inCapacity);
-		generations = arena->Push(inCapacity * GenerationBytes, alignof(HandleType));
-		aliveBitset = arena->Push<uint32>((inCapacity + 31) / 32);
-		nextFree = 0;
-
-		capacity = inCapacity;
+		capacity = size;
 		count = 0;
+
+		items = arena->Push<ItemType>(capacity);
+		generations = arena->PushZeroed<uint16>(capacity);
+		alive = arena->PushZeroed<uint32>((capacity + 31) / 32);
+		nextFree = 0;
 	}
 
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline ItemType* Pool<ItemType, HandleType, GenerationBits>::AllocateItem(HandleType* handle)
+	template<typename ItemType>
+	ItemType* Pool<ItemType>::AllocateItem(uint32* handle)
 	{
 		ItemType* item;
 		size_t index;
 
 		if (nextFree)
 		{
-			item = (ItemType*)(nextFree);
-			index = (size_t)(item - items);
+			item = reinterpret_cast<ItemType*>(nextFree);
+			index = item - items;
 
-			nextFree = *(uintptr_t*)(nextFree);
+			nextFree = *reinterpret_cast<uintptr_t*>(nextFree);
 		}
 		else if (count < capacity)
 		{
@@ -228,86 +179,59 @@ namespace Bk
 
 		if (item)
 		{
-			// #TODO: Sanity check generation logic
-			HandleType* generationPtr = (HandleType*)(generations + (index * GenerationBytes));
-
-			HandleType generation = (*generationPtr + 1) & GenerationMask;
+			uint16& generation = generations[index];
 			if (generation == 0)
 			{
-				// #TODO: HandleType generation wrapping
 				generation = 1;
 			}
 
-			*generationPtr |= (generation & GenerationMask);
-			BitsetSet(aliveBitset, index);
+			BitsetSet(alive, index);
 
 			if (handle)
 			{
-				*handle = (generation << IndexBits) | index;
+				*handle = (generation << 16) | index;
 			}
 		}
 
 		return item;
 	}
 
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline void Pool<ItemType, HandleType, GenerationBits>::FreeItem(HandleType handle)
+	template<typename ItemType>
+	void Pool<ItemType>::FreeItem(uint32 handle)
 	{
-		size_t index = handle & IndexMask;
+		size_t index = handle & 0xFFFF;
 		BK_ASSERT(index < count);
 
-		HandleType generation = *(HandleType*)(generations + (index * GenerationBytes)) & GenerationMask;
-		HandleType handleGeneration = handle >> IndexBits;
-		BK_ASSERT(generation == handleGeneration);
+		uint16 generation = handle >> 16;
+		BK_ASSERT(generation == generations[index]);
 
-		bool isAlive = BitsetIsSet(aliveBitset, index);
-		BK_ASSERT(isAlive);
-
-		BitsetUnset(aliveBitset, index);
+		generations[index] += 1;
+		BitsetUnset(alive, index);
 
 		ItemType* item = items + index;
-		*(uintptr_t*)(item) = nextFree;
-		nextFree = (uintptr_t)(item);
+		*reinterpret_cast<uintptr_t*>(item) = nextFree;
+		nextFree = reinterpret_cast<uintptr_t>(item);
 	}
 
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline HandleType Pool<ItemType, HandleType, GenerationBits>::GetHandle(ItemType* item)
+	template<typename ItemType>
+	uint32 Pool<ItemType>::GetHandle(ItemType* item)
 	{
-		size_t index = (size_t)(item - items);
-		return GetHandleFromIndex(index);
-	}
-
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline HandleType Pool<ItemType, HandleType, GenerationBits>::GetHandleFromIndex(size_t index)
-	{
+		size_t index = item - items;
 		BK_ASSERT(index < count);
 
-		HandleType generation = *(HandleType*)(generations + (index * GenerationBytes)) & GenerationMask;
-		HandleType handle = (generation << IndexBits) | index;
+		uint16 generation = generations[index];
 
-		return handle;
+		return (generation << 16) | index;
 	}
 
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline ItemType* Pool<ItemType, HandleType, GenerationBits>::GetItem(HandleType handle)
+	template<typename ItemType>
+	ItemType* Pool<ItemType>::GetItem(uint32 handle)
 	{
-		size_t index = handle & IndexMask;
+		size_t index = handle & 0xFFFF;
 		BK_ASSERT(index < count);
 
-		HandleType generation = *(HandleType*)(generations + (index * GenerationBytes)) & GenerationMask;
-		HandleType handleGeneration = handle >> IndexBits;
-		BK_ASSERT(generation == handleGeneration);
-
-		return GetItemFromIndex(index);
-	}
-
-	template<typename ItemType, typename HandleType, size_t GenerationBits>
-	inline ItemType* Pool<ItemType, HandleType, GenerationBits>::GetItemFromIndex(size_t index)
-	{
-		BK_ASSERT(index < count);
-
-		bool isAlive = BitsetIsSet(aliveBitset, index);
-		BK_ASSERT(isAlive);
+		uint16 generation = handle >> 16;
+		BK_ASSERT(generation == generations[index]);
 
 		return items + index;
 	}
