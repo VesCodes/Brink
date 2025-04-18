@@ -10,37 +10,30 @@
 
 namespace Bk
 {
-	struct Shader
-	{
-		WGPUShaderModule wgpuHandle;
-		const char* entrypoint;
-	};
-
-	struct Pipeline
-	{
-		WGPURenderPipeline wgpuHandle;
-	};
-
 	struct AppContext
 	{
 		Arena arena;
 
-		struct
-		{
-			WGPUInstance instance;
-			WGPUSurface surface;
-			WGPUSurfaceConfiguration surfaceConfig;
-			WGPUAdapter adapter;
-			WGPUDevice device;
-			WGPUQueue queue;
-
-			Pool<Shader> shaders;
-			Pool<Pipeline> pipelines;
-		} gpu;
-
 		// #TODO: temp
 		uint32 pipeline;
-	} context;
+	} appContext;
+
+	struct GpuPipeline
+	{
+		WGPURenderPipeline handle;
+	};
+
+	struct GpuContext
+	{
+		WGPUInstance instance;
+		WGPUSurface surface;
+		WGPUSurfaceConfiguration surfaceConfig;
+		WGPUAdapter adapter;
+		WGPUDevice device;
+		WGPUQueue queue;
+
+		Pool<GpuPipeline> pipelines;
+	} gpuContext;
 
 	void FatalError(int32 exitCode, const char* format, ...)
 	{
@@ -234,50 +227,52 @@ namespace Bk
 		}
 	}
 
-	uint32 CreateShader(const ShaderDesc& desc)
+	uint32 CreatePipeline(const GpuPipelineDesc& desc)
 	{
-		WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
-		shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
-		shaderCodeDesc.code = desc.code;
+		WGPURenderPipelineDescriptor pipelineDesc = {};
+		pipelineDesc.label = desc.name;
+		pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+		pipelineDesc.multisample.count = 1;
+		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
-		WGPUShaderModuleDescriptor shaderDesc = {};
-		shaderDesc.nextInChain = &shaderCodeDesc.chain;
+		if (desc.vertexShader.code)
+		{
+			WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
+			shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
+			shaderCodeDesc.code = desc.vertexShader.code;
 
-		uint32 shaderHandle;
-		Shader* shader = context.gpu.shaders.AllocateItem(&shaderHandle);
-		shader->wgpuHandle = wgpuDeviceCreateShaderModule(context.gpu.device, &shaderDesc);
+			WGPUShaderModuleDescriptor shaderDesc = {};
+			shaderDesc.nextInChain = &shaderCodeDesc.chain;
 
-		printf("createshader(%s) = %p\n", desc.entrypoint, shader->wgpuHandle);
+			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+			pipelineDesc.vertex.entryPoint = desc.vertexShader.entryPoint;
+		}
 
-		return shaderHandle;
-	}
+		if (desc.pixelShader.code)
+		{
+			WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
+			shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
+			shaderCodeDesc.code = desc.pixelShader.code;
 
-	uint32 CreatePipeline(const PipelineDesc& desc)
-	{
-		Shader* vertexShader = context.gpu.shaders.GetItem(desc.vertexShader);
-		Shader* pixelShader = context.gpu.shaders.GetItem(desc.pixelShader);
+			WGPUShaderModuleDescriptor shaderDesc = {};
+			shaderDesc.nextInChain = &shaderCodeDesc.chain;
 
-		WGPUColorTargetState fragmentTarget = {};
-		fragmentTarget.format = wgpuSurfaceGetPreferredFormat(context.gpu.surface, context.gpu.adapter);
-		fragmentTarget.writeMask = WGPUColorWriteMask_All;
+			WGPUColorTargetState fragmentTarget = {};
+			fragmentTarget.format = wgpuSurfaceGetPreferredFormat(gpuContext.surface, gpuContext.adapter);
+			fragmentTarget.writeMask = WGPUColorWriteMask_All;
 
-		WGPUFragmentState fragmentState = {};
-		fragmentState.module = pixelShader->wgpuHandle;
-		fragmentState.entryPoint = pixelShader->entrypoint;
-		fragmentState.targetCount = 1;
-		fragmentState.targets = &fragmentTarget;
+			WGPUFragmentState fragmentState = {};
+			fragmentState.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+			fragmentState.entryPoint = desc.pixelShader.entryPoint;
+			fragmentState.targetCount = 1;
+			fragmentState.targets = &fragmentTarget;
 
-		WGPURenderPipelineDescriptor renderPipelineDesc = {};
-		renderPipelineDesc.vertex.module = vertexShader->wgpuHandle;
-		renderPipelineDesc.vertex.entryPoint = vertexShader->entrypoint;
-		renderPipelineDesc.fragment = &fragmentState;
-		renderPipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
-		renderPipelineDesc.multisample.count = 1;
-		renderPipelineDesc.multisample.mask = 0xFFFFFFFF;
+			pipelineDesc.fragment = &fragmentState;
+		}
 
 		uint32 pipelineHandle;
-		Pipeline* pipeline = context.gpu.pipelines.AllocateItem(&pipelineHandle);
-		pipeline->wgpuHandle = wgpuDeviceCreateRenderPipeline(context.gpu.device, &renderPipelineDesc);
+		GpuPipeline* pipeline = gpuContext.pipelines.AllocateItem(&pipelineHandle);
+		pipeline->handle = wgpuDeviceCreateRenderPipeline(gpuContext.device, &pipelineDesc);
 
 		return pipelineHandle;
 	}
@@ -297,7 +292,7 @@ namespace Bk
 	{
 		printf("Adapter acquired: %p\n", adapter);
 
-		context.gpu.adapter = adapter;
+		gpuContext.adapter = adapter;
 
 		wgpuAdapterRequestDevice(adapter, nullptr, OnDeviceAcquired, nullptr);
 	}
@@ -308,8 +303,8 @@ namespace Bk
 
 		wgpuDeviceSetUncapturedErrorCallback(device, OnDeviceError, nullptr);
 
-		context.gpu.device = device;
-		context.gpu.queue = wgpuDeviceGetQueue(context.gpu.device);
+		gpuContext.device = device;
+		gpuContext.queue = wgpuDeviceGetQueue(gpuContext.device);
 
 		WGPUSurfaceDescriptorFromCanvasHTMLSelector canvasDesc = {};
 		canvasDesc.chain.sType = WGPUSType_SurfaceDescriptorFromCanvasHTMLSelector;
@@ -317,40 +312,30 @@ namespace Bk
 
 		WGPUSurfaceDescriptor surfaceDesc = {};
 		surfaceDesc.nextInChain = &canvasDesc.chain;
-		context.gpu.surface = wgpuInstanceCreateSurface(context.gpu.instance, &surfaceDesc);
+		gpuContext.surface = wgpuInstanceCreateSurface(gpuContext.instance, &surfaceDesc);
 
 		ConfigureSurface();
 
-		// #TODO: temp
-		uint32 vertexShader = CreateShader({
-			.type = ShaderType::Vertex,
-			.entrypoint = "VsMain",
-			.code = R"(
-@vertex
-fn VsMain(@builtin(vertex_index) position: u32) -> @builtin(position) vec4f
+		appContext.pipeline = CreatePipeline({
+			.name = "Test",
+			.vertexShader = {
+				.code = R"(
+@vertex fn VsMain(@builtin(vertex_index) position: u32) -> @builtin(position) vec4f
 {
-let x = f32(i32(position) - 1);
-let y = f32(i32(position & 1u) * 2 - 1);
-return vec4f(x, y, 0.0, 1.0);
+	let x = f32(i32(position) - 1);
+	let y = f32(i32(position & 1u) * 2 - 1);
+	return vec4f(x, y, 0.0, 1.0);
 }
 )",
-		});
-
-		uint32 pixelShader = CreateShader({
-			.type = ShaderType::Pixel,
-			.entrypoint = "PsMain",
-			.code = R"(
-@fragment
-fn PsMain() -> @location(0) vec4f
+			},
+			.pixelShader = {
+				.code = R"(
+@fragment fn PsMain() -> @location(0) vec4f
 {
-return vec4f(1.0, 0.0, 0.0, 1.0);
+	return vec4f(1.0, 0.0, 0.0, 1.0);
 }
 )",
-		});
-
-		context.pipeline = CreatePipeline({
-			.vertexShader = vertexShader,
-			.pixelShader = pixelShader,
+			},
 		});
 	}
 
@@ -368,19 +353,19 @@ return vec4f(1.0, 0.0, 0.0, 1.0);
 
 	bool OnFrame(double time, void* userData)
 	{
-		if (!context.gpu.device)
+		if (!gpuContext.device)
 		{
 			return true;
 		}
 
 		WGPUSurfaceTexture surfaceTexture;
-		wgpuSurfaceGetCurrentTexture(context.gpu.surface, &surfaceTexture);
+		wgpuSurfaceGetCurrentTexture(gpuContext.surface, &surfaceTexture);
 
 		// TODO: Check texture status
 
 		WGPUTextureView surfaceView = wgpuTextureCreateView(surfaceTexture.texture, nullptr);
 
-		WGPUCommandEncoder cmdEncoder = wgpuDeviceCreateCommandEncoder(context.gpu.device, nullptr);
+		WGPUCommandEncoder cmdEncoder = wgpuDeviceCreateCommandEncoder(gpuContext.device, nullptr);
 
 		WGPURenderPassDescriptor renderPassDesc = {};
 		renderPassDesc.colorAttachmentCount = 1;
@@ -396,14 +381,14 @@ return vec4f(1.0, 0.0, 0.0, 1.0);
 
 		WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder, &renderPassDesc);
 
-		Pipeline* pipeline = context.gpu.pipelines.GetItem(context.pipeline);
-		wgpuRenderPassEncoderSetPipeline(renderPass, pipeline->wgpuHandle);
+		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(appContext.pipeline);
+		wgpuRenderPassEncoderSetPipeline(renderPass, pipeline->handle);
 		wgpuRenderPassEncoderDraw(renderPass, 3, 1, 0, 0);
 
 		wgpuRenderPassEncoderEnd(renderPass);
 
 		WGPUCommandBuffer cmdBuffer = wgpuCommandEncoderFinish(cmdEncoder, nullptr);
-		wgpuQueueSubmit(context.gpu.queue, 1, &cmdBuffer);
+		wgpuQueueSubmit(gpuContext.queue, 1, &cmdBuffer);
 
 		return true;
 	}
@@ -413,17 +398,17 @@ return vec4f(1.0, 0.0, 0.0, 1.0);
 		double canvasWidth, canvasHeight;
 		emscripten_get_element_css_size("#canvas", &canvasWidth, &canvasHeight);
 
-		context.gpu.surfaceConfig.device = context.gpu.device;
-		context.gpu.surfaceConfig.format = wgpuSurfaceGetPreferredFormat(context.gpu.surface, context.gpu.adapter);
-		context.gpu.surfaceConfig.usage = WGPUTextureUsage_RenderAttachment;
-		context.gpu.surfaceConfig.alphaMode = WGPUCompositeAlphaMode_Auto;
-		context.gpu.surfaceConfig.width = (uint32_t)canvasWidth;
-		context.gpu.surfaceConfig.height = (uint32_t)canvasHeight;
-		context.gpu.surfaceConfig.presentMode = WGPUPresentMode_Fifo;
+		gpuContext.surfaceConfig.device = gpuContext.device;
+		gpuContext.surfaceConfig.format = wgpuSurfaceGetPreferredFormat(gpuContext.surface, gpuContext.adapter);
+		gpuContext.surfaceConfig.usage = WGPUTextureUsage_RenderAttachment;
+		gpuContext.surfaceConfig.alphaMode = WGPUCompositeAlphaMode_Auto;
+		gpuContext.surfaceConfig.width = (uint32_t)canvasWidth;
+		gpuContext.surfaceConfig.height = (uint32_t)canvasHeight;
+		gpuContext.surfaceConfig.presentMode = WGPUPresentMode_Fifo;
 
-		wgpuSurfaceConfigure(context.gpu.surface, &context.gpu.surfaceConfig);
+		wgpuSurfaceConfigure(gpuContext.surface, &gpuContext.surfaceConfig);
 
-		printf("Configured surface: (%d x %d)\n", context.gpu.surfaceConfig.width, context.gpu.surfaceConfig.height);
+		printf("Configured surface: (%d x %d)\n", gpuContext.surfaceConfig.width, gpuContext.surfaceConfig.height);
 	}
 } // namespace Bk
 
@@ -431,13 +416,11 @@ int main(int argc, char** argv)
 {
 	using namespace Bk;
 
-	context.arena.Initialize(BK_MEGABYTES(8));
+	appContext.arena.Initialize(BK_MEGABYTES(8));
+	gpuContext.pipelines.Initialize(&appContext.arena, 32);
 
-	context.gpu.shaders.Initialize(&context.arena, 32);
-	context.gpu.pipelines.Initialize(&context.arena, 32);
-
-	context.gpu.instance = wgpuCreateInstance(nullptr);
-	wgpuInstanceRequestAdapter(context.gpu.instance, nullptr, Bk::OnAdapterAcquired, nullptr);
+	gpuContext.instance = wgpuCreateInstance(nullptr);
+	wgpuInstanceRequestAdapter(gpuContext.instance, nullptr, Bk::OnAdapterAcquired, nullptr);
 
 	emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, false, Bk::OnResize);
 	emscripten_request_animation_frame_loop(Bk::OnFrame, nullptr);

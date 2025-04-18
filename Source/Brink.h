@@ -126,27 +126,24 @@ namespace Bk
 
 	// Graphics
 
-	enum class ShaderType : uint8
+	struct GpuPipelineDesc
 	{
-		Vertex,
-		Pixel,
+		const char* name;
+
+		struct
+		{
+			const char* code;
+			const char* entryPoint;
+		} vertexShader;
+
+		struct
+		{
+			const char* code;
+			const char* entryPoint;
+		} pixelShader;
 	};
 
-	struct ShaderDesc
-	{
-		ShaderType type;
-		const char* entrypoint;
-		const char* code;
-	};
-
-	struct PipelineDesc
-	{
-		uint32 vertexShader;
-		uint32 pixelShader;
-	};
-
-	uint32 CreateShader(const ShaderDesc& desc);
-	uint32 CreatePipeline(const PipelineDesc& desc);
+	uint32 CreatePipeline(const GpuPipelineDesc& desc);
 } // namespace Bk
 
 // =========================================================================================================================
