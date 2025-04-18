@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <initializer_list>
+
 #define BK_ABS(x) ((x) < 0 ? -(x) : (x))
 #define BK_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define BK_MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -80,20 +82,41 @@ namespace Bk
 		size_t position;
 	};
 
-	template<typename ItemType>
+	template<typename Type>
+	struct Span
+	{
+		Span() = default;
+		Span(Type* data, size_t length);
+		Span(std::initializer_list<Type> data);
+
+		template<size_t N>
+		Span(Type (&data)[N]);
+
+		Span Slice(size_t index, size_t count = SIZE_MAX) const;
+
+		Type& operator[](size_t index) const;
+
+		Type* begin() const;
+		Type* end() const;
+
+		Type* data;
+		size_t length;
+	};
+
+	template<typename Type>
 	struct Pool
 	{
-		static_assert(sizeof(ItemType) >= sizeof(uintptr_t), "Pool item type must be at least the size of a pointer");
+		static_assert(sizeof(Type) >= sizeof(uintptr_t), "Pool type must be at least the size of a pointer");
 
 		void Initialize(Arena* arena, uint16 size);
 
-		ItemType* AllocateItem(uint32* handle = nullptr);
+		Type* AllocateItem(uint32* handle = nullptr);
 		void FreeItem(uint32 handle);
 
-		uint32 GetHandle(ItemType* item);
-		ItemType* GetItem(uint32 handle);
+		uint32 GetHandle(Type* item);
+		Type* GetItem(uint32 handle);
 
-		ItemType* items;
+		Type* items;
 		uint16* generations;
 		uint32* alive;
 		uintptr_t nextFree;
@@ -144,27 +167,72 @@ namespace Bk
 		return reinterpret_cast<Type*>(result);
 	}
 
-	template<typename ItemType>
-	void Pool<ItemType>::Initialize(Arena* arena, uint16 size)
+	template<typename Type>
+	Span<Type>::Span(Type* data, size_t length)
+		: data(data), length(length)
+	{
+	}
+
+	template<typename Type>
+	Span<Type>::Span(std::initializer_list<Type> data)
+		: data(const_cast<Type*>(data.begin())), length(data.size())
+	{
+	}
+
+	template<typename Type>
+	template<size_t N>
+	Span<Type>::Span(Type (&data)[N])
+		: data(data), length(N)
+	{
+	}
+
+	template<typename Type>
+	Span<Type> Span<Type>::Slice(size_t index, size_t count) const
+	{
+		BK_ASSERT(index >= 0 && index < length);
+		return Span(data + index, BK_MIN(count, length - index));
+	}
+
+	template<typename Type>
+	Type& Span<Type>::operator[](size_t index) const
+	{
+		BK_ASSERT(index >= 0 && index < length);
+		return data[index];
+	}
+
+	template<typename Type>
+	Type* Span<Type>::begin() const
+	{
+		return data;
+	}
+
+	template<typename Type>
+	Type* Span<Type>::end() const
+	{
+		return data + length;
+	}
+
+	template<typename Type>
+	void Pool<Type>::Initialize(Arena* arena, uint16 size)
 	{
 		capacity = size;
 		count = 0;
 
-		items = arena->Push<ItemType>(capacity);
+		items = arena->Push<Type>(capacity);
 		generations = arena->PushZeroed<uint16>(capacity);
 		alive = arena->PushZeroed<uint32>((capacity + 31) / 32);
 		nextFree = 0;
 	}
 
-	template<typename ItemType>
-	ItemType* Pool<ItemType>::AllocateItem(uint32* handle)
+	template<typename Type>
+	Type* Pool<Type>::AllocateItem(uint32* handle)
 	{
-		ItemType* item;
+		Type* item;
 		size_t index;
 
 		if (nextFree)
 		{
-			item = reinterpret_cast<ItemType*>(nextFree);
+			item = reinterpret_cast<Type*>(nextFree);
 			index = item - items;
 
 			nextFree = *reinterpret_cast<uintptr_t*>(nextFree);
@@ -196,8 +264,8 @@ namespace Bk
 		return item;
 	}
 
-	template<typename ItemType>
-	void Pool<ItemType>::FreeItem(uint32 handle)
+	template<typename Type>
+	void Pool<Type>::FreeItem(uint32 handle)
 	{
 		size_t index = handle & 0xFFFF;
 		BK_ASSERT(index < count);
@@ -208,13 +276,13 @@ namespace Bk
 		generations[index] += 1;
 		BitsetUnset(alive, index);
 
-		ItemType* item = items + index;
+		Type* item = items + index;
 		*reinterpret_cast<uintptr_t*>(item) = nextFree;
 		nextFree = reinterpret_cast<uintptr_t>(item);
 	}
 
-	template<typename ItemType>
-	uint32 Pool<ItemType>::GetHandle(ItemType* item)
+	template<typename Type>
+	uint32 Pool<Type>::GetHandle(Type* item)
 	{
 		size_t index = item - items;
 		BK_ASSERT(index < count);
@@ -224,8 +292,8 @@ namespace Bk
 		return (generation << 16) | index;
 	}
 
-	template<typename ItemType>
-	ItemType* Pool<ItemType>::GetItem(uint32 handle)
+	template<typename Type>
+	Type* Pool<Type>::GetItem(uint32 handle)
 	{
 		size_t index = handle & 0xFFFF;
 		BK_ASSERT(index < count);
