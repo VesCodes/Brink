@@ -124,6 +124,16 @@ namespace Bk
 		size_t count;
 	};
 
+	// Application
+
+	struct AppDesc
+	{
+		void (*initialize)(void);
+		void (*update)(void);
+	};
+
+	extern AppDesc Main(int32 argc, char** argv);
+
 	// Graphics
 
 	enum class GpuVertexFormat : uint8
@@ -189,8 +199,26 @@ namespace Bk
 		Span<uint8> data;
 	};
 
+	struct GpuPassDesc
+	{
+		const char* name;
+		float clearColor[4];
+	};
+
+	struct GpuDrawDesc
+	{
+		uint32 pipeline;
+		uint32 vertexCount;
+		uint32 instanceCount;
+	};
+
 	uint32 CreatePipeline(const GpuPipelineDesc& desc);
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
+
+	void BeginPass(const GpuPassDesc& desc);
+	void EndPass();
+
+	void Draw(const GpuDrawDesc& desc);
 } // namespace Bk
 
 // =========================================================================================================================

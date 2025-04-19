@@ -13,9 +13,7 @@ namespace Bk
 	struct AppContext
 	{
 		Arena arena;
-
-		// #TODO: temp
-		uint32 pipeline;
+		AppDesc desc;
 	} appContext;
 
 	struct GpuPipeline
@@ -36,6 +34,9 @@ namespace Bk
 		WGPUAdapter adapter;
 		WGPUDevice device;
 		WGPUQueue queue;
+
+		WGPUCommandEncoder commandEncoder;
+		WGPURenderPassEncoder renderPassEncoder;
 
 		Pool<GpuPipeline> pipelines;
 		Pool<GpuBuffer> buffers;
@@ -330,6 +331,54 @@ namespace Bk
 		return bufferHandle;
 	}
 
+	void BeginPass(const GpuPassDesc& desc)
+	{
+		BK_ASSERT(gpuContext.renderPassEncoder == nullptr);
+
+		WGPURenderPassDescriptor passDesc = {};
+		passDesc.label = desc.name;
+
+		WGPUSurfaceTexture surfaceTexture;
+		wgpuSurfaceGetCurrentTexture(gpuContext.surface, &surfaceTexture);
+
+		WGPURenderPassColorAttachment colorAttachment = {};
+		colorAttachment.view = wgpuTextureCreateView(surfaceTexture.texture, nullptr);
+		colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+		colorAttachment.loadOp = WGPULoadOp_Clear;
+		colorAttachment.storeOp = WGPUStoreOp_Store;
+		colorAttachment.clearValue.r = desc.clearColor[0];
+		colorAttachment.clearValue.g = desc.clearColor[1];
+		colorAttachment.clearValue.b = desc.clearColor[2];
+		colorAttachment.clearValue.a = desc.clearColor[3];
+
+		passDesc.colorAttachments = &colorAttachment;
+		passDesc.colorAttachmentCount = 1;
+
+		gpuContext.renderPassEncoder = wgpuCommandEncoderBeginRenderPass(gpuContext.commandEncoder, &passDesc);
+	}
+
+	void EndPass()
+	{
+		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
+
+		wgpuRenderPassEncoderEnd(gpuContext.renderPassEncoder);
+		wgpuRenderPassEncoderRelease(gpuContext.renderPassEncoder);
+		gpuContext.renderPassEncoder = nullptr;
+	}
+
+	void Draw(const GpuDrawDesc& desc)
+	{
+		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
+
+		if (desc.pipeline)
+		{
+			GpuPipeline* pipeline = gpuContext.pipelines.GetItem(desc.pipeline);
+			wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
+		}
+
+		wgpuRenderPassEncoderDraw(gpuContext.renderPassEncoder, desc.vertexCount, desc.instanceCount, 0, 0);
+	}
+
 	//
 	//
 	//
@@ -369,27 +418,7 @@ namespace Bk
 
 		ConfigureSurface();
 
-		appContext.pipeline = CreatePipeline({
-			.name = "Test",
-			.VS = {
-				.code = R"(
-@vertex fn VsMain(@builtin(vertex_index) position: u32) -> @builtin(position) vec4f
-{
-	let x = f32(i32(position) - 1);
-	let y = f32(i32(position & 1u) * 2 - 1);
-	return vec4f(x, y, 0.0, 1.0);
-}
-)",
-			},
-			.PS = {
-				.code = R"(
-@fragment fn PsMain() -> @location(0) vec4f
-{
-	return vec4f(1.0, 0.0, 0.0, 1.0);
-}
-)",
-			},
-		});
+		appContext.desc.initialize();
 	}
 
 	void OnDeviceError(WGPUErrorType type, const char* message, void* userData)
@@ -411,37 +440,16 @@ namespace Bk
 			return true;
 		}
 
-		WGPUSurfaceTexture surfaceTexture;
-		wgpuSurfaceGetCurrentTexture(gpuContext.surface, &surfaceTexture);
+		gpuContext.commandEncoder = wgpuDeviceCreateCommandEncoder(gpuContext.device, nullptr);
 
-		// TODO: Check texture status
+		appContext.desc.update();
 
-		WGPUTextureView surfaceView = wgpuTextureCreateView(surfaceTexture.texture, nullptr);
+		WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(gpuContext.commandEncoder, nullptr);
+		wgpuQueueSubmit(gpuContext.queue, 1, &commandBuffer);
+		wgpuCommandBufferRelease(commandBuffer);
 
-		WGPUCommandEncoder cmdEncoder = wgpuDeviceCreateCommandEncoder(gpuContext.device, nullptr);
-
-		WGPURenderPassDescriptor renderPassDesc = {};
-		renderPassDesc.colorAttachmentCount = 1;
-		WGPURenderPassColorAttachment colorAttachment = {
-			.view = surfaceView,
-			.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-			.loadOp = WGPULoadOp_Clear,
-			.storeOp = WGPUStoreOp_Store,
-			.clearValue = (WGPUColor){ 0.0f, 0.2f, 0.3f, 1.0f },
-		};
-
-		renderPassDesc.colorAttachments = &colorAttachment;
-
-		WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(cmdEncoder, &renderPassDesc);
-
-		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(appContext.pipeline);
-		wgpuRenderPassEncoderSetPipeline(renderPass, pipeline->handle);
-		wgpuRenderPassEncoderDraw(renderPass, 3, 1, 0, 0);
-
-		wgpuRenderPassEncoderEnd(renderPass);
-
-		WGPUCommandBuffer cmdBuffer = wgpuCommandEncoderFinish(cmdEncoder, nullptr);
-		wgpuQueueSubmit(gpuContext.queue, 1, &cmdBuffer);
+		wgpuCommandEncoderRelease(gpuContext.commandEncoder);
+		gpuContext.commandEncoder = nullptr;
 
 		return true;
 	}
@@ -470,6 +478,8 @@ int main(int argc, char** argv)
 	using namespace Bk;
 
 	appContext.arena.Initialize(BK_MEGABYTES(8));
+	appContext.desc = Main(argc, argv);
+
 	gpuContext.pipelines.Initialize(&appContext.arena, 32);
 
 	gpuContext.instance = wgpuCreateInstance(nullptr);
