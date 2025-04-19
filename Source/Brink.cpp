@@ -24,6 +24,7 @@ namespace Bk
 	struct GpuBuffer
 	{
 		WGPUBuffer handle;
+		uint64 size;
 	};
 
 	struct GpuContext
@@ -234,6 +235,18 @@ namespace Bk
 		}
 	}
 
+	WGPUVertexFormat WgpuConvert(const GpuVertexFormat Value)
+	{
+		switch (Value)
+		{
+			case GpuVertexFormat::Float32: return WGPUVertexFormat_Float32;
+			case GpuVertexFormat::Float32x2: return WGPUVertexFormat_Float32x2;
+			case GpuVertexFormat::Float32x3: return WGPUVertexFormat_Float32x3;
+			case GpuVertexFormat::Float32x4: return WGPUVertexFormat_Float32x4;
+			default: return WGPUVertexFormat_Force32;
+		}
+	}
+
 	uint32 CreatePipeline(const GpuPipelineDesc& desc)
 	{
 		WGPURenderPipelineDescriptor pipelineDesc = {};
@@ -253,6 +266,29 @@ namespace Bk
 
 			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
 			pipelineDesc.vertex.entryPoint = desc.VS.entryPoint;
+
+			// #TODO: Temp arena allocations
+			WGPUVertexBufferLayout vertexBuffers[8] = {};
+			WGPUVertexAttribute vertexAttributes[8][16] = {};
+
+			pipelineDesc.vertex.buffers = vertexBuffers;
+			pipelineDesc.vertex.bufferCount = desc.VS.buffers.length;
+
+			for (int32 bufferIdx = 0; bufferIdx < desc.VS.buffers.length; ++bufferIdx)
+			{
+				const GpuVertexBufferDesc& bufferDesc = desc.VS.buffers[bufferIdx];
+				vertexBuffers[bufferIdx].arrayStride = bufferDesc.stride;
+				vertexBuffers[bufferIdx].attributes = vertexAttributes[bufferIdx];
+				vertexBuffers[bufferIdx].attributeCount = bufferDesc.attributes.length;
+
+				for (int32 attributeIdx = 0; attributeIdx < bufferDesc.attributes.length; ++attributeIdx)
+				{
+					const GpuVertexBufferAttribute& attributeDesc = bufferDesc.attributes[attributeIdx];
+					vertexAttributes[bufferIdx][attributeIdx].format = WgpuConvert(attributeDesc.format);
+					vertexAttributes[bufferIdx][attributeIdx].offset = attributeDesc.offset;
+					vertexAttributes[bufferIdx][attributeIdx].shaderLocation = attributeIdx;
+				}
+			}
 		}
 
 		if (desc.PS.code)
@@ -289,9 +325,12 @@ namespace Bk
 
 	uint32 CreateBuffer(const GpuBufferDesc& desc)
 	{
+		// Allow shorthand of not specifying buffer size if passing data
+		const uint64 bufferSize = desc.size == 0 ? desc.data.length : desc.size;
+
 		WGPUBufferDescriptor bufferDesc = {};
 		bufferDesc.label = desc.name;
-		bufferDesc.size = BK_ALIGN(desc.size, 4);
+		bufferDesc.size = BK_ALIGN(bufferSize, 4); // Mapping requires size to be multiple of 4
 		bufferDesc.mappedAtCreation = desc.data.length != 0;
 
 		switch (desc.type)
@@ -313,10 +352,10 @@ namespace Bk
 		WGPUBuffer buffer = wgpuDeviceCreateBuffer(gpuContext.device, &bufferDesc);
 		if (buffer && bufferDesc.mappedAtCreation)
 		{
-			const size_t bufferMappedSize = BK_MIN(desc.size, BK_ALIGN(desc.data.length, 4));
-			void* bufferMappedPtr = wgpuBufferGetMappedRange(buffer, 0, bufferMappedSize);
+			const size_t bufferMappedSize = BK_MIN(bufferSize, desc.data.length);
+			void* bufferMappedPtr = wgpuBufferGetMappedRange(buffer, 0, BK_ALIGN(bufferMappedSize, 4));
 
-			MemoryCopy(bufferMappedPtr, desc.data.data, desc.data.length);
+			MemoryCopy(bufferMappedPtr, desc.data.data, bufferMappedSize);
 
 			wgpuBufferUnmap(buffer);
 		}
@@ -326,6 +365,7 @@ namespace Bk
 		{
 			GpuBuffer* bufferWrapper = gpuContext.buffers.AllocateItem(&bufferHandle);
 			bufferWrapper->handle = buffer;
+			bufferWrapper->size = bufferSize;
 		}
 
 		return bufferHandle;
@@ -376,7 +416,13 @@ namespace Bk
 			wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
 		}
 
-		wgpuRenderPassEncoderDraw(gpuContext.renderPassEncoder, desc.vertexCount, desc.instanceCount, 0, 0);
+		if (desc.vertexBuffer)
+		{
+			GpuBuffer* buffer = gpuContext.buffers.GetItem(desc.vertexBuffer);
+			wgpuRenderPassEncoderSetVertexBuffer(gpuContext.renderPassEncoder, 0, buffer->handle, 0, buffer->size);
+		}
+
+		wgpuRenderPassEncoderDraw(gpuContext.renderPassEncoder, desc.vertexCount, desc.instanceCount, desc.vertexOffset, desc.instanceOffset);
 	}
 
 	//
@@ -481,6 +527,7 @@ int main(int argc, char** argv)
 	appContext.desc = Main(argc, argv);
 
 	gpuContext.pipelines.Initialize(&appContext.arena, 32);
+	gpuContext.buffers.Initialize(&appContext.arena, 32);
 
 	gpuContext.instance = wgpuCreateInstance(nullptr);
 	wgpuInstanceRequestAdapter(gpuContext.instance, nullptr, Bk::OnAdapterAcquired, nullptr);

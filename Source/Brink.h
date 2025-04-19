@@ -139,7 +139,10 @@ namespace Bk
 	enum class GpuVertexFormat : uint8
 	{
 		// #TODO: WGPUVertexFormat
-		Unknown,
+		Float32,
+		Float32x2,
+		Float32x3,
+		Float32x4,
 	};
 
 	struct GpuVertexBufferAttribute
@@ -208,7 +211,10 @@ namespace Bk
 	struct GpuDrawDesc
 	{
 		uint32 pipeline;
+		uint32 vertexBuffer;
+		uint32 vertexOffset;
 		uint32 vertexCount;
+		uint32 instanceOffset;
 		uint32 instanceCount;
 	};
 
