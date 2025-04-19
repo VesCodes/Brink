@@ -126,6 +126,24 @@ namespace Bk
 
 	// Graphics
 
+	enum class GpuVertexFormat : uint8
+	{
+		// #TODO: WGPUVertexFormat
+		Unknown,
+	};
+
+	struct GpuVertexBufferAttribute
+	{
+		uint64 offset;
+		GpuVertexFormat format;
+	};
+
+	struct GpuVertexBufferDesc
+	{
+		uint64 stride;
+		Span<GpuVertexBufferAttribute> attributes;
+	};
+
 	struct GpuPipelineDesc
 	{
 		const char* name;
@@ -134,16 +152,45 @@ namespace Bk
 		{
 			const char* code;
 			const char* entryPoint;
-		} vertexShader;
+			Span<GpuVertexBufferDesc> buffers;
+		} VS;
 
 		struct
 		{
 			const char* code;
 			const char* entryPoint;
-		} pixelShader;
+		} PS;
+	};
+
+	enum class GpuBufferType : uint8
+	{
+		Unknown,
+		Uniform,
+		Storage,
+		Vertex,
+		Index,
+	};
+
+	enum class GpuBufferAccess : uint8
+	{
+		GpuOnly,
+		CpuRead,
+		CpuWrite,
+	};
+
+	struct GpuBufferDesc
+	{
+		const char* name;
+
+		GpuBufferType type;
+		GpuBufferAccess access;
+		uint64 size;
+
+		Span<uint8> data;
 	};
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc);
+	uint32 CreateBuffer(const GpuBufferDesc& desc);
 } // namespace Bk
 
 // =========================================================================================================================

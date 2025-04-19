@@ -23,6 +23,11 @@ namespace Bk
 		WGPURenderPipeline handle;
 	};
 
+	struct GpuBuffer
+	{
+		WGPUBuffer handle;
+	};
+
 	struct GpuContext
 	{
 		WGPUInstance instance;
@@ -33,6 +38,7 @@ namespace Bk
 		WGPUQueue queue;
 
 		Pool<GpuPipeline> pipelines;
+		Pool<GpuBuffer> buffers;
 	} gpuContext;
 
 	void FatalError(int32 exitCode, const char* format, ...)
@@ -235,46 +241,93 @@ namespace Bk
 		pipelineDesc.multisample.count = 1;
 		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
-		if (desc.vertexShader.code)
+		if (desc.VS.code)
 		{
 			WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
 			shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
-			shaderCodeDesc.code = desc.vertexShader.code;
+			shaderCodeDesc.code = desc.VS.code;
 
 			WGPUShaderModuleDescriptor shaderDesc = {};
 			shaderDesc.nextInChain = &shaderCodeDesc.chain;
 
 			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
-			pipelineDesc.vertex.entryPoint = desc.vertexShader.entryPoint;
+			pipelineDesc.vertex.entryPoint = desc.VS.entryPoint;
 		}
 
-		if (desc.pixelShader.code)
+		if (desc.PS.code)
 		{
 			WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
 			shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
-			shaderCodeDesc.code = desc.pixelShader.code;
+			shaderCodeDesc.code = desc.PS.code;
 
 			WGPUShaderModuleDescriptor shaderDesc = {};
 			shaderDesc.nextInChain = &shaderCodeDesc.chain;
 
-			WGPUColorTargetState fragmentTarget = {};
-			fragmentTarget.format = wgpuSurfaceGetPreferredFormat(gpuContext.surface, gpuContext.adapter);
-			fragmentTarget.writeMask = WGPUColorWriteMask_All;
-
 			WGPUFragmentState fragmentState = {};
 			fragmentState.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
-			fragmentState.entryPoint = desc.pixelShader.entryPoint;
+			fragmentState.entryPoint = desc.PS.entryPoint;
+
+			WGPUColorTargetState surfaceTarget = { .format = gpuContext.surfaceConfig.format, .writeMask = WGPUColorWriteMask_All };
+			fragmentState.targets = &surfaceTarget;
 			fragmentState.targetCount = 1;
-			fragmentState.targets = &fragmentTarget;
 
 			pipelineDesc.fragment = &fragmentState;
 		}
 
-		uint32 pipelineHandle;
-		GpuPipeline* pipeline = gpuContext.pipelines.AllocateItem(&pipelineHandle);
-		pipeline->handle = wgpuDeviceCreateRenderPipeline(gpuContext.device, &pipelineDesc);
+		WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(gpuContext.device, &pipelineDesc);
+
+		uint32 pipelineHandle = 0;
+		if (pipeline)
+		{
+			GpuPipeline* pipelineWrapper = gpuContext.pipelines.AllocateItem(&pipelineHandle);
+			pipelineWrapper->handle = pipeline;
+		}
 
 		return pipelineHandle;
+	}
+
+	uint32 CreateBuffer(const GpuBufferDesc& desc)
+	{
+		WGPUBufferDescriptor bufferDesc = {};
+		bufferDesc.label = desc.name;
+		bufferDesc.size = BK_ALIGN(desc.size, 4);
+		bufferDesc.mappedAtCreation = desc.data.length != 0;
+
+		switch (desc.type)
+		{
+			case GpuBufferType::Uniform: bufferDesc.usage = WGPUBufferUsage_Uniform; break;
+			case GpuBufferType::Storage: bufferDesc.usage = WGPUBufferUsage_Storage; break;
+			case GpuBufferType::Vertex: bufferDesc.usage = WGPUBufferUsage_Vertex; break;
+			case GpuBufferType::Index: bufferDesc.usage = WGPUBufferUsage_Index; break;
+			default: break;
+		}
+
+		switch (desc.access)
+		{
+			case GpuBufferAccess::GpuOnly: bufferDesc.usage |= WGPUBufferUsage_CopySrc | WGPUBufferUsage_CopyDst; break;
+			case GpuBufferAccess::CpuRead: bufferDesc.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst; break;
+			case GpuBufferAccess::CpuWrite: bufferDesc.usage = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc; break;
+		}
+
+		WGPUBuffer buffer = wgpuDeviceCreateBuffer(gpuContext.device, &bufferDesc);
+		if (buffer && bufferDesc.mappedAtCreation)
+		{
+			const size_t bufferMappedSize = BK_MIN(desc.size, BK_ALIGN(desc.data.length, 4));
+			void* bufferMappedPtr = wgpuBufferGetMappedRange(buffer, 0, bufferMappedSize);
+
+			MemoryCopy(bufferMappedPtr, desc.data.data, desc.data.length);
+
+			wgpuBufferUnmap(buffer);
+		}
+
+		uint32 bufferHandle = 0;
+		if (buffer)
+		{
+			GpuBuffer* bufferWrapper = gpuContext.buffers.AllocateItem(&bufferHandle);
+			bufferWrapper->handle = buffer;
+		}
+
+		return bufferHandle;
 	}
 
 	//
@@ -318,7 +371,7 @@ namespace Bk
 
 		appContext.pipeline = CreatePipeline({
 			.name = "Test",
-			.vertexShader = {
+			.VS = {
 				.code = R"(
 @vertex fn VsMain(@builtin(vertex_index) position: u32) -> @builtin(position) vec4f
 {
@@ -328,7 +381,7 @@ namespace Bk
 }
 )",
 			},
-			.pixelShader = {
+			.PS = {
 				.code = R"(
 @fragment fn PsMain() -> @location(0) vec4f
 {
@@ -374,7 +427,7 @@ namespace Bk
 			.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
 			.loadOp = WGPULoadOp_Clear,
 			.storeOp = WGPUStoreOp_Store,
-			.clearValue = (WGPUColor){0.0f, 0.2f, 0.3f, 1.0f},
+			.clearValue = (WGPUColor){ 0.0f, 0.2f, 0.3f, 1.0f },
 		};
 
 		renderPassDesc.colorAttachments = &colorAttachment;

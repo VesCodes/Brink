@@ -7,3 +7,6 @@ NamespaceIndentation: All
 BreakTemplateDeclarations: Yes
 SpaceAfterTemplateKeyword: false
 SkipMacroDefinitionBody: true
+Cpp11BracedListStyle: false
+IndentCaseLabels: true
+AllowShortCaseLabelsOnASingleLine: true
