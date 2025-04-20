@@ -157,6 +157,12 @@ namespace Bk
 		Span<GpuVertexBufferAttribute> attributes;
 	};
 
+	enum class GpuIndexFormat : uint8
+	{
+		Uint16,
+		Uint32,
+	};
+
 	struct GpuPipelineDesc
 	{
 		const char* name;
@@ -173,6 +179,8 @@ namespace Bk
 			const char* code;
 			const char* entryPoint;
 		} PS;
+
+		GpuIndexFormat indexFormat;
 	};
 
 	enum class GpuBufferType : uint8
@@ -212,9 +220,13 @@ namespace Bk
 	{
 		uint32 pipeline;
 		uint32 vertexBuffer;
+		uint32 indexBuffer;
+
 		uint32 vertexOffset;
-		uint32 vertexCount;
+		uint32 indexOffset;
 		uint32 instanceOffset;
+
+		uint32 triangleCount;
 		uint32 instanceCount;
 	};
 

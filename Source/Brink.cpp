@@ -19,6 +19,7 @@ namespace Bk
 	struct GpuPipeline
 	{
 		WGPURenderPipeline handle;
+		WGPUIndexFormat indexFormat;
 	};
 
 	struct GpuBuffer
@@ -235,9 +236,9 @@ namespace Bk
 		}
 	}
 
-	WGPUVertexFormat WgpuConvert(const GpuVertexFormat Value)
+	WGPUVertexFormat WgpuConvert(const GpuVertexFormat format)
 	{
-		switch (Value)
+		switch (format)
 		{
 			case GpuVertexFormat::Float32: return WGPUVertexFormat_Float32;
 			case GpuVertexFormat::Float32x2: return WGPUVertexFormat_Float32x2;
@@ -246,6 +247,16 @@ namespace Bk
 			default: return WGPUVertexFormat_Force32;
 		}
 	}
+
+	WGPUIndexFormat WgpuConvert(const GpuIndexFormat format)
+	{
+		switch (format)
+		{
+			case GpuIndexFormat::Uint32: return WGPUIndexFormat_Uint32;
+			case GpuIndexFormat::Uint16: return WGPUIndexFormat_Uint16;
+			default: return WGPUIndexFormat_Force32;
+		}
+	};
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc)
 	{
@@ -318,6 +329,7 @@ namespace Bk
 		{
 			GpuPipeline* pipelineWrapper = gpuContext.pipelines.AllocateItem(&pipelineHandle);
 			pipelineWrapper->handle = pipeline;
+			pipelineWrapper->indexFormat = WgpuConvert(desc.indexFormat);
 		}
 
 		return pipelineHandle;
@@ -409,12 +421,10 @@ namespace Bk
 	void Draw(const GpuDrawDesc& desc)
 	{
 		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
+		BK_ASSERT(desc.pipeline);
 
-		if (desc.pipeline)
-		{
-			GpuPipeline* pipeline = gpuContext.pipelines.GetItem(desc.pipeline);
-			wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
-		}
+		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(desc.pipeline);
+		wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
 
 		if (desc.vertexBuffer)
 		{
@@ -422,7 +432,21 @@ namespace Bk
 			wgpuRenderPassEncoderSetVertexBuffer(gpuContext.renderPassEncoder, 0, buffer->handle, 0, buffer->size);
 		}
 
-		wgpuRenderPassEncoderDraw(gpuContext.renderPassEncoder, desc.vertexCount, desc.instanceCount, desc.vertexOffset, desc.instanceOffset);
+		if (desc.indexBuffer)
+		{
+			GpuBuffer* buffer = gpuContext.buffers.GetItem(desc.indexBuffer);
+			wgpuRenderPassEncoderSetIndexBuffer(gpuContext.renderPassEncoder, buffer->handle, pipeline->indexFormat, 0, buffer->size);
+
+			wgpuRenderPassEncoderDrawIndexed(
+				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
+				desc.indexOffset, desc.vertexOffset, desc.instanceOffset);
+		}
+		else
+		{
+			wgpuRenderPassEncoderDraw(
+				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
+				desc.vertexOffset, desc.instanceOffset);
+		}
 	}
 
 	//
