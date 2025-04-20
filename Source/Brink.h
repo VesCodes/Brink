@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <initializer_list>
+#include <type_traits>
 
 #define BK_ABS(x) ((x) < 0 ? -(x) : (x))
 #define BK_MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -32,6 +33,20 @@ namespace Bk
 	using uint16 = uint16_t;
 	using uint32 = uint32_t;
 	using uint64 = uint64_t;
+
+	template<typename EnumType>
+	bool EnumHasAllFlags(EnumType value, EnumType flags)
+	{
+		using UnderlyingType = std::underlying_type_t<EnumType>;
+		return (static_cast<UnderlyingType>(value) & static_cast<UnderlyingType>(flags)) == static_cast<UnderlyingType>(flags);
+	}
+
+	template<typename EnumType>
+	bool EnumHasAnyFlags(EnumType value, EnumType flags)
+	{
+		using UnderlyingType = std::underlying_type_t<EnumType>;
+		return (static_cast<UnderlyingType>(value) & static_cast<UnderlyingType>(flags)) != 0;
+	}
 
 	[[noreturn]] void FatalError(int32 exitCode, const char* format, ...);
 
@@ -180,6 +195,7 @@ namespace Bk
 			const char* entryPoint;
 		} PS;
 
+		Span<uint32> bindGroups;
 		GpuIndexFormat indexFormat;
 	};
 
@@ -210,6 +226,37 @@ namespace Bk
 		Span<uint8> data;
 	};
 
+	enum class GpuBindGroupVisibility : uint8
+	{
+		None,
+		Vertex = (1 << 0),
+		Pixel = (1 << 1),
+		Compute = (1 << 2),
+		All = (Vertex | Pixel | Compute),
+	};
+
+	enum class GpuBindGroupBufferType : uint8
+	{
+		None,
+		Uniform,
+		Storage,
+		ReadOnlyStorage,
+	};
+
+	struct GpuBindGroupLayoutEntry
+	{
+		// #TODO: Textures and samplers
+		GpuBindGroupVisibility visibility;
+		GpuBindGroupBufferType bufferType;
+		bool bufferDynamicOffset;
+	};
+
+	struct GpuBindGroupLayoutDesc
+	{
+		const char* name;
+		Span<GpuBindGroupLayoutEntry> entries;
+	};
+
 	struct GpuPassDesc
 	{
 		const char* name;
@@ -232,6 +279,7 @@ namespace Bk
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc);
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
+	uint32 CreateBindGroupLayout(const GpuBindGroupLayoutDesc& desc);
 
 	void BeginPass(const GpuPassDesc& desc);
 	void EndPass();
