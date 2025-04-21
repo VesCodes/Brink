@@ -237,24 +237,37 @@ namespace Bk
 
 	enum class GpuBindGroupBufferType : uint8
 	{
-		None,
 		Uniform,
 		Storage,
 		ReadOnlyStorage,
 	};
 
-	struct GpuBindGroupLayoutEntry
+	struct GpuBindGroupLayoutBufferEntry
 	{
-		// #TODO: Textures and samplers
+		uint32 slot;
 		GpuBindGroupVisibility visibility;
-		GpuBindGroupBufferType bufferType;
-		bool bufferDynamicOffset;
+		GpuBindGroupBufferType type;
+		bool hasDynamicOffset;
 	};
 
 	struct GpuBindGroupLayoutDesc
 	{
 		const char* name;
-		Span<GpuBindGroupLayoutEntry> entries;
+		Span<GpuBindGroupLayoutBufferEntry> buffers;
+	};
+
+	struct GpuBindGroupBufferEntry
+	{
+		uint32 slot;
+		uint32 buffer;
+		uint64 offset;
+	};
+
+	struct GpuBindGroupDesc
+	{
+		const char* name;
+		uint32 layout;
+		Span<GpuBindGroupBufferEntry> buffers;
 	};
 
 	struct GpuPassDesc
@@ -268,6 +281,7 @@ namespace Bk
 		uint32 pipeline;
 		uint32 vertexBuffer;
 		uint32 indexBuffer;
+		Span<uint32> bindGroups;
 
 		uint32 vertexOffset;
 		uint32 indexOffset;
@@ -280,6 +294,7 @@ namespace Bk
 	uint32 CreatePipeline(const GpuPipelineDesc& desc);
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
 	uint32 CreateBindGroupLayout(const GpuBindGroupLayoutDesc& desc);
+	uint32 CreateBindGroup(const GpuBindGroupDesc& desc);
 
 	void BeginPass(const GpuPassDesc& desc);
 	void EndPass();

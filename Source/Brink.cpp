@@ -33,6 +33,11 @@ namespace Bk
 		WGPUBindGroupLayout handle;
 	};
 
+	struct GpuBindGroup
+	{
+		WGPUBindGroup handle;
+	};
+
 	struct GpuContext
 	{
 		WGPUInstance instance;
@@ -48,6 +53,7 @@ namespace Bk
 		Pool<GpuPipeline> pipelines;
 		Pool<GpuBuffer> buffers;
 		Pool<GpuBindGroupLayout> bindGroupLayouts;
+		Pool<GpuBindGroup> bindGroups;
 	} gpuContext;
 
 	void FatalError(int32 exitCode, const char* format, ...)
@@ -290,7 +296,6 @@ namespace Bk
 	{
 		switch (value)
 		{
-			case GpuBindGroupBufferType::None: return WGPUBufferBindingType_Undefined;
 			case GpuBindGroupBufferType::Uniform: return WGPUBufferBindingType_Uniform;
 			case GpuBindGroupBufferType::Storage: return WGPUBufferBindingType_Storage;
 			case GpuBindGroupBufferType::ReadOnlyStorage: return WGPUBufferBindingType_ReadOnlyStorage;
@@ -327,6 +332,7 @@ namespace Bk
 			for (int32 bufferIdx = 0; bufferIdx < desc.VS.buffers.length; ++bufferIdx)
 			{
 				const GpuVertexBufferDesc& bufferDesc = desc.VS.buffers[bufferIdx];
+
 				vertexBuffers[bufferIdx].arrayStride = bufferDesc.stride;
 				vertexBuffers[bufferIdx].attributes = vertexAttributes[bufferIdx];
 				vertexBuffers[bufferIdx].attributeCount = bufferDesc.attributes.length;
@@ -334,6 +340,7 @@ namespace Bk
 				for (int32 attributeIdx = 0; attributeIdx < bufferDesc.attributes.length; ++attributeIdx)
 				{
 					const GpuVertexBufferAttribute& attributeDesc = bufferDesc.attributes[attributeIdx];
+
 					vertexAttributes[bufferIdx][attributeIdx].format = WgpuConvert(attributeDesc.format);
 					vertexAttributes[bufferIdx][attributeIdx].offset = attributeDesc.offset;
 					vertexAttributes[bufferIdx][attributeIdx].shaderLocation = attributeIdx;
@@ -465,15 +472,21 @@ namespace Bk
 		WGPUBindGroupLayoutEntry entries[8] = {};
 
 		layoutDesc.entries = entries;
-		layoutDesc.entryCount = desc.entries.length;
+		layoutDesc.entryCount = desc.buffers.length;
 
-		for (int32 entryIdx = 0; entryIdx < desc.entries.length; ++entryIdx)
+		for (int32 entryIdx = 0, entrySlot = 0; entryIdx < desc.buffers.length; ++entryIdx, ++entrySlot)
 		{
-			const GpuBindGroupLayoutEntry& entry = desc.entries[entryIdx];
-			entries[entryIdx].binding = entryIdx;
+			const GpuBindGroupLayoutBufferEntry& entry = desc.buffers[entryIdx];
+
+			if (entry.slot > entrySlot)
+			{
+				entrySlot = entry.slot;
+			}
+
+			entries[entryIdx].binding = entrySlot;
 			entries[entryIdx].visibility = WgpuConvert(entry.visibility);
-			entries[entryIdx].buffer.type = WgpuConvert(entry.bufferType);
-			entries[entryIdx].buffer.hasDynamicOffset = entry.bufferDynamicOffset;
+			entries[entryIdx].buffer.type = WgpuConvert(entry.type);
+			entries[entryIdx].buffer.hasDynamicOffset = entry.hasDynamicOffset;
 		}
 
 		WGPUBindGroupLayout layout = wgpuDeviceCreateBindGroupLayout(gpuContext.device, &layoutDesc);
@@ -486,6 +499,49 @@ namespace Bk
 		}
 
 		return layoutHandle;
+	}
+
+	uint32 CreateBindGroup(const GpuBindGroupDesc& desc)
+	{
+		WGPUBindGroupDescriptor bindGroupDesc = {};
+		bindGroupDesc.label = desc.name;
+		bindGroupDesc.layout = gpuContext.bindGroupLayouts.GetItem(desc.layout)->handle;
+
+		// #TODO: Temp arena allocations
+		WGPUBindGroupEntry entries[8] = {};
+
+		bindGroupDesc.entries = entries;
+		bindGroupDesc.entryCount = desc.buffers.length;
+
+		for (int32 entryIdx = 0, entrySlot = 0; entryIdx < desc.buffers.length; ++entryIdx, ++entrySlot)
+		{
+			const GpuBindGroupBufferEntry& entry = desc.buffers[entryIdx];
+
+			if (entry.slot > entrySlot)
+			{
+				entrySlot = entry.slot;
+			}
+
+			entries[entryIdx].binding = entrySlot;
+			if (const GpuBuffer* buffer = gpuContext.buffers.GetItem(entry.buffer))
+			{
+				BK_ASSERT(entry.offset < buffer->size);
+				entries[entryIdx].buffer = buffer->handle;
+				entries[entryIdx].offset = entry.offset;
+				entries[entryIdx].size = buffer->size - entry.offset;
+			}
+		}
+
+		WGPUBindGroup bindGroup = wgpuDeviceCreateBindGroup(gpuContext.device, &bindGroupDesc);
+
+		uint32 bindGroupHandle;
+		if (bindGroup)
+		{
+			GpuBindGroup* bindGroupWrapper = gpuContext.bindGroups.AllocateItem(&bindGroupHandle);
+			bindGroupWrapper->handle = bindGroup;
+		}
+
+		return bindGroupHandle;
 	}
 
 	void BeginPass(const GpuPassDesc& desc)
@@ -530,6 +586,12 @@ namespace Bk
 
 		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(desc.pipeline);
 		wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
+
+		for (int32 groupIdx = 0; groupIdx < desc.bindGroups.length; ++groupIdx)
+		{
+			GpuBindGroup* group = gpuContext.bindGroups.GetItem(desc.bindGroups[groupIdx]);
+			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
+		}
 
 		if (desc.vertexBuffer)
 		{
@@ -658,6 +720,7 @@ int main(int argc, char** argv)
 	gpuContext.pipelines.Initialize(&appContext.arena, 32);
 	gpuContext.buffers.Initialize(&appContext.arena, 32);
 	gpuContext.bindGroupLayouts.Initialize(&appContext.arena, 32);
+	gpuContext.bindGroups.Initialize(&appContext.arena, 32);
 
 	gpuContext.instance = wgpuCreateInstance(nullptr);
 	wgpuInstanceRequestAdapter(gpuContext.instance, nullptr, Bk::OnAdapterAcquired, nullptr);
