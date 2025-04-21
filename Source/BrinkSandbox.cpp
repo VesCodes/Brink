@@ -7,12 +7,19 @@ using namespace Bk;
 struct
 {
 	Arena arena;
+	uint32 testBindings;
 	uint32 testPipeline;
 	uint32 testVertexBuffer;
 	uint32 testIndexBuffer;
 } state;
 
 const char* testShader = R"(
+struct Globals
+{
+	color: vec4f
+};
+
+@group(0) @binding(0) var<uniform> globals : Globals;
 @vertex fn VsMain(@location(0) position: vec2f) -> @builtin(position) vec4f
 {
     return vec4f(position, 0.0, 1.0);
@@ -20,7 +27,7 @@ const char* testShader = R"(
 
 @fragment fn PsMain() -> @location(0) vec4f
 {
-    return vec4f(0.2, 0.7, 0.3, 1.0);
+    return globals.color;
 }
 )";
 
@@ -31,6 +38,30 @@ uint32 numIndices = subdivisions * 3;
 void Initialize()
 {
 	state.arena.Initialize(BK_MEGABYTES(2));
+
+	float globals[] = { 0.2f, 0.7f, 0.3f, 0.0f };
+
+	uint32 testGlobalsBuffer = CreateBuffer({
+		.name = "Test Globals Buffer",
+		.type = GpuBufferType::Uniform,
+		.access = GpuBufferAccess::GpuOnly,
+		.data = Span((uint8*)globals, sizeof(globals)),
+	});
+
+	uint32 testBindingsLayout = CreateBindGroupLayout({
+		.name = "Test Bindings Layout",
+		.buffers = {
+			{ .visibility = GpuBindGroupVisibility::All, .type = GpuBindGroupBufferType::Uniform },
+		},
+	});
+
+	state.testBindings = CreateBindGroup({
+		.name = "Test Bindings",
+		.layout = testBindingsLayout,
+		.buffers = {
+			{ .buffer = testGlobalsBuffer },
+		},
+	});
 
 	state.testPipeline = CreatePipeline({
 		.name = "Test Pipeline",
@@ -45,7 +76,10 @@ void Initialize()
 				},
 			},
 		},
-		.PS = { .code = testShader },
+		.PS = {
+			.code = testShader,
+		},
+		.bindGroups = { testBindingsLayout },
 	});
 
 	float* vertices = state.arena.Push<float>(numVertices);
@@ -54,7 +88,7 @@ void Initialize()
 	float radius = 0.75f;
 
 	vertices[0] = vertices[1] = 0;
-	for(int i = 0; i < subdivisions; ++i)
+	for (int i = 0; i < subdivisions; ++i)
 	{
 		float angle = float(i) / float(subdivisions) * 2.0f * 3.14159265f;
 		vertices[(i + 1) * 2 + 0] = cosf(angle) * radius;
@@ -88,6 +122,9 @@ void Update()
 		.pipeline = state.testPipeline,
 		.vertexBuffer = state.testVertexBuffer,
 		.indexBuffer = state.testIndexBuffer,
+		.bindGroups = {
+			state.testBindings,
+		},
 		.triangleCount = numIndices / 3,
 		.instanceCount = 1,
 	});
