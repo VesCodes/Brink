@@ -111,12 +111,12 @@ namespace Bk
 
 	uint32 CountLeadingZeros(uint64 value)
 	{
-		return value ? __builtin_clzll(value) : 64;
+		return value ? static_cast<uint32>(__builtin_clzll(value)) : 64;
 	}
 
 	uint32 CountTrailingZeros(uint64 value)
 	{
-		return value ? __builtin_ctzll(value) : 64;
+		return value ? static_cast<uint32>(__builtin_ctzll(value)) : 64;
 	}
 
 	bool BitsetIsSet(const uint32* bitset, size_t index)
@@ -153,7 +153,7 @@ namespace Bk
 			}
 		}
 
-		return -1;
+		return bitsetLength;
 	}
 
 	size_t BitsetFindNextUnset(const uint32* bitset, size_t bitsetLength, size_t index)
@@ -172,7 +172,7 @@ namespace Bk
 			}
 		}
 
-		return -1;
+		return bitsetLength;
 	}
 
 	void Arena::Initialize(size_t size)
@@ -248,7 +248,7 @@ namespace Bk
 		}
 	}
 
-	WGPUVertexFormat WgpuConvert(const GpuVertexFormat value)
+	static WGPUVertexFormat WgpuConvert(const GpuVertexFormat value)
 	{
 		switch (value)
 		{
@@ -256,21 +256,19 @@ namespace Bk
 			case GpuVertexFormat::Float32x2: return WGPUVertexFormat_Float32x2;
 			case GpuVertexFormat::Float32x3: return WGPUVertexFormat_Float32x3;
 			case GpuVertexFormat::Float32x4: return WGPUVertexFormat_Float32x4;
-			default: return WGPUVertexFormat_Force32;
 		}
 	}
 
-	WGPUIndexFormat WgpuConvert(const GpuIndexFormat value)
+	static WGPUIndexFormat WgpuConvert(const GpuIndexFormat value)
 	{
 		switch (value)
 		{
 			case GpuIndexFormat::Uint32: return WGPUIndexFormat_Uint32;
 			case GpuIndexFormat::Uint16: return WGPUIndexFormat_Uint16;
-			default: return WGPUIndexFormat_Force32;
 		}
 	};
 
-	WGPUShaderStageFlags WgpuConvert(const GpuBindingStage value)
+	static WGPUShaderStageFlags WgpuConvert(const GpuBindingStage value)
 	{
 		WGPUShaderStageFlags result = WGPUShaderStage_None;
 
@@ -292,10 +290,13 @@ namespace Bk
 		return result;
 	}
 
-	WGPUBufferBindingType WgpuConvert(const GpuBindingType value)
+	static WGPUBufferBindingType WgpuConvert(const GpuBindingType value)
 	{
 		switch (value)
 		{
+			case GpuBindingType::None:
+				return WGPUBufferBindingType_Undefined;
+
 			case GpuBindingType::UniformBuffer:
 			case GpuBindingType::DynamicUniformBuffer:
 				return WGPUBufferBindingType_Uniform;
@@ -303,8 +304,6 @@ namespace Bk
 			case GpuBindingType::StorageBuffer:
 			case GpuBindingType::DynamicStorageBuffer:
 				return WGPUBufferBindingType_Storage;
-
-			default: return WGPUBufferBindingType_Undefined;
 		}
 	}
 
@@ -335,7 +334,7 @@ namespace Bk
 			pipelineDesc.vertex.buffers = vertexBuffers;
 			pipelineDesc.vertex.bufferCount = desc.VS.buffers.length;
 
-			for (int32 bufferIdx = 0; bufferIdx < desc.VS.buffers.length; ++bufferIdx)
+			for (size_t bufferIdx = 0; bufferIdx < desc.VS.buffers.length; ++bufferIdx)
 			{
 				const GpuVertexBufferDesc& bufferDesc = desc.VS.buffers[bufferIdx];
 
@@ -343,7 +342,7 @@ namespace Bk
 				vertexBuffers[bufferIdx].attributes = vertexAttributes[bufferIdx];
 				vertexBuffers[bufferIdx].attributeCount = bufferDesc.attributes.length;
 
-				for (int32 attributeIdx = 0; attributeIdx < bufferDesc.attributes.length; ++attributeIdx)
+				for (size_t attributeIdx = 0; attributeIdx < bufferDesc.attributes.length; ++attributeIdx)
 				{
 					const GpuVertexBufferAttribute& attributeDesc = bufferDesc.attributes[attributeIdx];
 
@@ -385,7 +384,7 @@ namespace Bk
 			pipelineLayoutDesc.bindGroupLayouts = bindingLayouts;
 			pipelineLayoutDesc.bindGroupLayoutCount = desc.bindingLayouts.length;
 
-			for (int32 layoutIdx = 0; layoutIdx < desc.bindingLayouts.length; ++layoutIdx)
+			for (size_t layoutIdx = 0; layoutIdx < desc.bindingLayouts.length; ++layoutIdx)
 			{
 				bindingLayouts[layoutIdx] = gpuContext.bindingLayouts.GetItem(desc.bindingLayouts[layoutIdx])->handle;
 			}
@@ -451,7 +450,6 @@ namespace Bk
 			case GpuBufferType::Storage: bufferDesc.usage = WGPUBufferUsage_Storage; break;
 			case GpuBufferType::Vertex: bufferDesc.usage = WGPUBufferUsage_Vertex; break;
 			case GpuBufferType::Index: bufferDesc.usage = WGPUBufferUsage_Index; break;
-			default: break;
 		}
 
 		switch (desc.access)
@@ -508,7 +506,7 @@ namespace Bk
 		bindingLayoutDesc.entries = bindings;
 		bindingLayoutDesc.entryCount = desc.bindings.length;
 
-		for (int32 bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
+		for (size_t bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
 		{
 			const GpuBindingLayoutEntry& binding = desc.bindings[bindingIdx];
 
@@ -524,7 +522,7 @@ namespace Bk
 
 		WGPUBindGroupLayout bindingLayout = wgpuDeviceCreateBindGroupLayout(gpuContext.device, &bindingLayoutDesc);
 
-		uint32 bindingLayoutHandle;
+		uint32 bindingLayoutHandle = 0;
 		if (bindingLayout)
 		{
 			GpuBindingLayout* bindingLayoutWrapper = gpuContext.bindingLayouts.AllocateItem(&bindingLayoutHandle);
@@ -560,7 +558,7 @@ namespace Bk
 		bindingGroupDesc.entries = bindings;
 		bindingGroupDesc.entryCount = desc.bindings.length;
 
-		for (int32 bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
+		for (size_t bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
 		{
 			const GpuBindingGroupEntry& binding = desc.bindings[bindingIdx];
 
@@ -576,7 +574,7 @@ namespace Bk
 
 		WGPUBindGroup bindingGroup = wgpuDeviceCreateBindGroup(gpuContext.device, &bindingGroupDesc);
 
-		uint32 bindingGroupHandle;
+		uint32 bindingGroupHandle = 0;
 		if (bindingGroup)
 		{
 			GpuBindingGroup* bindingGroupWrapper = gpuContext.bindingGroups.AllocateItem(&bindingGroupHandle);
@@ -643,7 +641,7 @@ namespace Bk
 		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(desc.pipeline);
 		wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
 
-		for (int32 groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
+		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
 			GpuBindingGroup* group = gpuContext.bindingGroups.GetItem(desc.bindingGroups[groupIdx]);
 			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
@@ -662,7 +660,7 @@ namespace Bk
 
 			wgpuRenderPassEncoderDrawIndexed(
 				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
-				desc.indexOffset, desc.vertexOffset, desc.instanceOffset);
+				desc.indexOffset, (int32)desc.vertexOffset, desc.instanceOffset); // #TODO: Why is baseVertex signed?
 		}
 		else
 		{

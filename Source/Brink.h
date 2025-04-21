@@ -12,7 +12,7 @@
 #define BK_CLAMP(x, min, max) (((x) > (max)) ? (max) : ((x) < (min)) ? (min) : (x))
 
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
-#define BK_ALIGN(x, alignment) (((x) + ((alignment) - 1)) & ~((alignment) - 1))
+#define BK_ALIGN(x, alignment) (((x) + ((typeof(x))(alignment) - 1)) & ~((typeof(x))(alignment) - 1))
 
 #define BK_KILOBYTES(x) ((x) * 1024)
 #define BK_MEGABYTES(x) (BK_KILOBYTES(x) * 1024)
@@ -201,7 +201,6 @@ namespace Bk
 
 	enum class GpuBufferType : uint8
 	{
-		Unknown,
 		Uniform,
 		Storage,
 		Vertex,
@@ -390,13 +389,13 @@ namespace Bk
 	template<typename Type>
 	Type* Pool<Type>::AllocateItem(uint32* handle)
 	{
-		Type* item;
+		Type* item = nullptr;
 		size_t index;
 
 		if (nextFree)
 		{
 			item = reinterpret_cast<Type*>(nextFree);
-			index = item - items;
+			index = static_cast<size_t>(item - items);
 
 			nextFree = *reinterpret_cast<uintptr_t*>(nextFree);
 		}
@@ -420,7 +419,7 @@ namespace Bk
 
 			if (handle)
 			{
-				*handle = (generation << 16) | index;
+				*handle = (static_cast<uint32>(generation) << 16) | index;
 			}
 		}
 
@@ -452,7 +451,7 @@ namespace Bk
 
 		uint16 generation = generations[index];
 
-		return (generation << 16) | index;
+		return (static_cast<uint32>(generation) << 16) | index;
 	}
 
 	template<typename Type>

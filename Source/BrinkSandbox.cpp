@@ -75,7 +75,7 @@ void Initialize()
 	float radius = 0.75f;
 
 	vertices[0] = vertices[1] = 0;
-	for (int i = 0; i < subdivisions; ++i)
+	for (uint32 i = 0; i < subdivisions; ++i)
 	{
 		float angle = float(i) / float(subdivisions) * 2.0f * 3.14159265f;
 		vertices[(i + 1) * 2 + 0] = cosf(angle) * radius;
