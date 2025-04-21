@@ -382,6 +382,21 @@ namespace Bk
 
 		WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(gpuContext.device, &pipelineDesc);
 
+		if (pipelineDesc.vertex.module)
+		{
+			wgpuShaderModuleRelease(pipelineDesc.vertex.module);
+		}
+
+		if (pipelineDesc.fragment && pipelineDesc.fragment->module)
+		{
+			wgpuShaderModuleRelease(pipelineDesc.fragment->module);
+		}
+
+		if (pipelineDesc.layout)
+		{
+			wgpuPipelineLayoutRelease(pipelineDesc.layout);
+		}
+
 		uint32 pipelineHandle = 0;
 		if (pipeline)
 		{
