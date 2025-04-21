@@ -62,6 +62,44 @@ namespace Bk
 		exit(exitCode);
 	}
 
+	int32 StringPrintf(char* dst, size_t dstLength, const char* format, ...)
+	{
+		va_list args;
+		va_start(args, format);
+
+		const int32 result = StringPrintv(dst, dstLength, format, args);
+		va_end(args);
+
+		return result;
+	}
+
+	int32 StringPrintv(char* dst, size_t dstLength, const char* format, va_list args)
+	{
+		return vsnprintf(dst, dstLength, format, args);
+	}
+
+	String String::Slice(size_t offset, size_t count) const
+	{
+		BK_ASSERT(offset >= 0 && offset < length);
+		return String(data + offset, BK_MIN(count, length - offset));
+	}
+
+	char String::operator[](size_t index) const
+	{
+		BK_ASSERT(index >= 0 && index < length);
+		return data[index];
+	}
+
+	const char* String::begin() const
+	{
+		return data;
+	}
+
+	const char* String::end() const
+	{
+		return data + length;
+	}
+
 	void* MemoryCopy(void* dst, const void* src, size_t size)
 	{
 		return memcpy(dst, src, size);
@@ -177,7 +215,7 @@ namespace Bk
 
 	void Arena::Initialize(size_t size)
 	{
-		const size_t bytesToReserve = BK_ALIGN(size, ReserveGranularity);
+		const size_t bytesToReserve = AlignUp(size, ReserveGranularity);
 
 		data = static_cast<uint8*>(MemoryReserve(bytesToReserve));
 		if (!data)
@@ -202,7 +240,7 @@ namespace Bk
 
 	uint8* Arena::Push(size_t size, size_t alignment)
 	{
-		const size_t alignedPosition = BK_ALIGN(position, alignment);
+		const size_t alignedPosition = AlignUp(position, alignment);
 		const size_t nextPosition = alignedPosition + size;
 
 		if (nextPosition > committedSize)
@@ -212,7 +250,7 @@ namespace Bk
 				FatalError(1, "Failed to commit %zd bytes for arena, requested %zd bytes more than available", nextPosition - position, nextPosition - reservedSize);
 			}
 
-			size_t bytesToCommit = BK_ALIGN(nextPosition - committedSize, CommitGranularity);
+			size_t bytesToCommit = AlignUp(nextPosition - committedSize, CommitGranularity);
 			if (committedSize + bytesToCommit > reservedSize)
 			{
 				bytesToCommit = reservedSize - committedSize;
@@ -238,7 +276,7 @@ namespace Bk
 	{
 		position = (size < position) ? position - size : 0;
 
-		const size_t alignedPosition = BK_ALIGN(position, CommitGranularity);
+		const size_t alignedPosition = AlignUp(position, CommitGranularity);
 		if (alignedPosition + DecommitThreshold <= committedSize)
 		{
 			const size_t bytesToDecommit = committedSize - alignedPosition;
@@ -441,7 +479,7 @@ namespace Bk
 
 		WGPUBufferDescriptor bufferDesc = {};
 		bufferDesc.label = desc.name;
-		bufferDesc.size = BK_ALIGN(bufferSize, 4); // Mapping requires size to be multiple of 4
+		bufferDesc.size = AlignUp(bufferSize, 4); // Mapping requires size to be multiple of 4
 		bufferDesc.mappedAtCreation = desc.data.length != 0;
 
 		switch (desc.type)
@@ -463,7 +501,7 @@ namespace Bk
 		if (buffer && bufferDesc.mappedAtCreation)
 		{
 			const size_t bufferMappedSize = BK_MIN(bufferSize, desc.data.length);
-			void* bufferMappedPtr = wgpuBufferGetMappedRange(buffer, 0, BK_ALIGN(bufferMappedSize, 4));
+			void* bufferMappedPtr = wgpuBufferGetMappedRange(buffer, 0, AlignUp(bufferMappedSize, 4));
 
 			MemoryCopy(bufferMappedPtr, desc.data.data, bufferMappedSize);
 

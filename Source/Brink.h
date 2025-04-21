@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -12,7 +13,6 @@
 #define BK_CLAMP(x, min, max) (((x) > (max)) ? (max) : ((x) < (min)) ? (min) : (x))
 
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
-#define BK_ALIGN(x, alignment) (((x) + ((typeof(x))(alignment) - 1)) & ~((typeof(x))(alignment) - 1))
 
 #define BK_KILOBYTES(x) ((x) * 1024)
 #define BK_MEGABYTES(x) (BK_KILOBYTES(x) * 1024)
@@ -50,7 +50,35 @@ namespace Bk
 
 	[[noreturn]] void FatalError(int32 exitCode, const char* format, ...);
 
+	// String
+
+	int32 StringPrintf(char* dst, size_t dstLength, const char* format, ...);
+	int32 StringPrintv(char* dst, size_t dstLength, const char* format, va_list args);
+
+	struct String
+	{
+		String() = default;
+
+		constexpr String(const char* string, size_t length);
+
+		template<size_t N>
+		constexpr String(const char (&string)[N]);
+
+		String Slice(size_t offset, size_t count = SIZE_MAX) const;
+
+		char operator[](size_t index) const;
+
+		const char* begin() const;
+		const char* end() const;
+
+		const char* data;
+		size_t length;
+	};
+
 	// Memory
+
+	template<typename T>
+	constexpr T AlignUp(T value, uintptr_t alignment);
 
 	void* MemoryReserve(size_t size);
 	bool MemoryRelease(void* ptr, size_t size);
@@ -101,13 +129,14 @@ namespace Bk
 	struct Span
 	{
 		Span() = default;
+
 		Span(Type* data, size_t length);
 		Span(std::initializer_list<Type> data);
 
 		template<size_t N>
 		Span(Type (&data)[N]);
 
-		Span Slice(size_t index, size_t count = SIZE_MAX) const;
+		Span Slice(size_t offset, size_t count = SIZE_MAX) const;
 
 		Type& operator[](size_t index) const;
 
@@ -315,6 +344,23 @@ namespace Bk
 
 namespace Bk
 {
+	template<typename T>
+	constexpr T AlignUp(T value, uintptr_t alignment)
+	{
+		return T(((uintptr_t)value + alignment - 1) & ~(alignment - 1));
+	}
+
+	constexpr String::String(const char* string, size_t length)
+		: data(string), length(length)
+	{
+	}
+
+	template<size_t N>
+	constexpr String::String(const char (&string)[N])
+		: data(string), length(N - 1)
+	{
+	}
+
 	template<typename Type>
 	Type* Arena::Push(size_t count)
 	{
@@ -349,10 +395,10 @@ namespace Bk
 	}
 
 	template<typename Type>
-	Span<Type> Span<Type>::Slice(size_t index, size_t count) const
+	Span<Type> Span<Type>::Slice(size_t offset, size_t count) const
 	{
-		BK_ASSERT(index >= 0 && index < length);
-		return Span(data + index, BK_MIN(count, length - index));
+		BK_ASSERT(offset >= 0 && offset < length);
+		return Span(data + offset, BK_MIN(count, length - offset));
 	}
 
 	template<typename Type>
