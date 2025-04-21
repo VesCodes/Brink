@@ -7,10 +7,10 @@ using namespace Bk;
 struct
 {
 	Arena arena;
-	uint32 testBindings;
 	uint32 testPipeline;
 	uint32 testVertexBuffer;
 	uint32 testIndexBuffer;
+	uint32 testBindingGroup;
 } state;
 
 const char* testShader = R"(
@@ -41,25 +41,10 @@ void Initialize()
 
 	float globals[] = { 0.2f, 0.7f, 0.3f, 0.0f };
 
-	uint32 testGlobalsBuffer = CreateBuffer({
-		.name = "Test Globals Buffer",
-		.type = GpuBufferType::Uniform,
-		.access = GpuBufferAccess::GpuOnly,
-		.data = Span((uint8*)globals, sizeof(globals)),
-	});
-
-	uint32 testBindingsLayout = CreateBindGroupLayout({
-		.name = "Test Bindings Layout",
-		.buffers = {
-			{ .visibility = GpuBindGroupVisibility::All, .type = GpuBindGroupBufferType::Uniform },
-		},
-	});
-
-	state.testBindings = CreateBindGroup({
-		.name = "Test Bindings",
-		.layout = testBindingsLayout,
-		.buffers = {
-			{ .buffer = testGlobalsBuffer },
+	uint32 testBindingLayout = CreateBindingLayout({
+		.name = "Test Binding Layout",
+		.bindings = {
+			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::All },
 		},
 	});
 
@@ -79,7 +64,9 @@ void Initialize()
 		.PS = {
 			.code = testShader,
 		},
-		.bindGroups = { testBindingsLayout },
+		.bindingLayouts = {
+			testBindingLayout,
+		},
 	});
 
 	float* vertices = state.arena.Push<float>(numVertices);
@@ -109,6 +96,21 @@ void Initialize()
 		.type = GpuBufferType::Index,
 		.data = Span((uint8*)indices, numIndices * sizeof(indices[0])),
 	});
+
+	uint32 testGlobalsBuffer = CreateBuffer({
+		.name = "Test Globals Buffer",
+		.type = GpuBufferType::Uniform,
+		.access = GpuBufferAccess::GpuOnly,
+		.data = Span((uint8*)globals, sizeof(globals)),
+	});
+
+	state.testBindingGroup = CreateBindingGroup({
+		.name = "Test Binding Group",
+		.bindingLayout = testBindingLayout,
+		.bindings = {
+			{ .buffer = testGlobalsBuffer },
+		},
+	});
 }
 
 void Update()
@@ -122,8 +124,8 @@ void Update()
 		.pipeline = state.testPipeline,
 		.vertexBuffer = state.testVertexBuffer,
 		.indexBuffer = state.testIndexBuffer,
-		.bindGroups = {
-			state.testBindings,
+		.bindingGroups = {
+			state.testBindingGroup,
 		},
 		.triangleCount = numIndices / 3,
 		.instanceCount = 1,

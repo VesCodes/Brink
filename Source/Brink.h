@@ -195,7 +195,7 @@ namespace Bk
 			const char* entryPoint;
 		} PS;
 
-		Span<uint32> bindGroups;
+		Span<uint32> bindingLayouts;
 		GpuIndexFormat indexFormat;
 	};
 
@@ -226,7 +226,18 @@ namespace Bk
 		Span<uint8> data;
 	};
 
-	enum class GpuBindGroupVisibility : uint8
+	enum class GpuBindingType : uint8
+	{
+		None,
+		UniformBuffer,
+		StorageBuffer,
+		DynamicUniformBuffer,
+		DynamicStorageBuffer,
+		// Texture,
+		// Sampler,
+	};
+
+	enum class GpuBindingStage : uint8
 	{
 		None,
 		Vertex = (1 << 0),
@@ -235,39 +246,31 @@ namespace Bk
 		All = (Vertex | Pixel | Compute),
 	};
 
-	enum class GpuBindGroupBufferType : uint8
+	struct GpuBindingLayoutEntry
 	{
-		Uniform,
-		Storage,
-		ReadOnlyStorage,
+		GpuBindingType type;
+		GpuBindingStage stage;
 	};
 
-	struct GpuBindGroupLayoutBufferEntry
-	{
-		uint32 slot;
-		GpuBindGroupVisibility visibility;
-		GpuBindGroupBufferType type;
-		bool hasDynamicOffset;
-	};
-
-	struct GpuBindGroupLayoutDesc
+	struct GpuBindingLayoutDesc
 	{
 		const char* name;
-		Span<GpuBindGroupLayoutBufferEntry> buffers;
+		Span<GpuBindingLayoutEntry> bindings;
 	};
 
-	struct GpuBindGroupBufferEntry
+	struct GpuBindingGroupEntry
 	{
-		uint32 slot;
 		uint32 buffer;
-		uint64 offset;
+		uint64 bufferOffset;
+		// uint32 texture;
+		// uint32 sampler;
 	};
 
-	struct GpuBindGroupDesc
+	struct GpuBindingGroupDesc
 	{
 		const char* name;
-		uint32 layout;
-		Span<GpuBindGroupBufferEntry> buffers;
+		uint32 bindingLayout;
+		Span<GpuBindingGroupEntry> bindings;
 	};
 
 	struct GpuPassDesc
@@ -281,7 +284,7 @@ namespace Bk
 		uint32 pipeline;
 		uint32 vertexBuffer;
 		uint32 indexBuffer;
-		Span<uint32> bindGroups;
+		Span<uint32> bindingGroups;
 
 		uint32 vertexOffset;
 		uint32 indexOffset;
@@ -293,8 +296,9 @@ namespace Bk
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc);
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
-	uint32 CreateBindGroupLayout(const GpuBindGroupLayoutDesc& desc);
-	uint32 CreateBindGroup(const GpuBindGroupDesc& desc);
+
+	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc);
+	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc);
 
 	void BeginPass(const GpuPassDesc& desc);
 	void EndPass();
