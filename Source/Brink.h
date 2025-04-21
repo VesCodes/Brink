@@ -295,10 +295,16 @@ namespace Bk
 	};
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc);
+	void DestroyPipeline(uint32 handle);
+
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
+	void DestroyBuffer(uint32 handle);
 
 	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc);
+	void DestroyBindingLayout(uint32 handle);
+
 	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc);
+	void DestroyBindingGroup(uint32 handle);
 
 	void BeginPass(const GpuPassDesc& desc);
 	void EndPass();

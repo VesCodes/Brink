@@ -421,6 +421,20 @@ namespace Bk
 		return pipelineHandle;
 	}
 
+	void DestroyPipeline(uint32 handle)
+	{
+		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(handle);
+		if (pipeline)
+		{
+			if (pipeline->handle)
+			{
+				wgpuRenderPipelineRelease(pipeline->handle);
+			}
+
+			gpuContext.pipelines.FreeItem(handle);
+		}
+	}
+
 	uint32 CreateBuffer(const GpuBufferDesc& desc)
 	{
 		// Allow shorthand of not specifying buffer size if passing data
@@ -469,6 +483,20 @@ namespace Bk
 		return bufferHandle;
 	}
 
+	void DestroyBuffer(uint32 handle)
+	{
+		GpuBuffer* buffer = gpuContext.buffers.GetItem(handle);
+		if (buffer)
+		{
+			if (buffer->handle)
+			{
+				wgpuBufferRelease(buffer->handle);
+			}
+
+			gpuContext.buffers.FreeItem(handle);
+		}
+	}
+
 	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc)
 	{
 		WGPUBindGroupLayoutDescriptor bindingLayoutDesc = {};
@@ -504,6 +532,20 @@ namespace Bk
 		}
 
 		return bindingLayoutHandle;
+	}
+
+	void DestroyBindingLayout(uint32 handle)
+	{
+		GpuBindingLayout* bindingLayout = gpuContext.bindingLayouts.GetItem(handle);
+		if (bindingLayout)
+		{
+			if (bindingLayout->handle)
+			{
+				wgpuBindGroupLayoutRelease(bindingLayout->handle);
+			}
+
+			gpuContext.bindingLayouts.FreeItem(handle);
+		}
 	}
 
 	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc)
@@ -542,6 +584,20 @@ namespace Bk
 		}
 
 		return bindingGroupHandle;
+	}
+
+	void DestroyBindingGroup(uint32 handle)
+	{
+		GpuBindingGroup* bindingGroup = gpuContext.bindingGroups.GetItem(handle);
+		if (bindingGroup)
+		{
+			if (bindingGroup->handle)
+			{
+				wgpuBindGroupRelease(bindingGroup->handle);
+			}
+
+			gpuContext.bindingGroups.FreeItem(handle);
+		}
 	}
 
 	void BeginPass(const GpuPassDesc& desc)
