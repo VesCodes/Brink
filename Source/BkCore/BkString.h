@@ -28,6 +28,31 @@ namespace Bk
 		const char* data;
 		size_t length;
 	};
+
+	struct StringBuffer
+	{
+		StringBuffer(char* buffer, size_t bufferSize);
+
+		bool Append(char c);
+		bool Append(String string);
+		bool Appendf(const char* format, ...);
+		bool Appendv(const char* format, va_list args);
+
+		void Reset();
+
+		char* data;
+		size_t length;
+		size_t capacity;
+	};
+
+	template<size_t BufferSize>
+	struct TStringBuffer : StringBuffer
+	{
+		TStringBuffer();
+		TStringBuffer(String string);
+
+		char buffer[BufferSize];
+	};
 }
 
 namespace Bk
@@ -41,5 +66,18 @@ namespace Bk
 	constexpr String::String(const char (&string)[N])
 		: data(string), length(N - 1)
 	{
+	}
+
+	template<size_t BufferSize>
+	TStringBuffer<BufferSize>::TStringBuffer()
+		: StringBuffer(buffer, BufferSize)
+	{
+	}
+
+	template<size_t BufferSize>
+	TStringBuffer<BufferSize>::TStringBuffer(String string)
+		: StringBuffer(buffer, BufferSize)
+	{
+		Append(string);
 	}
 }
