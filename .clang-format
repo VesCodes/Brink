@@ -2,8 +2,10 @@
 BasedOnStyle: Microsoft
 ColumnLimit: 0
 UseTab: AlignWithSpaces
+InsertNewlineAtEOF: true
 PointerAlignment: Left
 NamespaceIndentation: All
+FixNamespaceComments: false
 BreakTemplateDeclarations: Yes
 SpaceAfterTemplateKeyword: false
 SkipMacroDefinitionBody: true

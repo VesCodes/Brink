@@ -1,3 +1,4 @@
+#include "BkCore/BkMemory.h"
 #include "Brink.h"
 
 #include <math.h>
@@ -88,20 +89,20 @@ void Initialize()
 	state.testVertexBuffer = CreateBuffer({
 		.name = "Test Vertex Buffer",
 		.type = GpuBufferType::Vertex,
-		.data = Span((uint8*)vertices, numVertices * sizeof(vertices[0])),
+		.data = TSpan((uint8*)vertices, numVertices * sizeof(vertices[0])),
 	});
 
 	state.testIndexBuffer = CreateBuffer({
 		.name = "Test Index Buffer",
 		.type = GpuBufferType::Index,
-		.data = Span((uint8*)indices, numIndices * sizeof(indices[0])),
+		.data = TSpan((uint8*)indices, numIndices * sizeof(indices[0])),
 	});
 
 	uint32 testGlobalsBuffer = CreateBuffer({
 		.name = "Test Globals Buffer",
 		.type = GpuBufferType::Uniform,
 		.access = GpuBufferAccess::GpuOnly,
-		.data = Span((uint8*)globals, sizeof(globals)),
+		.data = TSpan((uint8*)globals, sizeof(globals)),
 	});
 
 	state.testBindingGroup = CreateBindingGroup({
