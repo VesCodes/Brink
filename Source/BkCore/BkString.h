@@ -6,6 +6,11 @@
 
 namespace Bk
 {
+	constexpr char ToLower(char c);
+	constexpr char ToUpper(char c);
+
+	constexpr size_t StringLength(const char* string);
+
 	int32 StringPrintf(char* dst, size_t dstLength, const char* format, ...);
 	int32 StringPrintv(char* dst, size_t dstLength, const char* format, va_list args);
 
@@ -14,11 +19,17 @@ namespace Bk
 		String() = default;
 
 		constexpr String(const char* string, size_t length);
-
-		template<size_t N>
-		constexpr String(const char (&string)[N]);
+		constexpr String(const char* string);
 
 		String Slice(size_t offset, size_t count = SIZE_MAX) const;
+
+		bool Equals(String other, bool ignoreCase = false) const;
+
+		bool Contains(char search, bool ignoreCase = false) const;
+		bool Contains(String search, bool ignoreCase = false) const;
+
+		size_t Find(char search, bool ignoreCase = false) const;
+		size_t Find(String search, bool ignoreCase = false) const;
 
 		char operator[](size_t index) const;
 
@@ -40,6 +51,8 @@ namespace Bk
 
 		void Reset();
 
+		operator String() const;
+
 		char* data;
 		size_t length;
 		size_t capacity;
@@ -57,14 +70,28 @@ namespace Bk
 
 namespace Bk
 {
+	constexpr char ToLower(char c)
+	{
+		return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
+	}
+
+	constexpr char ToUpper(char c)
+	{
+		return (c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c;
+	}
+
+	constexpr size_t StringLength(const char* string)
+	{
+		return __builtin_strlen(string);
+	}
+
 	constexpr String::String(const char* string, size_t length)
 		: data(string), length(length)
 	{
 	}
 
-	template<size_t N>
-	constexpr String::String(const char (&string)[N])
-		: data(string), length(N - 1)
+	constexpr String::String(const char* string)
+		: data(string), length(StringLength(string))
 	{
 	}
 

@@ -27,6 +27,92 @@ namespace Bk
 		return String(data + offset, BK_MIN(count, length - offset));
 	}
 
+	bool String::Equals(String other, bool ignoreCase) const
+	{
+		if (length != other.length)
+		{
+			return false;
+		}
+
+		if (!ignoreCase)
+		{
+			return MemoryCompare(data, other.data, length) == 0;
+		}
+
+		for (size_t idx = 0; idx < length; ++idx)
+		{
+			if (ToUpper(data[idx]) != ToUpper(other.data[idx]))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool String::Contains(char search, bool ignoreCase) const
+	{
+		return Find(search, ignoreCase) != SIZE_MAX;
+	}
+
+	bool String::Contains(String search, bool ignoreCase) const
+	{
+		return Find(search, ignoreCase) != SIZE_MAX;
+	}
+
+	size_t String::Find(char search, bool ignoreCase) const
+	{
+		const char* start = data;
+		const char* end = data + length;
+
+		if (ignoreCase)
+		{
+			char searchUpper = ToUpper(search);
+			for (const char* c = start; c < end; ++c)
+			{
+				if (ToUpper(*c) == searchUpper)
+				{
+					return static_cast<size_t>(c - start);
+				}
+			}
+		}
+		else
+		{
+			for (const char* c = start; c < end; ++c)
+			{
+				if (*c == search)
+				{
+					return static_cast<size_t>(c - start);
+				}
+			}
+		}
+
+		return SIZE_MAX;
+	}
+
+	size_t String::Find(String search, bool ignoreCase) const
+	{
+		if (search.length == 1)
+		{
+			return Find(search.data[0], ignoreCase);
+		}
+		else if (search.length > 1 && search.length <= length)
+		{
+			String slice(data, search.length);
+			for (size_t idx = 0; idx <= length - search.length; ++idx)
+			{
+				if (slice.Equals(search, ignoreCase))
+				{
+					return idx;
+				}
+
+				slice.data += 1;
+			}
+		}
+
+		return SIZE_MAX;
+	}
+
 	char String::operator[](size_t index) const
 	{
 		BK_ASSERT(index >= 0 && index < length);
@@ -119,5 +205,10 @@ namespace Bk
 		}
 
 		length = 0;
+	}
+
+	StringBuffer::operator String() const
+	{
+		return String(data, length);
 	}
 }
