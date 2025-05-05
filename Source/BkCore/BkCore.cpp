@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <time.h>
 
 namespace Bk
 {
@@ -52,5 +54,32 @@ namespace Bk
 		fflush(stderr);
 
 		exit(exitCode);
+	}
+
+	DateTime GetUtcTime()
+	{
+		struct timeval time = {};
+		gettimeofday(&time, nullptr);
+
+		struct tm utcTime = {};
+		gmtime_r(&time.tv_sec, &utcTime);
+
+		DateTime result = {};
+		result.year = static_cast<uint16>(utcTime.tm_year + 1900);
+		result.month = static_cast<uint8>(utcTime.tm_mon + 1);
+		result.weekday = static_cast<uint8>(utcTime.tm_wday);
+		result.day = static_cast<uint8>(utcTime.tm_mday);
+		result.hour = static_cast<uint8>(utcTime.tm_hour);
+		result.minute = static_cast<uint8>(utcTime.tm_min);
+		result.second = static_cast<uint8>(utcTime.tm_sec);
+		result.millisecond = static_cast<uint16>(time.tv_usec / 1000);
+
+		return result;
+	}
+
+	uint64 GetUnixTime()
+	{
+		time_t result = time(nullptr);
+		return static_cast<uint64>(result);
 	}
 }

@@ -45,7 +45,7 @@ void Initialize()
 	uint32 testBindingLayout = CreateBindingLayout({
 		.name = "Test Binding Layout",
 		.bindings = {
-			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::All },
+			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex | GpuBindingStage::Pixel },
 		},
 	});
 

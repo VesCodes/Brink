@@ -23,6 +23,15 @@ extern "C" void emscripten_debugger(void);
 #define BK_CHECK_FORMAT(format, ...) ((void)sizeof(printf(format, ##__VA_ARGS__)))
 extern "C" int printf(const char*, ...);
 
+#define BK_ENUM_CLASS_FLAGS(EnumType) \
+	constexpr EnumType& operator&=(EnumType& a, EnumType b) { return a = (EnumType)((__underlying_type(EnumType))a & (__underlying_type(EnumType))b); } \
+	constexpr EnumType& operator|=(EnumType& a, EnumType b) { return a = (EnumType)((__underlying_type(EnumType))a | (__underlying_type(EnumType))b); } \
+	constexpr EnumType& operator^=(EnumType& a, EnumType b) { return a = (EnumType)((__underlying_type(EnumType))a ^ (__underlying_type(EnumType))b); } \
+	constexpr EnumType operator&(EnumType a, EnumType b) { return (EnumType)((__underlying_type(EnumType))a & (__underlying_type(EnumType))b); } \
+	constexpr EnumType operator|(EnumType a, EnumType b) { return (EnumType)((__underlying_type(EnumType))a | (__underlying_type(EnumType))b); } \
+	constexpr EnumType operator^(EnumType a, EnumType b) { return (EnumType)((__underlying_type(EnumType))a ^ (__underlying_type(EnumType))b); } \
+	constexpr EnumType operator~(EnumType e) { return (EnumType)(~(__underlying_type(EnumType))e); }
+
 namespace Bk
 {
 	using int8 = int8_t;
@@ -35,6 +44,49 @@ namespace Bk
 	using uint32 = uint32_t;
 	using uint64 = uint64_t;
 
+	template<typename EnumType>
+	bool EnumHasAllFlags(EnumType value, EnumType flags)
+	{
+		using UnderlyingType = __underlying_type(EnumType);
+		return ((UnderlyingType)value & (UnderlyingType)flags) == (UnderlyingType)flags;
+	}
+
+	template<typename EnumType>
+	bool EnumHasAnyFlags(EnumType value, EnumType flags)
+	{
+		using UnderlyingType = __underlying_type(EnumType);
+		return ((UnderlyingType)value & (UnderlyingType)flags) != 0;
+	}
+
+	template<typename EnumType>
+	void EnumAddFlags(EnumType& value, EnumType flags)
+	{
+		using UnderlyingType = __underlying_type(EnumType);
+		value = (EnumType)((UnderlyingType)value | (UnderlyingType)flags);
+	}
+
+	template<typename EnumType>
+	void EnumRemoveFlags(EnumType& value, EnumType flags)
+	{
+		using UnderlyingType = __underlying_type(EnumType);
+		value = (EnumType)((UnderlyingType)value & ~(UnderlyingType)flags);
+	}
+
 	bool AssertError(const char* expression, const char* file, int32 line, const char* format, ...);
 	[[noreturn]] void FatalError(int32 exitCode, const char* format, ...);
+
+	struct DateTime
+	{
+		uint16 year;
+		uint8 month;
+		uint8 weekday;
+		uint8 day;
+		uint8 hour;
+		uint8 minute;
+		uint8 second;
+		uint16 millisecond;
+	};
+
+	DateTime GetUtcTime();
+	uint64 GetUnixTime();
 }

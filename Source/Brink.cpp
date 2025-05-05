@@ -83,17 +83,17 @@ namespace Bk
 	{
 		WGPUShaderStageFlags result = WGPUShaderStage_None;
 
-		if (value == GpuBindingStage::Vertex || value == GpuBindingStage::All)
+		if (EnumHasAnyFlags(value, GpuBindingStage::Vertex))
 		{
 			result |= WGPUShaderStage_Vertex;
 		}
 
-		if (value == GpuBindingStage::Pixel || value == GpuBindingStage::All)
+		if (EnumHasAnyFlags(value, GpuBindingStage::Pixel))
 		{
 			result |= WGPUShaderStage_Fragment;
 		}
 
-		if (value == GpuBindingStage::Compute || value == GpuBindingStage::All)
+		if (EnumHasAnyFlags(value, GpuBindingStage::Compute))
 		{
 			result |= WGPUShaderStage_Compute;
 		}
