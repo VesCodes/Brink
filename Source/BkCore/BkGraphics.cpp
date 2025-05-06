@@ -110,8 +110,6 @@ namespace Bk
 
 	void GfxInitialize()
 	{
-		gfxContext.arena.Initialize(BK_MEGABYTES(4));
-
 		gfxContext.pipelines.Initialize(&gfxContext.arena, 32);
 		gfxContext.buffers.Initialize(&gfxContext.arena, 32);
 		gfxContext.bindingLayouts.Initialize(&gfxContext.arena, 32);

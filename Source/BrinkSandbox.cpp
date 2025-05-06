@@ -1,5 +1,6 @@
 #include <math.h>
 
+#include "BkCore/BkArena.cpp"
 #include "BkCore/BkCore.cpp"
 #include "BkCore/BkGraphics.cpp"
 #include "BkCore/BkMemory.cpp"
@@ -43,8 +44,6 @@ uint32 numIndices = subdivisions * 3;
 
 void Initialize()
 {
-	state.arena.Initialize(BK_MEGABYTES(2));
-
 	float globals[] = { 0.2f, 0.7f, 0.3f, 0.0f };
 
 	uint32 testBindingLayout = CreateBindingLayout({

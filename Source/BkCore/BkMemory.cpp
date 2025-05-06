@@ -5,6 +5,16 @@
 
 namespace Bk
 {
+	void* MemoryAllocate(size_t size)
+	{
+		return malloc(size);
+	}
+
+	void MemoryDeallocate(void* ptr, size_t size)
+	{
+		free(ptr);
+	}
+
 	void* MemoryCopy(void* dst, const void* src, size_t size)
 	{
 		return memcpy(dst, src, size);
@@ -28,28 +38,6 @@ namespace Bk
 	void* MemoryZero(void* ptr, size_t size)
 	{
 		return memset(ptr, 0, size);
-	}
-
-	void* MemoryReserve(size_t size)
-	{
-		return malloc(size);
-	}
-
-	bool MemoryRelease(void* ptr, size_t size)
-	{
-		free(ptr);
-		return true;
-	}
-
-	bool MemoryCommit(void* ptr, size_t size)
-	{
-		// #TODO: Check with malloc_usable_size?
-		return true;
-	}
-
-	bool MemoryDecommit(void* ptr, size_t size)
-	{
-		return true;
 	}
 
 	uint32 CountLeadingZeros(uint64 value)
@@ -116,78 +104,5 @@ namespace Bk
 		}
 
 		return bitsetLength;
-	}
-
-	void Arena::Initialize(size_t size)
-	{
-		const size_t bytesToReserve = AlignUp(size, ReserveGranularity);
-
-		data = static_cast<uint8*>(MemoryReserve(bytesToReserve));
-		if (!data)
-		{
-			FatalError(1, "Failed to reserve %zd bytes for arena", bytesToReserve);
-		}
-
-		reservedSize = bytesToReserve;
-		committedSize = 0;
-		position = 0;
-	}
-
-	void Arena::Deinitialize()
-	{
-		MemoryRelease(data, reservedSize);
-
-		data = nullptr;
-		reservedSize = 0;
-		committedSize = 0;
-		position = 0;
-	}
-
-	uint8* Arena::Push(size_t size, size_t alignment)
-	{
-		const size_t alignedPosition = AlignUp(position, alignment);
-		const size_t nextPosition = alignedPosition + size;
-
-		if (nextPosition > committedSize)
-		{
-			if (nextPosition > reservedSize)
-			{
-				FatalError(1, "Failed to commit %zd bytes for arena, requested %zd bytes more than available", nextPosition - position, nextPosition - reservedSize);
-			}
-
-			size_t bytesToCommit = AlignUp(nextPosition - committedSize, CommitGranularity);
-			if (committedSize + bytesToCommit > reservedSize)
-			{
-				bytesToCommit = reservedSize - committedSize;
-			}
-
-			BK_ASSERT(MemoryCommit(data + committedSize, bytesToCommit));
-			committedSize += bytesToCommit;
-		}
-
-		position = nextPosition;
-		return data + alignedPosition;
-	}
-
-	uint8* Arena::PushZeroed(size_t size, size_t alignment)
-	{
-		uint8* result = Push(size, alignment);
-		MemoryZero(result, size);
-
-		return result;
-	}
-
-	void Arena::Pop(size_t size)
-	{
-		position = (size < position) ? position - size : 0;
-
-		const size_t alignedPosition = AlignUp(position, CommitGranularity);
-		if (alignedPosition + DecommitThreshold <= committedSize)
-		{
-			const size_t bytesToDecommit = committedSize - alignedPosition;
-
-			BK_ASSERT(MemoryDecommit(data + alignedPosition, bytesToDecommit));
-			committedSize -= bytesToDecommit;
-		}
 	}
 }

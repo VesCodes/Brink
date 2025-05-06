@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BkArena.h"
 #include "BkCore.h"
 #include "BkMemory.h"
 
