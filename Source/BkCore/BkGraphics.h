@@ -1,21 +1,11 @@
 #pragma once
 
-#include "BkCore/BkCore.h"
-#include "BkCore/BkSpan.h"
+#include "BkCore.h"
+#include "BkSpan.h"
 
 namespace Bk
 {
-	struct AppDesc
-	{
-		void (*initialize)(void);
-		void (*update)(void);
-	};
-
-	extern AppDesc Main(int32 argc, char** argv);
-
-	// #TODO: Move to BkCore
-
-	enum class GpuVertexFormat : uint8
+	enum class GfxVertexFormat : uint8
 	{
 		// #TODO: WGPUVertexFormat
 		Float32,
@@ -24,25 +14,25 @@ namespace Bk
 		Float32x4,
 	};
 
-	struct GpuVertexBufferAttribute
+	struct GfxVertexBufferAttribute
 	{
 		uint64 offset;
-		GpuVertexFormat format;
+		GfxVertexFormat format;
 	};
 
-	struct GpuVertexBufferDesc
+	struct GfxVertexBufferDesc
 	{
 		uint64 stride;
-		TSpan<GpuVertexBufferAttribute> attributes;
+		TSpan<GfxVertexBufferAttribute> attributes;
 	};
 
-	enum class GpuIndexFormat : uint8
+	enum class GfxIndexFormat : uint8
 	{
 		Uint16,
 		Uint32,
 	};
 
-	struct GpuPipelineDesc
+	struct GfxPipelineDesc
 	{
 		const char* name;
 
@@ -50,7 +40,7 @@ namespace Bk
 		{
 			const char* code;
 			const char* entryPoint;
-			TSpan<GpuVertexBufferDesc> buffers;
+			TSpan<GfxVertexBufferDesc> buffers;
 		} VS;
 
 		struct
@@ -60,10 +50,10 @@ namespace Bk
 		} PS;
 
 		TSpan<uint32> bindingLayouts;
-		GpuIndexFormat indexFormat;
+		GfxIndexFormat indexFormat;
 	};
 
-	enum class GpuBufferType : uint8
+	enum class GfxBufferType : uint8
 	{
 		Uniform,
 		Storage,
@@ -71,25 +61,25 @@ namespace Bk
 		Index,
 	};
 
-	enum class GpuBufferAccess : uint8
+	enum class GfxBufferAccess : uint8
 	{
 		GpuOnly,
 		CpuRead,
 		CpuWrite,
 	};
 
-	struct GpuBufferDesc
+	struct GfxBufferDesc
 	{
 		const char* name;
 
-		GpuBufferType type;
-		GpuBufferAccess access;
+		GfxBufferType type;
+		GfxBufferAccess access;
 		uint64 size;
 
 		TSpan<uint8> data;
 	};
 
-	enum class GpuBindingType : uint8
+	enum class GfxBindingType : uint8
 	{
 		None,
 		UniformBuffer,
@@ -100,7 +90,7 @@ namespace Bk
 		// Sampler,
 	};
 
-	enum class GpuBindingStage : uint8
+	enum class GfxBindingStage : uint8
 	{
 		None,
 		Vertex = (1 << 0),
@@ -109,21 +99,21 @@ namespace Bk
 		All = (Vertex | Pixel | Compute),
 	};
 
-	BK_ENUM_CLASS_FLAGS(GpuBindingStage);
+	BK_ENUM_CLASS_FLAGS(GfxBindingStage);
 
-	struct GpuBindingLayoutEntry
+	struct GfxBindingLayoutEntry
 	{
-		GpuBindingType type;
-		GpuBindingStage stage;
+		GfxBindingType type;
+		GfxBindingStage stage;
 	};
 
-	struct GpuBindingLayoutDesc
+	struct GfxBindingLayoutDesc
 	{
 		const char* name;
-		TSpan<GpuBindingLayoutEntry> bindings;
+		TSpan<GfxBindingLayoutEntry> bindings;
 	};
 
-	struct GpuBindingGroupEntry
+	struct GfxBindingGroupEntry
 	{
 		uint32 buffer;
 		uint64 bufferOffset;
@@ -131,20 +121,20 @@ namespace Bk
 		// uint32 sampler;
 	};
 
-	struct GpuBindingGroupDesc
+	struct GfxBindingGroupDesc
 	{
 		const char* name;
 		uint32 bindingLayout;
-		TSpan<GpuBindingGroupEntry> bindings;
+		TSpan<GfxBindingGroupEntry> bindings;
 	};
 
-	struct GpuPassDesc
+	struct GfxPassDesc
 	{
 		const char* name;
 		float clearColor[4];
 	};
 
-	struct GpuDrawDesc
+	struct GfxDrawDesc
 	{
 		uint32 pipeline;
 		uint32 vertexBuffer;
@@ -159,20 +149,25 @@ namespace Bk
 		uint32 instanceCount;
 	};
 
-	uint32 CreatePipeline(const GpuPipelineDesc& desc);
+    void GfxInitialize();
+
+	uint32 CreatePipeline(const GfxPipelineDesc& desc);
 	void DestroyPipeline(uint32 handle);
 
-	uint32 CreateBuffer(const GpuBufferDesc& desc);
+	uint32 CreateBuffer(const GfxBufferDesc& desc);
 	void DestroyBuffer(uint32 handle);
 
-	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc);
+	uint32 CreateBindingLayout(const GfxBindingLayoutDesc& desc);
 	void DestroyBindingLayout(uint32 handle);
 
-	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc);
+	uint32 CreateBindingGroup(const GfxBindingGroupDesc& desc);
 	void DestroyBindingGroup(uint32 handle);
 
-	void BeginPass(const GpuPassDesc& desc);
+	bool BeginFrame();
+	bool EndFrame();
+
+	void BeginPass(const GfxPassDesc& desc);
 	void EndPass();
 
-	void Draw(const GpuDrawDesc& desc);
+	void Draw(const GfxDrawDesc& desc);
 }

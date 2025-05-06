@@ -1,4 +1,5 @@
 #include "BkCore.h"
+
 #include "BkString.h"
 
 #include <stdio.h>

@@ -1,13 +1,18 @@
-#include "BkCore/BkMemory.h"
-#include "Brink.h"
-
 #include <math.h>
+
+#include "BkCore/BkCore.cpp"
+#include "BkCore/BkGraphics.cpp"
+#include "BkCore/BkMemory.cpp"
+#include "BkCore/BkString.cpp"
 
 using namespace Bk;
 
 struct
 {
+	bool initialized;
+
 	Arena arena;
+
 	uint32 testPipeline;
 	uint32 testVertexBuffer;
 	uint32 testIndexBuffer;
@@ -45,7 +50,7 @@ void Initialize()
 	uint32 testBindingLayout = CreateBindingLayout({
 		.name = "Test Binding Layout",
 		.bindings = {
-			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex | GpuBindingStage::Pixel },
+			{ .type = GfxBindingType::UniformBuffer, .stage = GfxBindingStage::Vertex | GfxBindingStage::Pixel },
 		},
 	});
 
@@ -57,7 +62,7 @@ void Initialize()
 				{
 					.stride = 8,
 					.attributes = {
-						{ .offset = 0, .format = GpuVertexFormat::Float32x2 },
+						{ .offset = 0, .format = GfxVertexFormat::Float32x2 },
 					},
 				},
 			},
@@ -88,20 +93,20 @@ void Initialize()
 
 	state.testVertexBuffer = CreateBuffer({
 		.name = "Test Vertex Buffer",
-		.type = GpuBufferType::Vertex,
+		.type = GfxBufferType::Vertex,
 		.data = TSpan((uint8*)vertices, numVertices * sizeof(vertices[0])),
 	});
 
 	state.testIndexBuffer = CreateBuffer({
 		.name = "Test Index Buffer",
-		.type = GpuBufferType::Index,
+		.type = GfxBufferType::Index,
 		.data = TSpan((uint8*)indices, numIndices * sizeof(indices[0])),
 	});
 
 	uint32 testGlobalsBuffer = CreateBuffer({
 		.name = "Test Globals Buffer",
-		.type = GpuBufferType::Uniform,
-		.access = GpuBufferAccess::GpuOnly,
+		.type = GfxBufferType::Uniform,
+		.access = GfxBufferAccess::GpuOnly,
 		.data = TSpan((uint8*)globals, sizeof(globals)),
 	});
 
@@ -116,6 +121,17 @@ void Initialize()
 
 void Update()
 {
+	if (!BeginFrame())
+	{
+		return;
+	}
+
+	if (!state.initialized)
+	{
+		Initialize();
+		state.initialized = true;
+	}
+
 	BeginPass({
 		.name = "Sandbox Pass",
 		.clearColor = { 0.2f, 0.2f, 0.3f, 1.0f },
@@ -133,12 +149,15 @@ void Update()
 	});
 
 	EndPass();
+
+	EndFrame();
 }
 
-AppDesc Bk::Main(int32 argc, char** argv)
+int main(int argc, char** argv)
 {
-	return {
-		.initialize = Initialize,
-		.update = Update,
-	};
+	GfxInitialize();
+
+	emscripten_set_main_loop(Update, 0, true);
+
+	return 0;
 }
