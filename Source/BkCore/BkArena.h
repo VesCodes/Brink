@@ -8,14 +8,25 @@ namespace Bk
 	{
 		ArenaBlock* previous;
 		size_t size;
+		size_t offset;
+	};
+
+	struct ArenaMarker
+	{
+		ArenaBlock* block;
+		size_t offset;
 	};
 
 	struct Arena
 	{
-		static uintptr_t DefaultBlockAlignment;
+		static size_t DefaultAlignment;
+		static size_t DefaultBlockAlignment;
 
-		uint8* Push(size_t size, size_t alignment);
-		uint8* PushZeroed(size_t size, size_t alignment);
+		ArenaMarker GetMarker() const;
+		void SetMarker(ArenaMarker marker);
+
+		uint8* Push(size_t size, size_t alignment = DefaultAlignment);
+		uint8* PushZeroed(size_t size, size_t alignment = DefaultAlignment);
 
 		template<typename Type>
 		Type* Push(size_t count = 1);
@@ -24,8 +35,7 @@ namespace Bk
 		Type* PushZeroed(size_t count = 1);
 
 		ArenaBlock* currentBlock;
-		uintptr_t blockOffset;
-		uintptr_t blockAlignment;
+		size_t blockAlignment;
 	};
 }
 

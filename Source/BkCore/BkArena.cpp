@@ -4,11 +4,40 @@
 
 namespace Bk
 {
+	size_t Arena::DefaultAlignment = 8;
 	size_t Arena::DefaultBlockAlignment = BK_MEGABYTES(4);
+
+	ArenaMarker Arena::GetMarker() const
+	{
+		ArenaMarker marker = {};
+		if (currentBlock)
+		{
+			marker.block = currentBlock;
+			marker.offset = currentBlock->offset;
+		}
+
+		return marker;
+	}
+
+	void Arena::SetMarker(ArenaMarker marker)
+	{
+		while (currentBlock && currentBlock != marker.block)
+		{
+			ArenaBlock* block = currentBlock;
+			currentBlock = currentBlock->previous;
+			MemoryDeallocate(block, block->size);
+		}
+
+		if (currentBlock)
+		{
+			BK_ASSERT(marker.offset >= sizeof(ArenaBlock));
+			currentBlock->offset = marker.offset;
+		}
+	}
 
 	uint8* Arena::Push(size_t size, size_t alignment)
 	{
-		uintptr_t alignedOffset = AlignUp(blockOffset, alignment);
+		size_t alignedOffset = currentBlock ? AlignUp(currentBlock->offset, alignment) : 0;
 		if (!currentBlock || alignedOffset + size > currentBlock->size)
 		{
 			if (blockAlignment == 0)
@@ -33,7 +62,7 @@ namespace Bk
 			currentBlock = block;
 		}
 
-		blockOffset = alignedOffset + size;
+		currentBlock->offset = alignedOffset + size;
 		return reinterpret_cast<uint8*>(currentBlock) + alignedOffset;
 	}
 
