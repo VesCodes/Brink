@@ -9,10 +9,10 @@
 
 namespace Bk
 {
-	bool AssertError(const char* expr, const char* file, int32 line, const char* format, ...)
+	bool AssertError(const char* expression, const char* file, int32 line, const char* format, ...)
 	{
 		TStringBuffer<1024> errorMessage;
-		errorMessage.Appendf("ASSERTION FAILED: %s [%s:%d]\n", expr, file, line);
+		errorMessage.Appendf("ASSERTION FAILED: %s [%s:%d]\n", expression, file, line);
 
 		if (format && format[0] != '\0')
 		{
@@ -59,10 +59,10 @@ namespace Bk
 
 	DateTime GetUtcTime()
 	{
-		struct timeval time = {};
+		timeval time = {};
 		gettimeofday(&time, nullptr);
 
-		struct tm utcTime = {};
+		tm utcTime = {};
 		gmtime_r(&time.tv_sec, &utcTime);
 
 		DateTime result = {};

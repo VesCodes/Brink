@@ -53,7 +53,6 @@ namespace Bk
 			if (!block)
 			{
 				FatalError(1, "Failed to allocate %zd bytes for arena", blockSize);
-				return nullptr;
 			}
 
 			block->previous = currentBlock;

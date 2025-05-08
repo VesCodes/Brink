@@ -97,7 +97,8 @@ namespace Bk
 		{
 			return Find(search.data[0], ignoreCase);
 		}
-		else if (search.length > 1 && search.length <= length)
+
+		if (search.length > 1 && search.length <= length)
 		{
 			String slice(data, search.length);
 			for (size_t idx = 0; idx <= length - search.length; ++idx)
