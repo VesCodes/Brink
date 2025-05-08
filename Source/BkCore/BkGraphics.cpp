@@ -49,13 +49,32 @@ namespace Bk
 		TPool<GfxBindingGroup> bindingGroups;
 	} gfxContext;
 
+	static WGPUStringView WgpuConvert(String string)
+	{
+		return (WGPUStringView){ .data = string.data, .length = string.length };
+	}
+
+	void OnDeviceError(const WGPUDevice* device, WGPUErrorType type, WGPUStringView message, void* userdata1, void* userdata2)
+	{
+		printf("Device Error (%0x): %.*s\n", type, (int32)message.length, message.data);
+	}
+
+	void OnDeviceLost(const WGPUDevice* device, WGPUDeviceLostReason reason, WGPUStringView message, void* userdata1, void* userdata2)
+	{
+		printf("Device Lost (%0x): %.*s\n", reason, (int32)message.length, message.data);
+	}
+
 	void ConfigureSurface()
 	{
+		if (!gfxContext.surface)
+		{
+			return;
+		}
+
 		double canvasWidth, canvasHeight;
 		emscripten_get_element_css_size("#canvas", &canvasWidth, &canvasHeight);
 
 		gfxContext.surfaceConfig.device = gfxContext.device;
-		gfxContext.surfaceConfig.format = wgpuSurfaceGetPreferredFormat(gfxContext.surface, gfxContext.adapter);
 		gfxContext.surfaceConfig.usage = WGPUTextureUsage_RenderAttachment;
 		gfxContext.surfaceConfig.alphaMode = WGPUCompositeAlphaMode_Auto;
 		gfxContext.surfaceConfig.width = (uint32_t)canvasWidth;
@@ -67,45 +86,59 @@ namespace Bk
 		printf("Configured surface: (%d x %d)\n", gfxContext.surfaceConfig.width, gfxContext.surfaceConfig.height);
 	}
 
-	void OnDeviceError(WGPUErrorType type, const char* message, void* userData)
-	{
-		printf("Device Error (%0x): %s\n", type, message);
-	}
-
-	void OnDeviceAcquired(WGPURequestDeviceStatus status, WGPUDevice device, const char* message, void* userData)
-	{
-		printf("Device acquired: %p\n", device);
-
-		wgpuDeviceSetUncapturedErrorCallback(device, OnDeviceError, nullptr);
-
-		gfxContext.device = device;
-		gfxContext.queue = wgpuDeviceGetQueue(gfxContext.device);
-
-		WGPUSurfaceDescriptorFromCanvasHTMLSelector canvasDesc = {};
-		canvasDesc.chain.sType = WGPUSType_SurfaceDescriptorFromCanvasHTMLSelector;
-		canvasDesc.selector = "#canvas";
-
-		WGPUSurfaceDescriptor surfaceDesc = {};
-		surfaceDesc.nextInChain = &canvasDesc.chain;
-		gfxContext.surface = wgpuInstanceCreateSurface(gfxContext.instance, &surfaceDesc);
-
-		ConfigureSurface();
-	}
-
-	void OnAdapterAcquired(WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* userData)
-	{
-		printf("Adapter acquired: %p\n", adapter);
-
-		gfxContext.adapter = adapter;
-
-		wgpuAdapterRequestDevice(adapter, nullptr, OnDeviceAcquired, nullptr);
-	}
-
 	bool OnResize(int eventType, const EmscriptenUiEvent* event, void* userData)
 	{
 		ConfigureSurface();
 
 		return true;
+	}
+
+	void OnDeviceAcquired(WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message, void* userdata1, void* userdata2)
+	{
+		if (status != WGPURequestDeviceStatus_Success)
+		{
+			FatalError(1, "Failed to acquire WebGPU device: %.*s", (int32)message.length, message.data);
+		}
+
+		gfxContext.device = device;
+		BK_ASSERTF(gfxContext.device, "Failed to acquire WebGPU device");
+
+		gfxContext.queue = wgpuDeviceGetQueue(gfxContext.device);
+		BK_ASSERTF(gfxContext.queue, "Failed to acquire WebGPU device queue");
+
+		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasDesc = {};
+		canvasDesc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
+		canvasDesc.selector = WgpuConvert("canvas");
+
+		WGPUSurfaceDescriptor surfaceDesc = {};
+		surfaceDesc.nextInChain = &canvasDesc.chain;
+
+		gfxContext.surface = wgpuInstanceCreateSurface(gfxContext.instance, &surfaceDesc);
+		BK_ASSERTF(gfxContext.surface, "Failed to create WebGPU surface");
+
+		WGPUSurfaceCapabilities surfaceCapabilities = {};
+		wgpuSurfaceGetCapabilities(gfxContext.surface, gfxContext.adapter, &surfaceCapabilities);
+
+		gfxContext.surfaceConfig.format = surfaceCapabilities.formatCount > 0 ? surfaceCapabilities.formats[0] : WGPUTextureFormat_Undefined;
+
+		ConfigureSurface();
+	}
+
+	void OnAdapterAcquired(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata1, void* userdata2)
+	{
+		if (status != WGPURequestAdapterStatus_Success)
+		{
+			FatalError(1, "Failed to acquire WebGPU adapter: %.*s", (int32)message.length, message.data);
+		}
+
+		gfxContext.adapter = adapter;
+		BK_ASSERTF(gfxContext.adapter, "Failed to acquire WebGPU adapter");
+
+		WGPUDeviceDescriptor deviceDesc = {};
+		deviceDesc.uncapturedErrorCallbackInfo.callback = OnDeviceError;
+		deviceDesc.deviceLostCallbackInfo.callback = OnDeviceLost;
+
+		wgpuAdapterRequestDevice(gfxContext.adapter, &deviceDesc, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnDeviceAcquired });
 	}
 
 	void GfxInitialize()
@@ -116,7 +149,9 @@ namespace Bk
 		gfxContext.bindingGroups.Initialize(&gfxContext.arena, 32);
 
 		gfxContext.instance = wgpuCreateInstance(nullptr);
-		wgpuInstanceRequestAdapter(gfxContext.instance, nullptr, OnAdapterAcquired, nullptr);
+		BK_ASSERTF(gfxContext.instance, "Failed to create WebGPU instance");
+
+		wgpuInstanceRequestAdapter(gfxContext.instance, nullptr, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnAdapterAcquired });
 
 		emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, false, OnResize);
 	}
@@ -141,9 +176,9 @@ namespace Bk
 		}
 	};
 
-	static WGPUShaderStageFlags WgpuConvert(const GfxBindingStage value)
+	static WGPUShaderStage WgpuConvert(const GfxBindingStage value)
 	{
-		WGPUShaderStageFlags result = WGPUShaderStage_None;
+		WGPUShaderStage result = WGPUShaderStage_None;
 
 		if (EnumHasAnyFlags(value, GfxBindingStage::Vertex))
 		{
@@ -183,22 +218,22 @@ namespace Bk
 	uint32 CreatePipeline(const GfxPipelineDesc& desc)
 	{
 		WGPURenderPipelineDescriptor pipelineDesc = {};
-		pipelineDesc.label = desc.name;
+		pipelineDesc.label = WgpuConvert(desc.name);
 		pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
 		pipelineDesc.multisample.count = 1;
 		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
 		if (desc.VS.code)
 		{
-			WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
-			shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
-			shaderCodeDesc.code = desc.VS.code;
+			WGPUShaderSourceWGSL shaderSourceDesc = {};
+			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
+			shaderSourceDesc.code = WgpuConvert(desc.VS.code);
 
 			WGPUShaderModuleDescriptor shaderDesc = {};
-			shaderDesc.nextInChain = &shaderCodeDesc.chain;
+			shaderDesc.nextInChain = &shaderSourceDesc.chain;
 
 			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gfxContext.device, &shaderDesc);
-			pipelineDesc.vertex.entryPoint = desc.VS.entryPoint;
+			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.VS.entryPoint);
 
 			// #TODO: Temp arena allocations
 			WGPUVertexBufferLayout vertexBuffers[8] = {};
@@ -228,16 +263,16 @@ namespace Bk
 
 		if (desc.PS.code)
 		{
-			WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
-			shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
-			shaderCodeDesc.code = desc.PS.code;
+			WGPUShaderSourceWGSL shaderSourceDesc = {};
+			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
+			shaderSourceDesc.code = WgpuConvert(desc.PS.code);
 
 			WGPUShaderModuleDescriptor shaderDesc = {};
-			shaderDesc.nextInChain = &shaderCodeDesc.chain;
+			shaderDesc.nextInChain = &shaderSourceDesc.chain;
 
 			WGPUFragmentState fragmentState = {};
 			fragmentState.module = wgpuDeviceCreateShaderModule(gfxContext.device, &shaderDesc);
-			fragmentState.entryPoint = desc.PS.entryPoint;
+			fragmentState.entryPoint = WgpuConvert(desc.PS.entryPoint);
 
 			WGPUColorTargetState surfaceTarget = { .format = gfxContext.surfaceConfig.format, .writeMask = WGPUColorWriteMask_All };
 			fragmentState.targets = &surfaceTarget;
@@ -249,7 +284,7 @@ namespace Bk
 		if (desc.bindingLayouts.length > 0)
 		{
 			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
-			pipelineLayoutDesc.label = desc.name;
+			pipelineLayoutDesc.label = WgpuConvert(desc.name);
 
 			// #TODO: Temp arena allocations
 			WGPUBindGroupLayout bindingLayouts[8];
@@ -313,7 +348,7 @@ namespace Bk
 		const uint64 bufferSize = desc.size == 0 ? desc.data.length : desc.size;
 
 		WGPUBufferDescriptor bufferDesc = {};
-		bufferDesc.label = desc.name;
+		bufferDesc.label = WgpuConvert(desc.name);
 		bufferDesc.size = AlignUp(bufferSize, 4); // Mapping requires size to be multiple of 4
 		bufferDesc.mappedAtCreation = desc.data.length != 0;
 
@@ -371,7 +406,7 @@ namespace Bk
 	uint32 CreateBindingLayout(const GfxBindingLayoutDesc& desc)
 	{
 		WGPUBindGroupLayoutDescriptor bindingLayoutDesc = {};
-		bindingLayoutDesc.label = desc.name;
+		bindingLayoutDesc.label = WgpuConvert(desc.name);
 
 		// #TODO: Temp arena allocations
 		WGPUBindGroupLayoutEntry bindings[8] = {};
@@ -422,7 +457,7 @@ namespace Bk
 	uint32 CreateBindingGroup(const GfxBindingGroupDesc& desc)
 	{
 		WGPUBindGroupDescriptor bindingGroupDesc = {};
-		bindingGroupDesc.label = desc.name;
+		bindingGroupDesc.label = WgpuConvert(desc.name);
 		bindingGroupDesc.layout = gfxContext.bindingLayouts.GetItem(desc.bindingLayout)->handle;
 
 		// #TODO: Temp arena allocations
@@ -505,7 +540,7 @@ namespace Bk
 		BK_ASSERT(gfxContext.renderPassEncoder == nullptr);
 
 		WGPURenderPassDescriptor passDesc = {};
-		passDesc.label = desc.name;
+		passDesc.label = WgpuConvert(desc.name);
 
 		WGPUSurfaceTexture surfaceTexture;
 		wgpuSurfaceGetCurrentTexture(gfxContext.surface, &surfaceTexture);
