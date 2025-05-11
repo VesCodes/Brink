@@ -220,6 +220,8 @@ namespace Bk
 		WGPURenderPipelineDescriptor pipelineDesc = {};
 		pipelineDesc.label = WgpuConvert(desc.name);
 		pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+		pipelineDesc.primitive.frontFace = WGPUFrontFace_CW;
+		pipelineDesc.primitive.cullMode = WGPUCullMode_Back;
 		pipelineDesc.multisample.count = 1;
 		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
