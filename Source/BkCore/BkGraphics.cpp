@@ -333,11 +333,7 @@ namespace Bk
 		GfxPipeline* pipeline = gfxContext.pipelines.GetItem(handle);
 		if (pipeline)
 		{
-			if (pipeline->handle)
-			{
-				wgpuRenderPipelineRelease(pipeline->handle);
-			}
-
+			wgpuRenderPipelineRelease(pipeline->handle);
 			gfxContext.pipelines.FreeItem(handle);
 		}
 	}
@@ -389,16 +385,21 @@ namespace Bk
 		return bufferHandle;
 	}
 
+	void WriteBuffer(uint32 handle, TSpan<uint8> data, uint64 offset)
+	{
+		GfxBuffer* buffer = gfxContext.buffers.GetItem(handle);
+		if (buffer)
+		{
+			wgpuQueueWriteBuffer(gfxContext.queue, buffer->handle, offset, data.data, data.length);
+		}
+	}
+
 	void DestroyBuffer(uint32 handle)
 	{
 		GfxBuffer* buffer = gfxContext.buffers.GetItem(handle);
 		if (buffer)
 		{
-			if (buffer->handle)
-			{
-				wgpuBufferRelease(buffer->handle);
-			}
-
+			wgpuBufferRelease(buffer->handle);
 			gfxContext.buffers.FreeItem(handle);
 		}
 	}
@@ -445,11 +446,7 @@ namespace Bk
 		GfxBindingLayout* bindingLayout = gfxContext.bindingLayouts.GetItem(handle);
 		if (bindingLayout)
 		{
-			if (bindingLayout->handle)
-			{
-				wgpuBindGroupLayoutRelease(bindingLayout->handle);
-			}
-
+			wgpuBindGroupLayoutRelease(bindingLayout->handle);
 			gfxContext.bindingLayouts.FreeItem(handle);
 		}
 	}
@@ -497,11 +494,7 @@ namespace Bk
 		GfxBindingGroup* bindingGroup = gfxContext.bindingGroups.GetItem(handle);
 		if (bindingGroup)
 		{
-			if (bindingGroup->handle)
-			{
-				wgpuBindGroupRelease(bindingGroup->handle);
-			}
-
+			wgpuBindGroupRelease(bindingGroup->handle);
 			gfxContext.bindingGroups.FreeItem(handle);
 		}
 	}

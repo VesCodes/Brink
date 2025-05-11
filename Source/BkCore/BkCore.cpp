@@ -57,6 +57,24 @@ namespace Bk
 		exit(exitCode);
 	}
 
+	uint64 GetTime()
+	{
+		timespec ts = {};
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+
+		return static_cast<uint64>(ts.tv_sec * 1'000'000'000ll + ts.tv_nsec);
+	}
+
+	uint64 GetTimeMs()
+	{
+		return GetTime() / 1'000'000;
+	}
+
+	double GetTimeSec()
+	{
+		return static_cast<double>(GetTime()) / 1'000'000'000.0;
+	}
+
 	DateTime GetUtcTime()
 	{
 		timeval time = {};

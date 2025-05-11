@@ -13,14 +13,14 @@
 #define BK_ASSERT(expr) BK_ASSERTF(expr, "")
 #define BK_ASSERTF(expr, format, ...) \
 	do { \
-		BK_CHECK_FORMAT(format, ##__VA_ARGS__); \
-		if (!(expr) && Bk::AssertError(#expr, __FILE__, __LINE__, format, ##__VA_ARGS__)) { BK_BREAK(); } \
+		BK_CHECK_FORMAT(format, ## __VA_ARGS__); \
+		if (!(expr) && Bk::AssertError(#expr, __FILE__, __LINE__, format, ## __VA_ARGS__)) { BK_BREAK(); } \
 	} while(0)
 
 #define BK_BREAK() emscripten_debugger()
 extern "C" void emscripten_debugger(void);
 
-#define BK_CHECK_FORMAT(format, ...) ((void)sizeof(printf(format, ##__VA_ARGS__)))
+#define BK_CHECK_FORMAT(format, ...) ((void)sizeof(printf(format, ## __VA_ARGS__)))
 extern "C" int printf(const char*, ...);
 
 #define BK_ENUM_CLASS_FLAGS(EnumType) \
@@ -86,6 +86,10 @@ namespace Bk
 		uint8 second;
 		uint16 millisecond;
 	};
+
+	uint64 GetTime();
+	uint64 GetTimeMs();
+	double GetTimeSec();
 
 	DateTime GetUtcTime();
 	uint64 GetUnixTime();

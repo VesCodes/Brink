@@ -17,6 +17,7 @@ struct
 	uint32 testPipeline;
 	uint32 testVertexBuffer;
 	uint32 testIndexBuffer;
+	uint32 testGlobalsBuffer;
 	uint32 testBindingGroup;
 } state;
 
@@ -44,8 +45,6 @@ uint32 numIndices = subdivisions * 3;
 
 void Initialize()
 {
-	float globals[] = { 0.2f, 0.7f, 0.3f, 0.0f };
-
 	uint32 testBindingLayout = CreateBindingLayout({
 		.name = "Test Binding Layout",
 		.bindings = {
@@ -102,18 +101,18 @@ void Initialize()
 		.data = TSpan((uint8*)indices, numIndices * sizeof(indices[0])),
 	});
 
-	uint32 testGlobalsBuffer = CreateBuffer({
+	state.testGlobalsBuffer = CreateBuffer({
 		.name = "Test Globals Buffer",
 		.type = GfxBufferType::Uniform,
 		.access = GfxBufferAccess::GpuOnly,
-		.data = TSpan((uint8*)globals, sizeof(globals)),
+		.size = sizeof(float) * 4
 	});
 
 	state.testBindingGroup = CreateBindingGroup({
 		.name = "Test Binding Group",
 		.bindingLayout = testBindingLayout,
 		.bindings = {
-			{ .buffer = testGlobalsBuffer },
+			{ .buffer = state.testGlobalsBuffer },
 		},
 	});
 }
@@ -130,6 +129,9 @@ void Update()
 		Initialize();
 		state.initialized = true;
 	}
+
+	float globals[] = { 0.5f * static_cast<float>(sin(GetTimeSec() * 1.5 * M_PI) + 1.0), 0.7f, 0.3f, 0.0f };
+	WriteBuffer(state.testGlobalsBuffer, TSpan((uint8*)globals, sizeof(globals)));
 
 	BeginPass({
 		.name = "Sandbox Pass",
