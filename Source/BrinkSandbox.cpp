@@ -2,7 +2,7 @@
 
 #include "BkCore/BkArena.cpp"
 #include "BkCore/BkCore.cpp"
-#include "BkCore/BkGraphics.cpp"
+#include "BkCore/BkGpu.cpp"
 #include "BkCore/BkMemory.cpp"
 #include "BkCore/BkString.cpp"
 
@@ -48,7 +48,7 @@ void Initialize()
 	uint32 testBindingLayout = CreateBindingLayout({
 		.name = "Test Binding Layout",
 		.bindings = {
-			{ .type = GfxBindingType::UniformBuffer, .stage = GfxBindingStage::Vertex | GfxBindingStage::Pixel },
+			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex | GpuBindingStage::Pixel },
 		},
 	});
 
@@ -60,7 +60,7 @@ void Initialize()
 				{
 					.stride = 8,
 					.attributes = {
-						{ .offset = 0, .format = GfxVertexFormat::Float32x2 },
+						{ .offset = 0, .format = GpuVertexFormat::Float32x2 },
 					},
 				},
 			},
@@ -91,20 +91,20 @@ void Initialize()
 
 	state.testVertexBuffer = CreateBuffer({
 		.name = "Test Vertex Buffer",
-		.type = GfxBufferType::Vertex,
+		.type = GpuBufferType::Vertex,
 		.data = TSpan((uint8*)vertices, numVertices * sizeof(vertices[0])),
 	});
 
 	state.testIndexBuffer = CreateBuffer({
 		.name = "Test Index Buffer",
-		.type = GfxBufferType::Index,
+		.type = GpuBufferType::Index,
 		.data = TSpan((uint8*)indices, numIndices * sizeof(indices[0])),
 	});
 
 	state.testGlobalsBuffer = CreateBuffer({
 		.name = "Test Globals Buffer",
-		.type = GfxBufferType::Uniform,
-		.access = GfxBufferAccess::GpuOnly,
+		.type = GpuBufferType::Uniform,
+		.access = GpuBufferAccess::GpuOnly,
 		.size = sizeof(float) * 4
 	});
 
@@ -156,7 +156,7 @@ void Update()
 
 int main(int argc, char** argv)
 {
-	GfxInitialize();
+	GpuInitialize();
 
 	emscripten_set_main_loop(Update, 0, true);
 
