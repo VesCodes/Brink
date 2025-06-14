@@ -136,6 +136,7 @@ namespace Bk
 
 		WGPUDeviceDescriptor deviceDesc = {};
 		deviceDesc.uncapturedErrorCallbackInfo.callback = OnDeviceError;
+		deviceDesc.deviceLostCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
 		deviceDesc.deviceLostCallbackInfo.callback = OnDeviceLost;
 
 		wgpuAdapterRequestDevice(gpuContext.adapter, &deviceDesc, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnDeviceAcquired });
