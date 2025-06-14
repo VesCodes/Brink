@@ -3,6 +3,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#if defined(_WIN32)
+#define BK_PLATFORM_WINDOWS
+#elif defined(__APPLE__)
+#define BK_PLATFORM_MACOS
+#elif defined(__EMSCRIPTEN__)
+#define BK_PLATFORM_EMSCRIPTEN
+#endif
+
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
 
 #define BK_ABS(x) ((x) < 0 ? -(x) : (x))
@@ -17,8 +25,12 @@
 		if (!(expr) && Bk::AssertError(#expr, __FILE__, __LINE__, format, ## __VA_ARGS__)) { BK_BREAK(); } \
 	} while(0)
 
+#if defined(BK_PLATFORM_EMSCRIPTEN)
 #define BK_BREAK() emscripten_debugger()
 extern "C" void emscripten_debugger(void);
+#else
+#define BK_BREAK() __builtin_debugtrap()
+#endif
 
 #define BK_CHECK_FORMAT(format, ...) ((void)sizeof(printf(format, ## __VA_ARGS__)))
 extern "C" int printf(const char*, ...);
@@ -87,7 +99,9 @@ namespace Bk
 		uint16 millisecond;
 	};
 
-	uint64 GetTime();
+	uint64 GetCpuTicks();
+	uint64 GetCpuFrequency();
+
 	uint64 GetTimeMs();
 	double GetTimeSec();
 

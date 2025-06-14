@@ -1,5 +1,6 @@
 #include "BkCore/BkArena.cpp"
 #include "BkCore/BkCore.cpp"
+#include "BkCore/BkFile.cpp"
 #include "BkCore/BkGpu.cpp"
 #include "BkCore/BkMemory.cpp"
 #include "BkCore/BkString.cpp"

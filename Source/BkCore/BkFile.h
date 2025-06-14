@@ -21,4 +21,6 @@ namespace Bk
 
 	size_t ReadFile(FileHandle handle, TSpan<uint8> buffer);
 	size_t WriteFile(FileHandle handle, TSpan<uint8> buffer);
+
+	size_t GetFileSize(FileHandle handle);
 }
