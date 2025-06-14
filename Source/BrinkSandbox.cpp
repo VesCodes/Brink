@@ -2,6 +2,7 @@
 #include "BkCore/BkCore.cpp"
 #include "BkCore/BkFile.cpp"
 #include "BkCore/BkGpu.cpp"
+#include "BkCore/BkJson.cpp"
 #include "BkCore/BkMemory.cpp"
 #include "BkCore/BkString.cpp"
 
