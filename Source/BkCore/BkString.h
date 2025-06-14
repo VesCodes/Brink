@@ -6,6 +6,11 @@
 
 namespace Bk
 {
+	constexpr bool IsSpace(char c);
+	constexpr bool IsAlpha(char c);
+	constexpr bool IsDigit(char c);
+	constexpr bool IsHexDigit(char c);
+
 	constexpr char ToLower(char c);
 	constexpr char ToUpper(char c);
 
@@ -66,10 +71,41 @@ namespace Bk
 
 		char buffer[BufferSize];
 	};
+
+	struct AsciiSet
+	{
+		template<size_t N>
+		constexpr AsciiSet(const char (&chars)[N]);
+
+		constexpr bool Contains(char c) const;
+
+		uint64 loMask;
+		uint64 hiMask;
+	};
 }
 
 namespace Bk
 {
+	constexpr bool IsSpace(char c)
+	{
+		return (c == ' ' || c == '\f' || c == '\n' || c == '\r' || c == '\t' || c == '\v');
+	}
+
+	constexpr bool IsAlpha(char c)
+	{
+		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+	}
+
+	constexpr bool IsDigit(char c)
+	{
+		return (c >= '0' && c <= '9');
+	}
+
+	constexpr bool IsHexDigit(char c)
+	{
+		return IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+	}
+
 	constexpr char ToLower(char c)
 	{
 		return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
@@ -106,5 +142,33 @@ namespace Bk
 		: StringBuffer(buffer, BufferSize)
 	{
 		Append(string);
+	}
+
+	template<size_t N>
+	constexpr AsciiSet::AsciiSet(const char (&chars)[N])
+	{
+		loMask = 0;
+		hiMask = 0;
+
+		for (size_t i = 0; i < N - 1; ++i)
+		{
+			char c = chars[i];
+
+			uint64 bit = 1ull << (c & 0x3f);
+			uint64 isLo = 0ull - (c >> 6 == 0);
+			uint64 isHi = 0ull - (c >> 6 == 1);
+
+			loMask |= bit & isLo;
+			hiMask |= bit & isHi;
+		}
+	}
+
+	constexpr bool AsciiSet::Contains(char c) const
+	{
+		uint64 bit = 1ull << (c & 0x3f);
+		uint64 isLo = 0ull - (c >> 6 == 0);
+		uint64 isHi = 0ull - (c >> 6 == 1);
+
+		return ((bit & isLo & loMask) | (bit & isHi & hiMask)) != 0;
 	}
 }
