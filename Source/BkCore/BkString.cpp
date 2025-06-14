@@ -2,6 +2,8 @@
 
 #include "BkMemory.h"
 
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 
 namespace Bk
@@ -24,8 +26,14 @@ namespace Bk
 
 	String String::Slice(size_t offset, size_t count) const
 	{
-		BK_ASSERT(offset >= 0 && offset < length);
+		BK_ASSERT(offset <= length);
 		return String(data + offset, BK_MIN(count, length - offset));
+	}
+
+	String String::Range(size_t start, size_t end) const
+	{
+		BK_ASSERT(start <= length && start <= end);
+		return String(data + start, BK_MIN(end - start, length - start));
 	}
 
 	bool String::Equals(String other, bool ignoreCase) const
@@ -115,10 +123,259 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
+	bool String::Parse(bool& value) const
+	{
+		if (Equals("true", true) || Equals("1"))
+		{
+			value = true;
+			return true;
+		}
+
+		if (Equals("false", true) || Equals("0"))
+		{
+			value = false;
+			return true;
+		}
+
+		return false;
+	}
+
+	bool String::Parse(int64& value) const
+	{
+		if (length == 0)
+		{
+			return false;
+		}
+
+		const char* c = data;
+		const char* end = data + length;
+
+		bool negative = false;
+		if (*c == '-')
+		{
+			negative = true;
+			c += 1;
+		}
+		else if (*c == '+')
+		{
+			c += 1;
+		}
+
+		const uint64 limit = negative ? static_cast<uint64>(INT64_MAX) + 1 : static_cast<uint64>(INT64_MAX);
+		const uint64 maxDiv10 = limit / 10;
+		const uint64 maxMod10 = limit % 10;
+
+		uint64 result = 0;
+		bool hasDigits = false;
+
+		for (; c != end && IsDigit(*c); ++c)
+		{
+			uint64 digit = static_cast<uint64>(*c - '0');
+			if (result > maxDiv10 || (result == maxDiv10 && digit > maxMod10))
+			{
+				return false;
+			}
+
+			result = result * 10 + digit;
+			hasDigits = true;
+		}
+
+		if (!hasDigits || c != end)
+		{
+			return false;
+		}
+
+		value = negative ? -static_cast<int64>(result) : static_cast<int64>(result);
+
+		return true;
+	}
+
+	bool String::Parse(int32& value) const
+	{
+		int64 result;
+		if (Parse(result) && result >= INT32_MIN && result <= INT32_MAX)
+		{
+			value = static_cast<int32>(result);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool String::Parse(uint64& value) const
+	{
+		if (length == 0)
+		{
+			return false;
+		}
+
+		const char* c = data;
+		const char* end = data + length;
+
+		if (*c == '-')
+		{
+			return false;
+		}
+		if (*c == '+')
+		{
+			c += 1;
+		}
+
+		const uint64 maxDiv10 = UINT64_MAX / 10;
+		const uint64 maxMod10 = UINT64_MAX % 10;
+
+		uint64 result = 0;
+		bool hasDigits = false;
+
+		for (; c != end && IsDigit(*c); ++c)
+		{
+			uint64 digit = static_cast<uint64>(*c - '0');
+			if (result > maxDiv10 || (result == maxDiv10 && digit > maxMod10))
+			{
+				return false;
+			}
+
+			result = result * 10 + digit;
+			hasDigits = true;
+		}
+
+		if (!hasDigits || c != end)
+		{
+			return false;
+		}
+
+		value = result;
+
+		return true;
+	}
+
+	bool String::Parse(uint32& value) const
+	{
+		uint64 result;
+		if (Parse(result) && result <= UINT32_MAX)
+		{
+			value = static_cast<uint32>(result);
+			return true;
+		}
+
+		return false;
+	}
+
+	bool String::Parse(double& value) const
+	{
+		if (length == 0)
+		{
+			return false;
+		}
+
+		const char* c = data;
+		const char* end = data + length;
+
+		double sign = 1.0;
+		if (*c == '-')
+		{
+			sign = -1.0;
+			c += 1;
+		}
+		else if (*c == '+')
+		{
+			c += 1;
+		}
+
+		double result = 0.0;
+		bool hasMantissa = false;
+
+		for (; c != end && IsDigit(*c); ++c)
+		{
+			result = result * 10.0 + (*c - '0');
+			hasMantissa = true;
+		}
+
+		if (c != end && *c == '.')
+		{
+			c += 1;
+
+			double power = 0.1;
+			for (; c != end && IsDigit(*c); ++c)
+			{
+				result += (*c - '0') * power;
+				power *= 0.1;
+
+				hasMantissa = true;
+			}
+		}
+
+		if (!hasMantissa)
+		{
+			return false;
+		}
+
+		if (c != end && (*c == 'e' || *c == 'E'))
+		{
+			c += 1;
+
+			double exponentSign = 1.0;
+			if (c != end)
+			{
+				if (*c == '-')
+				{
+					exponentSign = -1.0;
+					c += 1;
+				}
+				else if (*c == '+')
+				{
+					c += 1;
+				}
+			}
+
+			double exponent = 0.0;
+			bool hasExponent = false;
+
+			for (; c != end && IsDigit(*c); ++c)
+			{
+				exponent = exponent * 10.0 + (*c - '0');
+				hasExponent = true;
+			}
+
+			if (!hasExponent)
+			{
+				return false;
+			}
+
+			result *= pow(10.0, exponent * exponentSign);
+		}
+
+		if (!isfinite(result) || c != end)
+		{
+			return false;
+		}
+
+		value = result * sign;
+
+		return true;
+	}
+
+	bool String::Parse(float& value) const
+	{
+		double result;
+		if (Parse(result) && result >= -FLT_MAX && result <= FLT_MAX)
+		{
+			value = static_cast<float>(result);
+			return true;
+		}
+
+		return false;
+	}
+
 	char String::operator[](size_t index) const
 	{
-		BK_ASSERT(index >= 0 && index < length);
+		BK_ASSERT(index < length);
 		return data[index];
+	}
+
+	bool String::operator==(String other) const
+	{
+		return length == other.length && MemoryCompare(data, other.data, length) == 0;
 	}
 
 	const char* String::begin() const
