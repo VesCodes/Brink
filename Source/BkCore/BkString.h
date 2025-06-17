@@ -36,6 +36,8 @@ namespace Bk
 
 		size_t Find(char search, bool ignoreCase = false) const;
 		size_t Find(String search, bool ignoreCase = false) const;
+		size_t FindLast(char search, bool ignoreCase = false) const;
+		size_t FindLast(String search, bool ignoreCase = false) const;
 
 		bool Parse(bool& value) const;
 		bool Parse(int64& value) const;
@@ -47,6 +49,7 @@ namespace Bk
 
 		char operator[](size_t index) const;
 		bool operator==(String other) const;
+		bool operator!=(String other) const;
 
 		const char* begin() const;
 		const char* end() const;
