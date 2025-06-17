@@ -109,14 +109,73 @@ namespace Bk
 		if (search.length > 1 && search.length <= length)
 		{
 			String slice(data, search.length);
-			for (size_t idx = 0; idx <= length - search.length; ++idx)
+			for (size_t i = 0; i <= length - search.length; ++i)
 			{
 				if (slice.Equals(search, ignoreCase))
 				{
-					return idx;
+					return size_t(slice.data - data);
 				}
 
 				slice.data += 1;
+			}
+		}
+
+		return SIZE_MAX;
+	}
+
+	size_t String::FindLast(char search, bool ignoreCase) const
+	{
+		if (length == 0)
+		{
+			return SIZE_MAX;
+		}
+
+		const char* start = data;
+		const char* end = data + length;
+
+		if (ignoreCase)
+		{
+			char searchUpper = ToUpper(search);
+			for (const char* c = end - 1; c >= start; --c)
+			{
+				if (ToUpper(*c) == searchUpper)
+				{
+					return static_cast<size_t>(c - start);
+				}
+			}
+		}
+		else
+		{
+			for (const char* c = end - 1; c >= start; --c)
+			{
+				if (*c == search)
+				{
+					return static_cast<size_t>(c - start);
+				}
+			}
+		}
+
+		return SIZE_MAX;
+	}
+
+	size_t String::FindLast(String search, bool ignoreCase) const
+	{
+		if (search.length == 1)
+		{
+			return FindLast(search.data[0], ignoreCase);
+		}
+
+		if (search.length > 1 && search.length <= length)
+		{
+			String slice(data + length - search.length, search.length);
+			for (size_t i = 0; i <= length - search.length; ++i)
+			{
+				if (slice.Equals(search, ignoreCase))
+				{
+					return size_t(slice.data - data);
+				}
+
+				slice.data -= 1;
 			}
 		}
 
@@ -376,6 +435,11 @@ namespace Bk
 	bool String::operator==(String other) const
 	{
 		return length == other.length && MemoryCompare(data, other.data, length) == 0;
+	}
+
+	bool String::operator!=(String other) const
+	{
+		return length != other.length || MemoryCompare(data, other.data, length) != 0;
 	}
 
 	const char* String::begin() const

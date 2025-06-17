@@ -92,13 +92,13 @@ namespace Bk
 
 	uint64 GetTimeMs()
 	{
-		static uint64 period = GetCpuFrequency();
+		uint64 period = GetCpuFrequency();
 		return (GetCpuTicks() * 1'000) / period;
 	}
 
 	double GetTimeSec()
 	{
-		static double period = 1.0 / double(GetCpuFrequency());
+		double period = 1.0 / double(GetCpuFrequency());
 		return double(GetCpuTicks()) * period;
 	}
 

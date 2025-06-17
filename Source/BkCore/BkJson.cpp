@@ -231,7 +231,7 @@ namespace Bk
 
 	JsonValue* FindJsonValueInObject(JsonValue* object, String key)
 	{
-		if (object->type != JsonType::Object || object->children < 2)
+		if (!object || object->type != JsonType::Object || object->children < 2)
 		{
 			return nullptr;
 		}
@@ -252,7 +252,7 @@ namespace Bk
 
 	JsonValue* FindJsonValueInArray(JsonValue* array, size_t index)
 	{
-		if (array->type != JsonType::Array || array->children <= index)
+		if (!array || array->type != JsonType::Array || array->children <= index)
 		{
 			return nullptr;
 		}
