@@ -56,12 +56,12 @@ namespace Bk
 
 	void OnDeviceError(const WGPUDevice* device, WGPUErrorType type, WGPUStringView message, void* userdata1, void* userdata2)
 	{
-		printf("Device Error (%0x): %.*s\n", type, (int32)message.length, message.data);
+		printf("Device Error (%0x): %.*s\n", type, static_cast<int32>(message.length), message.data);
 	}
 
 	void OnDeviceLost(const WGPUDevice* device, WGPUDeviceLostReason reason, WGPUStringView message, void* userdata1, void* userdata2)
 	{
-		printf("Device Lost (%0x): %.*s\n", reason, (int32)message.length, message.data);
+		printf("Device Lost (%0x): %.*s\n", reason, static_cast<int32>(message.length), message.data);
 	}
 
 	void ConfigureSurface()
@@ -77,8 +77,8 @@ namespace Bk
 		gpuContext.surfaceConfig.device = gpuContext.device;
 		gpuContext.surfaceConfig.usage = WGPUTextureUsage_RenderAttachment;
 		gpuContext.surfaceConfig.alphaMode = WGPUCompositeAlphaMode_Auto;
-		gpuContext.surfaceConfig.width = (uint32_t)canvasWidth;
-		gpuContext.surfaceConfig.height = (uint32_t)canvasHeight;
+		gpuContext.surfaceConfig.width = static_cast<uint32_t>(canvasWidth);
+		gpuContext.surfaceConfig.height = static_cast<uint32_t>(canvasHeight);
 		gpuContext.surfaceConfig.presentMode = WGPUPresentMode_Fifo;
 
 		wgpuSurfaceConfigure(gpuContext.surface, &gpuContext.surfaceConfig);
@@ -97,7 +97,7 @@ namespace Bk
 	{
 		if (status != WGPURequestDeviceStatus_Success)
 		{
-			FatalError(1, "Failed to acquire WebGPU device: %.*s", (int32)message.length, message.data);
+			FatalError(1, "Failed to acquire WebGPU device: %.*s", static_cast<int32>(message.length), message.data);
 		}
 
 		gpuContext.device = device;
@@ -128,7 +128,7 @@ namespace Bk
 	{
 		if (status != WGPURequestAdapterStatus_Success)
 		{
-			FatalError(1, "Failed to acquire WebGPU adapter: %.*s", (int32)message.length, message.data);
+			FatalError(1, "Failed to acquire WebGPU adapter: %.*s", static_cast<int32>(message.length), message.data);
 		}
 
 		gpuContext.adapter = adapter;
@@ -593,7 +593,7 @@ namespace Bk
 
 			wgpuRenderPassEncoderDrawIndexed(
 				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
-				desc.indexOffset, (int32)desc.vertexOffset, desc.instanceOffset); // #TODO: Why is baseVertex signed?
+				desc.indexOffset, static_cast<int32>(desc.vertexOffset), desc.instanceOffset); // #TODO: Why is baseVertex signed?
 		}
 		else
 		{

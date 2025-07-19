@@ -34,7 +34,7 @@ namespace Bk
 				}
 
 				current = scope;
-				current->value.length = size_t(json.data + position + 1 - current->value.data);
+				current->value.length = static_cast<size_t>(json.data + position + 1 - current->value.data);
 				current->sibling = nullptr;
 			}
 			else if (c == '"')

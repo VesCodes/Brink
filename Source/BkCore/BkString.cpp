@@ -113,7 +113,7 @@ namespace Bk
 			{
 				if (slice.Equals(search, ignoreCase))
 				{
-					return size_t(slice.data - data);
+					return static_cast<size_t>(slice.data - data);
 				}
 
 				slice.data += 1;
@@ -172,7 +172,7 @@ namespace Bk
 			{
 				if (slice.Equals(search, ignoreCase))
 				{
-					return size_t(slice.data - data);
+					return static_cast<size_t>(slice.data - data);
 				}
 
 				slice.data -= 1;
