@@ -19,6 +19,7 @@ namespace Bk
 
 		TSpan Slice(size_t offset, size_t count = SIZE_MAX) const;
 
+		operator Type*() const;
 		Type& operator[](size_t index) const;
 
 		Type* begin() const;
@@ -55,6 +56,12 @@ namespace Bk
 	{
 		BK_ASSERT(offset >= 0 && offset < length);
 		return TSpan(data + offset, BK_MIN(count, length - offset));
+	}
+
+	template<typename Type>
+	TSpan<Type>::operator Type*() const
+	{
+		return data;
 	}
 
 	template<typename Type>

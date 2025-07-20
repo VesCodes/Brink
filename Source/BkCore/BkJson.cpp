@@ -6,7 +6,7 @@ namespace Bk
 {
 	JsonValue* ParseJson(Arena& arena, String json)
 	{
-		ArenaMarker marker = arena.GetMarker();
+		ArenaMarker marker = arena.PushMarker();
 
 		JsonValue* root = nullptr;
 		JsonValue* scope = nullptr;
@@ -190,7 +190,7 @@ namespace Bk
 
 		if (!root)
 		{
-			arena.SetMarker(marker);
+			arena.PopMarker(marker);
 		}
 
 		return root;
