@@ -1,6 +1,6 @@
 #pragma once
 
-#include "BkCore.h"
+#include "Core.h"
 
 #define BK_KILOBYTES(x) ((x) << 10)
 #define BK_MEGABYTES(x) ((x) << 20)

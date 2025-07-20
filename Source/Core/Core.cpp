@@ -1,6 +1,6 @@
-#include "BkCore.h"
+#include "Core.h"
 
-#include "BkString.h"
+#include "String.h"
 
 #include <stdio.h>
 #include <stdlib.h>

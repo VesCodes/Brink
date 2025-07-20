@@ -1,6 +1,6 @@
-#include "BkGpu.h"
+#include "Gpu.h"
 
-#include "BkPool.h"
+#include "Pool.h"
 
 #include <emscripten/html5.h>
 #include <webgpu/webgpu.h>

@@ -1,6 +1,6 @@
-#include "BkArena.h"
+#include "Arena.h"
 
-#include "BkMemory.h"
+#include "Memory.h"
 
 namespace Bk
 {

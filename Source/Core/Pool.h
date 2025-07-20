@@ -1,8 +1,8 @@
 #pragma once
 
-#include "BkArena.h"
-#include "BkCore.h"
-#include "BkMemory.h"
+#include "Arena.h"
+#include "Core.h"
+#include "Memory.h"
 
 namespace Bk
 {

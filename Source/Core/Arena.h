@@ -1,7 +1,7 @@
 #pragma once
 
-#include "BkCore.h"
-#include "BkSpan.h"
+#include "Core.h"
+#include "Span.h"
 
 namespace Bk
 {

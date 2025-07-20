@@ -1,6 +1,6 @@
-#include "BkString.h"
+#include "String.h"
 
-#include "BkMemory.h"
+#include "Memory.h"
 
 #include <float.h>
 #include <math.h>

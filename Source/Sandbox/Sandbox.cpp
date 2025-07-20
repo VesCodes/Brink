@@ -1,13 +1,13 @@
-#include "BkCore/BkArena.cpp"
-#include "BkCore/BkCore.cpp"
-#include "BkCore/BkFile.cpp"
-#include "BkCore/BkGpu.cpp"
-#include "BkCore/BkJson.cpp"
-#include "BkCore/BkMemory.cpp"
-#include "BkCore/BkString.cpp"
+#include "Core/Arena.cpp"
+#include "Core/Core.cpp"
+#include "Core/File.cpp"
+#include "Core/Gpu.cpp"
+#include "Core/Json.cpp"
+#include "Core/Memory.cpp"
+#include "Core/String.cpp"
 
 #define HANDMADE_MATH_USE_DEGREES
-#include "../ThirdParty/HandmadeMath.h"
+#include <HandmadeMath.h>
 
 using namespace Bk;
 
