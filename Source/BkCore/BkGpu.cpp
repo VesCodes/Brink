@@ -218,6 +218,8 @@ namespace Bk
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc)
 	{
+		ScratchArena scratch = ScratchArena::Get();
+
 		WGPURenderPipelineDescriptor pipelineDesc = {};
 		pipelineDesc.label = WgpuConvert(desc.name);
 		pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
@@ -238,28 +240,30 @@ namespace Bk
 			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
 			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.VS.entryPoint);
 
-			// #TODO: Temp arena allocations
-			WGPUVertexBufferLayout vertexBuffers[8] = {};
-			WGPUVertexAttribute vertexAttributes[8][16] = {};
+			TSpan<WGPUVertexBufferLayout> vertexBuffers = scratch.arena->PushZeroed<WGPUVertexBufferLayout>(desc.VS.buffers.length);
 
 			pipelineDesc.vertex.buffers = vertexBuffers;
-			pipelineDesc.vertex.bufferCount = desc.VS.buffers.length;
+			pipelineDesc.vertex.bufferCount = vertexBuffers.length;
 
-			for (size_t bufferIdx = 0; bufferIdx < desc.VS.buffers.length; ++bufferIdx)
+			for (size_t bufferIdx = 0; bufferIdx < vertexBuffers.length; ++bufferIdx)
 			{
+				WGPUVertexBufferLayout& buffer = vertexBuffers[bufferIdx];
 				const GpuVertexBufferDesc& bufferDesc = desc.VS.buffers[bufferIdx];
 
-				vertexBuffers[bufferIdx].arrayStride = bufferDesc.stride;
-				vertexBuffers[bufferIdx].attributes = vertexAttributes[bufferIdx];
-				vertexBuffers[bufferIdx].attributeCount = bufferDesc.attributes.length;
+				TSpan<WGPUVertexAttribute> vertexAttributes = scratch.arena->PushZeroed<WGPUVertexAttribute>(bufferDesc.attributes.length);
 
-				for (size_t attributeIdx = 0; attributeIdx < bufferDesc.attributes.length; ++attributeIdx)
+				buffer.arrayStride = bufferDesc.stride;
+				buffer.attributes = vertexAttributes;
+				buffer.attributeCount = vertexAttributes.length;
+
+				for (size_t attributeIdx = 0; attributeIdx < vertexAttributes.length; ++attributeIdx)
 				{
+					WGPUVertexAttribute& attribute = vertexAttributes[attributeIdx];
 					const GpuVertexBufferAttribute& attributeDesc = bufferDesc.attributes[attributeIdx];
 
-					vertexAttributes[bufferIdx][attributeIdx].format = WgpuConvert(attributeDesc.format);
-					vertexAttributes[bufferIdx][attributeIdx].offset = attributeDesc.offset;
-					vertexAttributes[bufferIdx][attributeIdx].shaderLocation = attributeIdx;
+					attribute.format = WgpuConvert(attributeDesc.format);
+					attribute.offset = attributeDesc.offset;
+					attribute.shaderLocation = attributeIdx;
 				}
 			}
 		}
@@ -289,13 +293,12 @@ namespace Bk
 			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
 			pipelineLayoutDesc.label = WgpuConvert(desc.name);
 
-			// #TODO: Temp arena allocations
-			WGPUBindGroupLayout bindingLayouts[8];
+			TSpan<WGPUBindGroupLayout> bindingLayouts = scratch.arena->PushZeroed<WGPUBindGroupLayout>(desc.bindingLayouts.length);
 
 			pipelineLayoutDesc.bindGroupLayouts = bindingLayouts;
 			pipelineLayoutDesc.bindGroupLayoutCount = desc.bindingLayouts.length;
 
-			for (size_t layoutIdx = 0; layoutIdx < desc.bindingLayouts.length; ++layoutIdx)
+			for (size_t layoutIdx = 0; layoutIdx < bindingLayouts.length; ++layoutIdx)
 			{
 				bindingLayouts[layoutIdx] = gpuContext.bindingLayouts.GetItem(desc.bindingLayouts[layoutIdx])->handle;
 			}
@@ -409,27 +412,26 @@ namespace Bk
 
 	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc)
 	{
+		ScratchArena scratch = ScratchArena::Get();
+
 		WGPUBindGroupLayoutDescriptor bindingLayoutDesc = {};
 		bindingLayoutDesc.label = WgpuConvert(desc.name);
 
-		// #TODO: Temp arena allocations
-		WGPUBindGroupLayoutEntry bindings[8] = {};
+		TSpan<WGPUBindGroupLayoutEntry> bindings = scratch.arena->PushZeroed<WGPUBindGroupLayoutEntry>(desc.bindings.length);
 
 		bindingLayoutDesc.entries = bindings;
-		bindingLayoutDesc.entryCount = desc.bindings.length;
+		bindingLayoutDesc.entryCount = bindings.length;
 
 		for (size_t bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
 		{
-			const GpuBindingLayoutEntry& binding = desc.bindings[bindingIdx];
+			WGPUBindGroupLayoutEntry& binding = bindings[bindingIdx];
+			const GpuBindingLayoutEntry& bindingDesc = desc.bindings[bindingIdx];
 
-			bindings[bindingIdx].binding = bindingIdx;
-			bindings[bindingIdx].visibility = WgpuConvert(binding.stage);
-
-			bindings[bindingIdx].buffer.type = WgpuConvert(binding.type);
-			if (binding.type == GpuBindingType::DynamicStorageBuffer || binding.type == GpuBindingType::DynamicUniformBuffer)
-			{
-				bindings[bindingIdx].buffer.hasDynamicOffset = true;
-			}
+			binding.binding = bindingIdx;
+			binding.visibility = WgpuConvert(bindingDesc.stage);
+			binding.bindingArraySize = 1; // #TODO: https://github.com/gpuweb/gpuweb/blob/main/proposals/sized-binding-arrays.md
+			binding.buffer.type = WgpuConvert(bindingDesc.type);
+			binding.buffer.hasDynamicOffset = (bindingDesc.type == GpuBindingType::DynamicStorageBuffer || bindingDesc.type == GpuBindingType::DynamicUniformBuffer);
 		}
 
 		WGPUBindGroupLayout bindingLayout = wgpuDeviceCreateBindGroupLayout(gpuContext.device, &bindingLayoutDesc);
@@ -456,27 +458,29 @@ namespace Bk
 
 	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc)
 	{
+		ScratchArena scratch = ScratchArena::Get();
+
 		WGPUBindGroupDescriptor bindingGroupDesc = {};
 		bindingGroupDesc.label = WgpuConvert(desc.name);
 		bindingGroupDesc.layout = gpuContext.bindingLayouts.GetItem(desc.bindingLayout)->handle;
 
-		// #TODO: Temp arena allocations
-		WGPUBindGroupEntry bindings[8] = {};
+		TSpan<WGPUBindGroupEntry> bindings = scratch.arena->PushZeroed<WGPUBindGroupEntry>(desc.bindings.length);
 
 		bindingGroupDesc.entries = bindings;
-		bindingGroupDesc.entryCount = desc.bindings.length;
+		bindingGroupDesc.entryCount = bindings.length;
 
-		for (size_t bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
+		for (size_t bindingIdx = 0; bindingIdx < bindings.length; ++bindingIdx)
 		{
-			const GpuBindingGroupEntry& binding = desc.bindings[bindingIdx];
+			WGPUBindGroupEntry& binding = bindings[bindingIdx];
+			const GpuBindingGroupEntry& bindingDesc = desc.bindings[bindingIdx];
 
-			bindings[bindingIdx].binding = bindingIdx;
-			if (const GpuBuffer* buffer = gpuContext.buffers.GetItem(binding.buffer))
+			binding.binding = bindingIdx;
+			if (const GpuBuffer* buffer = gpuContext.buffers.GetItem(bindingDesc.buffer))
 			{
-				BK_ASSERT(binding.bufferOffset < buffer->size);
-				bindings[bindingIdx].buffer = buffer->handle;
-				bindings[bindingIdx].offset = binding.bufferOffset;
-				bindings[bindingIdx].size = buffer->size - binding.bufferOffset;
+				BK_ASSERT(bindingDesc.bufferOffset < buffer->size);
+				binding.buffer = buffer->handle;
+				binding.offset = bindingDesc.bufferOffset;
+				binding.size = buffer->size - bindingDesc.bufferOffset;
 			}
 		}
 

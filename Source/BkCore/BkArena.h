@@ -38,6 +38,16 @@ namespace Bk
 		ArenaBlock* currentBlock;
 		size_t blockAlignment;
 	};
+
+	struct ScratchArena
+	{
+		static ScratchArena Get(Arena* persistentArena = nullptr);
+
+		~ScratchArena();
+
+		Arena* arena;
+		ArenaMarker marker;
+	};
 }
 
 namespace Bk

@@ -4,6 +4,11 @@
 
 namespace Bk
 {
+	thread_local struct
+	{
+		Arena scratchArenas[2];
+	} arenaTls;
+
 	size_t Arena::DefaultAlignment = 8;
 	size_t Arena::DefaultBlockAlignment = BK_MEGABYTES(4);
 
@@ -75,6 +80,32 @@ namespace Bk
 		{
 			BK_ASSERT(marker.offset >= sizeof(ArenaBlock));
 			currentBlock->offset = marker.offset;
+		}
+	}
+
+	ScratchArena ScratchArena::Get(Arena* persistentArena)
+	{
+		ScratchArena result = {};
+
+		for (Arena& scratchArena : arenaTls.scratchArenas)
+		{
+			if (&scratchArena != persistentArena)
+			{
+				result.arena = &scratchArena;
+				result.marker = scratchArena.PushMarker();
+				break;
+			}
+		}
+
+		return result;
+	}
+
+	ScratchArena::~ScratchArena()
+	{
+		if (arena)
+		{
+			arena->PopMarker(marker);
+			arena = nullptr;
 		}
 	}
 }
