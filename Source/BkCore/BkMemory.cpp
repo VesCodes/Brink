@@ -68,41 +68,33 @@ namespace Bk
 		bitset[wordIdx] &= ~(1u << (index & 31));
 	}
 
-	size_t BitsetFindNextSet(const uint32* bitset, size_t bitsetLength, size_t index)
+	size_t BitsetFind(const uint32* bitset, bool value, size_t offset, size_t length)
 	{
-		size_t wordCount = (bitsetLength + 31) / 32;
-		size_t wordIdx = index / 32;
+		BK_ASSERT(offset < length);
 
-		// Mask out bits before index in first word
-		uint32 word = bitset[wordIdx] & (UINT32_MAX << (index & 31));
+		size_t wordIdx = offset / 32;
+		size_t wordCount = (length + 31) / 32;
 
-		for (; wordIdx < wordCount; ++wordIdx, word = bitset[wordIdx])
+		uint32 test = value ? 0u : UINT32_MAX;
+		uint32 mask = UINT32_MAX << (offset & 31);
+
+		while (wordIdx < wordCount && (bitset[wordIdx] & mask) == (test & mask))
 		{
-			if (word)
+			wordIdx += 1;
+			mask = UINT32_MAX;
+		}
+
+		if (wordIdx < wordCount)
+		{
+			uint32 bits = (value ? bitset[wordIdx] : ~bitset[wordIdx]) & mask;
+			size_t lowestBit = wordIdx * 32 + CountTrailingZeros(bits);
+
+			if (lowestBit < length)
 			{
-				return wordIdx * 32 + CountTrailingZeros(word);
+				return lowestBit;
 			}
 		}
 
-		return bitsetLength;
-	}
-
-	size_t BitsetFindNextUnset(const uint32* bitset, size_t bitsetLength, size_t index)
-	{
-		size_t wordCount = (bitsetLength + 31) / 32;
-		size_t wordIdx = index / 32;
-
-		// Mask out bits before index in first word
-		uint32 word = ~bitset[wordIdx] & (UINT32_MAX << (index & 31));
-
-		for (; wordIdx < wordCount; ++wordIdx, word = ~bitset[wordIdx])
-		{
-			if (word)
-			{
-				return wordIdx * 32 + CountTrailingZeros(word);
-			}
-		}
-
-		return bitsetLength;
+		return SIZE_MAX;
 	}
 }

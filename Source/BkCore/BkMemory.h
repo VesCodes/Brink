@@ -27,8 +27,7 @@ namespace Bk
 	bool BitsetIsSet(const uint32* bitset, size_t index);
 	void BitsetSet(uint32* bitset, size_t index);
 	void BitsetUnset(uint32* bitset, size_t index);
-	size_t BitsetFindNextSet(const uint32* bitset, size_t bitsetLength, size_t index);
-	size_t BitsetFindNextUnset(const uint32* bitset, size_t bitsetLength, size_t index);
+	size_t BitsetFind(const uint32* bitset, bool value, size_t offset, size_t length);
 }
 
 namespace Bk
