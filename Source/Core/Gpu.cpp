@@ -218,7 +218,7 @@ namespace Bk
 
 	uint32 CreatePipeline(const GpuPipelineDesc& desc)
 	{
-		ScratchArena scratch = ScratchArena::Get();
+		ArenaScope scratch = GetScratchArena();
 
 		WGPURenderPipelineDescriptor pipelineDesc = {};
 		pipelineDesc.label = WgpuConvert(desc.name);
@@ -240,7 +240,7 @@ namespace Bk
 			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
 			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.VS.entryPoint);
 
-			TSpan<WGPUVertexBufferLayout> vertexBuffers = scratch.arena->PushZeroed<WGPUVertexBufferLayout>(desc.VS.buffers.length);
+			TSpan<WGPUVertexBufferLayout> vertexBuffers = scratch.arena.PushZeroed<WGPUVertexBufferLayout>(desc.VS.buffers.length);
 
 			pipelineDesc.vertex.buffers = vertexBuffers;
 			pipelineDesc.vertex.bufferCount = vertexBuffers.length;
@@ -250,7 +250,7 @@ namespace Bk
 				WGPUVertexBufferLayout& buffer = vertexBuffers[bufferIdx];
 				const GpuVertexBufferDesc& bufferDesc = desc.VS.buffers[bufferIdx];
 
-				TSpan<WGPUVertexAttribute> vertexAttributes = scratch.arena->PushZeroed<WGPUVertexAttribute>(bufferDesc.attributes.length);
+				TSpan<WGPUVertexAttribute> vertexAttributes = scratch.arena.PushZeroed<WGPUVertexAttribute>(bufferDesc.attributes.length);
 
 				buffer.arrayStride = bufferDesc.stride;
 				buffer.attributes = vertexAttributes;
@@ -293,7 +293,7 @@ namespace Bk
 			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
 			pipelineLayoutDesc.label = WgpuConvert(desc.name);
 
-			TSpan<WGPUBindGroupLayout> bindingLayouts = scratch.arena->PushZeroed<WGPUBindGroupLayout>(desc.bindingLayouts.length);
+			TSpan<WGPUBindGroupLayout> bindingLayouts = scratch.arena.PushZeroed<WGPUBindGroupLayout>(desc.bindingLayouts.length);
 
 			pipelineLayoutDesc.bindGroupLayouts = bindingLayouts;
 			pipelineLayoutDesc.bindGroupLayoutCount = desc.bindingLayouts.length;
@@ -412,12 +412,12 @@ namespace Bk
 
 	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc)
 	{
-		ScratchArena scratch = ScratchArena::Get();
+		ArenaScope scratch = GetScratchArena();
 
 		WGPUBindGroupLayoutDescriptor bindingLayoutDesc = {};
 		bindingLayoutDesc.label = WgpuConvert(desc.name);
 
-		TSpan<WGPUBindGroupLayoutEntry> bindings = scratch.arena->PushZeroed<WGPUBindGroupLayoutEntry>(desc.bindings.length);
+		TSpan<WGPUBindGroupLayoutEntry> bindings = scratch.arena.PushZeroed<WGPUBindGroupLayoutEntry>(desc.bindings.length);
 
 		bindingLayoutDesc.entries = bindings;
 		bindingLayoutDesc.entryCount = bindings.length;
@@ -458,13 +458,13 @@ namespace Bk
 
 	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc)
 	{
-		ScratchArena scratch = ScratchArena::Get();
+		ArenaScope scratch = GetScratchArena();
 
 		WGPUBindGroupDescriptor bindingGroupDesc = {};
 		bindingGroupDesc.label = WgpuConvert(desc.name);
 		bindingGroupDesc.layout = gpuContext.bindingLayouts.GetItem(desc.bindingLayout)->handle;
 
-		TSpan<WGPUBindGroupEntry> bindings = scratch.arena->PushZeroed<WGPUBindGroupEntry>(desc.bindings.length);
+		TSpan<WGPUBindGroupEntry> bindings = scratch.arena.PushZeroed<WGPUBindGroupEntry>(desc.bindings.length);
 
 		bindingGroupDesc.entries = bindings;
 		bindingGroupDesc.entryCount = bindings.length;

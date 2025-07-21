@@ -44,18 +44,18 @@ extern "C" int printf(const char*, ...);
 	constexpr EnumType operator^(EnumType a, EnumType b) { return (EnumType)((__underlying_type(EnumType))a ^ (__underlying_type(EnumType))b); } \
 	constexpr EnumType operator~(EnumType e) { return (EnumType)(~(__underlying_type(EnumType))e); }
 
+using int8 = int8_t;
+using int16 = int16_t;
+using int32 = int32_t;
+using int64 = int64_t;
+
+using uint8 = uint8_t;
+using uint16 = uint16_t;
+using uint32 = uint32_t;
+using uint64 = uint64_t;
+
 namespace Bk
 {
-	using int8 = int8_t;
-	using int16 = int16_t;
-	using int32 = int32_t;
-	using int64 = int64_t;
-
-	using uint8 = uint8_t;
-	using uint16 = uint16_t;
-	using uint32 = uint32_t;
-	using uint64 = uint64_t;
-
 	template<typename EnumType>
 	bool EnumHasAllFlags(EnumType value, EnumType flags)
 	{

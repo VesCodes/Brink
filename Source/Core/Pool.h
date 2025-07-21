@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Arena.h"
 #include "Core.h"
 #include "Memory.h"
 

@@ -1,4 +1,3 @@
-#include "Core/Arena.cpp"
 #include "Core/Core.cpp"
 #include "Core/File.cpp"
 #include "Core/Gpu.cpp"
