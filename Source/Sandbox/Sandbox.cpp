@@ -108,7 +108,7 @@ void Initialize()
 
 	state.testPipeline = CreatePipeline({
 		.name = "Test Pipeline",
-		.VS = {
+		.vertexShader = {
 			.code = testShader,
 			.buffers = {
 				{
@@ -120,7 +120,7 @@ void Initialize()
 				},
 			},
 		},
-		.PS = {
+		.pixelShader = {
 			.code = testShader,
 		},
 		.bindingLayouts = {

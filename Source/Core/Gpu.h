@@ -2,6 +2,7 @@
 
 #include "Core.h"
 #include "Span.h"
+#include "String.h"
 
 namespace Bk
 {
@@ -34,20 +35,20 @@ namespace Bk
 
 	struct GpuPipelineDesc
 	{
-		const char* name;
+		String name;
 
 		struct
 		{
-			const char* code;
-			const char* entryPoint;
+			String code;
+			String entryPoint;
 			TSpan<GpuVertexBufferDesc> buffers;
-		} VS;
+		} vertexShader;
 
 		struct
 		{
-			const char* code;
-			const char* entryPoint;
-		} PS;
+			String code;
+			String entryPoint;
+		} pixelShader;
 
 		TSpan<uint32> bindingLayouts;
 		GpuIndexFormat indexFormat;
@@ -70,7 +71,7 @@ namespace Bk
 
 	struct GpuBufferDesc
 	{
-		const char* name;
+		String name;
 
 		GpuBufferType type;
 		GpuBufferAccess access;
@@ -109,7 +110,7 @@ namespace Bk
 
 	struct GpuBindingLayoutDesc
 	{
-		const char* name;
+		String name;
 		TSpan<GpuBindingLayoutEntry> bindings;
 	};
 
@@ -123,14 +124,14 @@ namespace Bk
 
 	struct GpuBindingGroupDesc
 	{
-		const char* name;
+		String name;
 		uint32 bindingLayout;
 		TSpan<GpuBindingGroupEntry> bindings;
 	};
 
 	struct GpuPassDesc
 	{
-		const char* name;
+		String name;
 		float clearColor[4];
 	};
 

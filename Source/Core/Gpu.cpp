@@ -51,7 +51,7 @@ namespace Bk
 
 	static WGPUStringView WgpuConvert(String string)
 	{
-		return (WGPUStringView){ .data = string.data, .length = string.length };
+		return WGPUStringView{ .data = string.data, .length = string.length > 0 ? string.length : WGPU_STRLEN };
 	}
 
 	void OnDeviceError(const WGPUDevice* device, WGPUErrorType type, WGPUStringView message, void* userdata1, void* userdata2)
@@ -228,19 +228,19 @@ namespace Bk
 		pipelineDesc.multisample.count = 1;
 		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
-		if (desc.VS.code)
+		if (desc.vertexShader.code.length > 0)
 		{
 			WGPUShaderSourceWGSL shaderSourceDesc = {};
 			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-			shaderSourceDesc.code = WgpuConvert(desc.VS.code);
+			shaderSourceDesc.code = WgpuConvert(desc.vertexShader.code);
 
 			WGPUShaderModuleDescriptor shaderDesc = {};
 			shaderDesc.nextInChain = &shaderSourceDesc.chain;
 
 			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
-			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.VS.entryPoint);
+			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.vertexShader.entryPoint);
 
-			TSpan<WGPUVertexBufferLayout> vertexBuffers = scratch.arena.PushZeroed<WGPUVertexBufferLayout>(desc.VS.buffers.length);
+			TSpan<WGPUVertexBufferLayout> vertexBuffers = scratch.arena.PushZeroed<WGPUVertexBufferLayout>(desc.vertexShader.buffers.length);
 
 			pipelineDesc.vertex.buffers = vertexBuffers;
 			pipelineDesc.vertex.bufferCount = vertexBuffers.length;
@@ -248,7 +248,7 @@ namespace Bk
 			for (size_t bufferIdx = 0; bufferIdx < vertexBuffers.length; ++bufferIdx)
 			{
 				WGPUVertexBufferLayout& buffer = vertexBuffers[bufferIdx];
-				const GpuVertexBufferDesc& bufferDesc = desc.VS.buffers[bufferIdx];
+				const GpuVertexBufferDesc& bufferDesc = desc.vertexShader.buffers[bufferIdx];
 
 				TSpan<WGPUVertexAttribute> vertexAttributes = scratch.arena.PushZeroed<WGPUVertexAttribute>(bufferDesc.attributes.length);
 
@@ -268,18 +268,18 @@ namespace Bk
 			}
 		}
 
-		if (desc.PS.code)
+		if (desc.pixelShader.code.length > 0)
 		{
 			WGPUShaderSourceWGSL shaderSourceDesc = {};
 			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-			shaderSourceDesc.code = WgpuConvert(desc.PS.code);
+			shaderSourceDesc.code = WgpuConvert(desc.pixelShader.code);
 
 			WGPUShaderModuleDescriptor shaderDesc = {};
 			shaderDesc.nextInChain = &shaderSourceDesc.chain;
 
 			WGPUFragmentState fragmentState = {};
 			fragmentState.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
-			fragmentState.entryPoint = WgpuConvert(desc.PS.entryPoint);
+			fragmentState.entryPoint = WgpuConvert(desc.pixelShader.entryPoint);
 
 			WGPUColorTargetState surfaceTarget = { .format = gpuContext.surfaceConfig.format, .writeMask = WGPUColorWriteMask_All };
 			fragmentState.targets = &surfaceTarget;
