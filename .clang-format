@@ -13,4 +13,5 @@ Cpp11BracedListStyle: false
 IndentCaseLabels: true
 AllowShortCaseLabelsOnASingleLine: true
 BraceWrapping:
+  AfterCaseLabel: true
   AfterUnion: true

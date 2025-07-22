@@ -1,5 +1,7 @@
 #include "File.h"
 
+#include "Memory.h"
+
 #if defined(BK_PLATFORM_WINDOWS)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -12,9 +14,83 @@
 
 namespace Bk
 {
-	FileHandle OpenFile(const char* path, FileAccess access)
-	{
 #if defined(BK_PLATFORM_WINDOWS)
+	wchar_t* ConvertFilePath(Arena& arena, String path)
+	{
+		int32 length = MultiByteToWideChar(CP_UTF8, 0, path.data, path.length, nullptr, 0);
+		if (length == 0)
+		{
+			return nullptr;
+		}
+
+		wchar_t* result = arena.Push<wchar_t>(length + 1);
+		MultiByteToWideChar(CP_UTF8, 0, path.data, path.length, result, length);
+		result[length] = 0;
+
+		return result;
+	}
+
+	DateTime ConvertFileTime(FILETIME time)
+	{
+		DateTime result = {};
+
+		SYSTEMTIME systemTime = {};
+		if (FileTimeToSystemTime(&time, &systemTime))
+		{
+			result.year = systemTime.wYear;
+			result.month = static_cast<uint8>(systemTime.wMonth);
+			result.weekday = static_cast<uint8>(systemTime.wDayOfWeek);
+			result.day = static_cast<uint8>(systemTime.wDay);
+			result.hour = static_cast<uint8>(systemTime.wHour);
+			result.minute = static_cast<uint8>(systemTime.wMinute);
+			result.second = static_cast<uint8>(systemTime.wSecond);
+			result.millisecond = systemTime.wMilliseconds;
+		}
+
+		return result;
+	}
+#else
+	char* ConvertFilePath(Arena& arena, String path)
+	{
+		if (path.length == 0)
+		{
+			return nullptr;
+		}
+
+		char* result = arena.Push<char>(path.length + 1);
+		MemoryCopy(result, path.data, path.length);
+		result[path.length] = 0;
+
+		return result;
+	}
+
+	DateTime ConvertFileTime(time_t time)
+	{
+		DateTime result = {};
+
+		tm utcTime = {};
+		gmtime_r(&time, &utcTime);
+
+		result.year = static_cast<uint16>(utcTime.tm_year + 1900);
+		result.month = static_cast<uint8>(utcTime.tm_mon + 1);
+		result.weekday = static_cast<uint8>(utcTime.tm_wday);
+		result.day = static_cast<uint8>(utcTime.tm_mday);
+		result.hour = static_cast<uint8>(utcTime.tm_hour);
+		result.minute = static_cast<uint8>(utcTime.tm_min);
+		result.second = static_cast<uint8>(utcTime.tm_sec);
+		result.millisecond = 0;
+
+		return result;
+	}
+#endif
+
+	FileHandle OpenFile(String path, FileAccess access)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if defined(BK_PLATFORM_WINDOWS)
+		wchar_t* osPath = ConvertFilePath(scratch.arena, path);
+
 		DWORD accessFlags = 0;
 		DWORD disposition = OPEN_EXISTING;
 
@@ -33,9 +109,11 @@ namespace Bk
 			disposition = OPEN_ALWAYS;
 		}
 
-		HANDLE osHandle = CreateFileA(path, accessFlags, 0, nullptr, disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
+		HANDLE osHandle = CreateFileW(osPath, accessFlags, 0, nullptr, disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
 		return (osHandle != INVALID_HANDLE_VALUE) ? reinterpret_cast<FileHandle>(osHandle) : 0;
 #else
+		char* osPath = ConvertFilePath(scratch.arena, path);
+
 		int flags = 0;
 		if (EnumHasAllFlags(access, FileAccess::Read | FileAccess::Write))
 		{
@@ -60,7 +138,7 @@ namespace Bk
 			flags |= O_APPEND;
 		}
 
-		int osHandle = open(path, flags, 0755);
+		int osHandle = open(osPath, flags, 0755);
 		return (osHandle != -1) ? static_cast<FileHandle>(osHandle) : 0;
 #endif
 	}
@@ -218,5 +296,73 @@ namespace Bk
 
 		return static_cast<size_t>(fileStat.st_size);
 #endif
+	}
+
+	FileProperties GetFileProperties(FileHandle handle)
+	{
+		FileProperties result = {};
+
+		if (!handle)
+		{
+			return result;
+		}
+
+#if defined(BK_PLATFORM_WINDOWS)
+		HANDLE osHandle = reinterpret_cast<HANDLE>(handle);
+
+		BY_HANDLE_FILE_INFORMATION fileInfo;
+		if (GetFileInformationByHandle(osHandle, &fileInfo))
+		{
+			result.size = static_cast<size_t>(fileInfo.nFileSizeHigh) << 32 | fileInfo.nFileSizeLow;
+			result.createdTime = ConvertFileTime(fileInfo.ftCreationTime);
+			result.modifiedTime = ConvertFileTime(fileInfo.ftLastWriteTime);
+		}
+#else
+		int osHandle = static_cast<int>(handle);
+
+		struct stat fileStat = {};
+		if (fstat(osHandle, &fileStat) != -1)
+		{
+			result.size = static_cast<size_t>(fileStat.st_size);
+			result.createdTime = ConvertFileTime(fileStat.st_ctime);
+			result.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+		}
+#endif
+
+		return result;
+	}
+
+	FileProperties GetFileProperties(String path)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+		FileProperties result = {};
+
+#if defined(BK_PLATFORM_WINDOWS)
+		wchar_t* osPath = ConvertFilePath(scratch.arena, path);
+
+		WIN32_FIND_DATAW findInfo = {};
+		HANDLE findHandle = FindFirstFileW(osPath, &findInfo);
+
+		if (findHandle != INVALID_HANDLE_VALUE)
+		{
+			result.size = static_cast<size_t>(findInfo.nFileSizeHigh) << 32 | findInfo.nFileSizeLow;
+			result.createdTime = ConvertFileTime(findInfo.ftCreationTime);
+			result.modifiedTime = ConvertFileTime(findInfo.ftLastWriteTime);
+			FindClose(findHandle);
+		}
+#else
+		char* osPath = ConvertFilePath(scratch.arena, path);
+
+		struct stat fileStat = {};
+		if (stat(osPath, &fileStat) != -1)
+		{
+			result.size = static_cast<size_t>(fileStat.st_size);
+			result.createdTime = ConvertFileTime(fileStat.st_ctime);
+			result.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+		}
+#endif
+
+		return result;
 	}
 }
