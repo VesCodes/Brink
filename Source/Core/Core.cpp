@@ -17,7 +17,7 @@ namespace Bk
 {
 	bool AssertError(const char* expression, const char* file, int32 line, const char* format, ...)
 	{
-		TStringBuffer<1024> errorMessage;
+		TStringBuilder<1024> errorMessage;
 		errorMessage.Appendf("ASSERTION FAILED: %s [%s:%d]\n", expression, file, line);
 
 		if (format && format[0] != '\0')
@@ -33,7 +33,7 @@ namespace Bk
 			va_end(args);
 		}
 
-		fwrite(errorMessage.data, sizeof(char), errorMessage.length, stderr);
+		fwrite(errorMessage.buffer, sizeof(char), errorMessage.length, stderr);
 		fflush(stderr);
 
 		return true;
@@ -41,7 +41,7 @@ namespace Bk
 
 	void FatalError(int32 exitCode, const char* format, ...)
 	{
-		TStringBuffer<1024> errorMessage;
+		TStringBuilder<1024> errorMessage;
 		errorMessage.Appendf("FATAL ERROR: %d\n", exitCode);
 
 		if (format && format[0] != '\0')
@@ -57,7 +57,7 @@ namespace Bk
 			va_end(args);
 		}
 
-		fwrite(errorMessage.data, sizeof(char), errorMessage.length, stderr);
+		fwrite(errorMessage.buffer, sizeof(char), errorMessage.length, stderr);
 		fflush(stderr);
 
 		exit(exitCode);

@@ -6,6 +6,8 @@
 
 namespace Bk
 {
+	struct Arena;
+
 	constexpr bool IsSpace(char c);
 	constexpr bool IsAlpha(char c);
 	constexpr bool IsDigit(char c);
@@ -58,29 +60,38 @@ namespace Bk
 		size_t length;
 	};
 
-	struct StringBuffer
+	struct StringBuilder
 	{
-		StringBuffer(char* buffer, size_t bufferSize);
+		StringBuilder(char* buffer, size_t bufferSize);
+		StringBuilder(Arena& arena);
 
 		bool Append(char c);
 		bool Append(String string);
 		bool Appendf(const char* format, ...);
 		bool Appendv(const char* format, va_list args);
 
-		void Reset();
+		bool Expand(size_t requiredCapacity);
 
-		operator String() const;
+		String ToString(Arena& arena, bool nullTerminate = false) const;
 
-		char* data;
+		Arena* arena;
+
+		struct Chunk
+		{
+			Chunk* previous;
+			char* buffer;
+			size_t capacity;
+			size_t length;
+		} chunk;
+
 		size_t length;
-		size_t capacity;
 	};
 
 	template<size_t BufferSize>
-	struct TStringBuffer : StringBuffer
+	struct TStringBuilder : StringBuilder
 	{
-		TStringBuffer();
-		TStringBuffer(String string);
+		TStringBuilder();
+		TStringBuilder(Arena& arena);
 
 		char buffer[BufferSize];
 	};
@@ -145,16 +156,17 @@ namespace Bk
 	}
 
 	template<size_t BufferSize>
-	TStringBuffer<BufferSize>::TStringBuffer()
-		: StringBuffer(buffer, BufferSize)
+	TStringBuilder<BufferSize>::TStringBuilder()
+		: StringBuilder(buffer, BufferSize)
 	{
 	}
 
 	template<size_t BufferSize>
-	TStringBuffer<BufferSize>::TStringBuffer(String string)
-		: StringBuffer(buffer, BufferSize)
+	TStringBuilder<BufferSize>::TStringBuilder(Arena& arena)
+		: StringBuilder(arena)
 	{
-		Append(string);
+		chunk.buffer = buffer;
+		chunk.capacity = BufferSize;
 	}
 
 	template<size_t N>

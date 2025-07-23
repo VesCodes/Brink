@@ -4,7 +4,9 @@
 
 #include <float.h>
 #include <math.h>
-#include <stdio.h>
+
+#define STB_SPRINTF_IMPLEMENTATION
+#include <stb_sprintf.h>
 
 namespace Bk
 {
@@ -21,7 +23,7 @@ namespace Bk
 
 	int32 StringPrintv(char* dst, size_t dstLength, const char* format, va_list args)
 	{
-		return vsnprintf(dst, dstLength, format, args);
+		return stbsp_vsnprintf(dst, dstLength, format, args);
 	}
 
 	String String::Slice(size_t offset, size_t count) const
@@ -452,52 +454,72 @@ namespace Bk
 		return data + length;
 	}
 
-	StringBuffer::StringBuffer(char* buffer, size_t bufferSize)
-		: data(buffer), length(0), capacity(bufferSize)
+	StringBuilder::StringBuilder(char* buffer, size_t bufferSize)
+		: arena(nullptr)
 	{
-		if (capacity > 0)
-		{
-			data[0] = '\0';
-		}
+		chunk.previous = nullptr;
+		chunk.buffer = buffer;
+		chunk.capacity = bufferSize;
+		chunk.length = 0;
+		length = 0;
 	}
 
-	bool StringBuffer::Append(char c)
+	StringBuilder::StringBuilder(Arena& arena)
+		: arena(&arena)
 	{
-		if (length + 1 >= capacity)
+		chunk.previous = nullptr;
+		chunk.buffer = nullptr;
+		chunk.capacity = 0;
+		chunk.length = 0;
+		length = 0;
+	}
+
+	bool StringBuilder::Append(char c)
+	{
+		if (chunk.length + 1 > chunk.capacity)
 		{
-			return false;
+			if (!Expand(1))
+			{
+				return false;
+			}
 		}
 
-		data[length] = c;
-
+		chunk.buffer[chunk.length] = c;
+		chunk.length += 1;
 		length += 1;
-		data[length] = '\0';
 
 		return true;
 	}
 
-	bool StringBuffer::Append(String string)
+	bool StringBuilder::Append(String string)
 	{
-		if (length + string.length >= capacity)
+		while (string.length > 0)
 		{
-			return false;
+			size_t chunkRemaining = chunk.capacity - chunk.length;
+			if (chunkRemaining == 0)
+			{
+				if (!Expand(string.length))
+				{
+					return false;
+				}
+
+				chunkRemaining = chunk.capacity;
+			}
+
+			size_t sliceLength = BK_MIN(string.length, chunkRemaining);
+
+			MemoryCopy(chunk.buffer + chunk.length, string.data, sliceLength);
+			chunk.length += sliceLength;
+			length += sliceLength;
+
+			string = string.Slice(sliceLength);
 		}
-
-		MemoryCopy(data + length, string.data, string.length);
-
-		length += string.length;
-		data[length] = '\0';
 
 		return true;
 	}
 
-	bool StringBuffer::Appendf(const char* format, ...)
+	bool StringBuilder::Appendf(const char* format, ...)
 	{
-		if (length >= capacity)
-		{
-			return false;
-		}
-
 		va_list args;
 		va_start(args, format);
 		bool result = Appendv(format, args);
@@ -506,32 +528,63 @@ namespace Bk
 		return result;
 	}
 
-	bool StringBuffer::Appendv(const char* format, va_list args)
+	bool StringBuilder::Appendv(const char* format, va_list args)
 	{
-		const size_t availableSize = capacity - length;
+		char buffer[STB_SPRINTF_MIN];
 
-		const int32 result = StringPrintv(data + length, availableSize, format, args);
-		if (result >= 0 && static_cast<size_t>(result) < availableSize)
-		{
-			length += static_cast<size_t>(result);
-			return true;
-		}
+		int32 result = stbsp_vsprintfcb(
+			[](const char* buffer, void* context, int32 length)
+			{
+				StringBuilder* builder = static_cast<StringBuilder*>(context);
+				bool result = builder->Append(String(buffer, length));
 
-		return false;
+				return result ? const_cast<char*>(buffer) : nullptr;
+			},
+			this, buffer, format, args);
+
+		return (result >= 0 && result < sizeof(buffer));
 	}
 
-	void StringBuffer::Reset()
+	bool StringBuilder::Expand(size_t requiredCapacity)
 	{
-		if (capacity > 0)
+		if (!arena)
 		{
-			data[0] = '\0';
+			return false;
 		}
 
-		length = 0;
+		Chunk* chainedChunk = arena->Push<Chunk>();
+		chainedChunk->previous = chunk.previous;
+		chainedChunk->buffer = chunk.buffer;
+		chainedChunk->capacity = chunk.capacity;
+		chainedChunk->length = chunk.length;
+
+		chunk.previous = chainedChunk;
+		chunk.capacity = BK_MAX(BK_MAX(requiredCapacity, 64), BK_MIN(length, 8096));
+		chunk.buffer = arena->Push<char>(chunk.capacity);
+		chunk.length = 0;
+
+		return true;
 	}
 
-	StringBuffer::operator String() const
+	String StringBuilder::ToString(Arena& arena, bool nullTerminate) const
 	{
-		return String(data, length);
+		TSpan<char> buffer = arena.Push<char>(nullTerminate ? length + 1 : length);
+
+		if (nullTerminate)
+		{
+			buffer[length] = '\0';
+		}
+
+		char* bufferPtr = buffer.data + length;
+		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		{
+			bufferPtr -= chainedChunk->length;
+			MemoryCopy(bufferPtr, chainedChunk->buffer, chainedChunk->length);
+		}
+
+		// Ensure the entire buffer has been filled
+		BK_ASSERT(buffer.data == bufferPtr);
+
+		return String(buffer.data, buffer.length);
 	}
 }
