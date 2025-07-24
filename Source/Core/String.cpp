@@ -29,13 +29,13 @@ namespace Bk
 	String String::Slice(size_t offset, size_t count) const
 	{
 		BK_ASSERT(offset <= length);
-		return String(data + offset, BK_MIN(count, length - offset));
+		return String(data + offset, Min(count, length - offset));
 	}
 
 	String String::Range(size_t start, size_t end) const
 	{
 		BK_ASSERT(start <= length && start <= end);
-		return String(data + start, BK_MIN(end - start, length - start));
+		return String(data + start, Min(end - start, length - start));
 	}
 
 	bool String::Equals(String other, bool ignoreCase) const
@@ -506,7 +506,7 @@ namespace Bk
 				chunkRemaining = chunk.capacity;
 			}
 
-			size_t sliceLength = BK_MIN(string.length, chunkRemaining);
+			size_t sliceLength = Min(string.length, chunkRemaining);
 
 			MemoryCopy(chunk.buffer + chunk.length, string.data, sliceLength);
 			chunk.length += sliceLength;
@@ -559,7 +559,7 @@ namespace Bk
 		chainedChunk->length = chunk.length;
 
 		chunk.previous = chainedChunk;
-		chunk.capacity = BK_MAX(BK_MAX(requiredCapacity, 64), BK_MIN(length, 8096));
+		chunk.capacity = Max(requiredCapacity, 64, Min(length, 8096));
 		chunk.buffer = arena->Push<char>(chunk.capacity);
 		chunk.length = 0;
 

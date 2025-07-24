@@ -55,7 +55,7 @@ namespace Bk
 	TSpan<Type> TSpan<Type>::Slice(size_t offset, size_t count) const
 	{
 		BK_ASSERT(offset >= 0 && offset < length);
-		return TSpan(data + offset, BK_MIN(count, length - offset));
+		return TSpan(data + offset, Min(count, length - offset));
 	}
 
 	template<typename Type>

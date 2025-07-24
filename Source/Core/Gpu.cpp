@@ -372,7 +372,7 @@ namespace Bk
 		WGPUBuffer buffer = wgpuDeviceCreateBuffer(gpuContext.device, &bufferDesc);
 		if (buffer && bufferDesc.mappedAtCreation)
 		{
-			const size_t bufferMappedSize = BK_MIN(bufferSize, desc.data.length);
+			const size_t bufferMappedSize = Min(bufferSize, desc.data.length);
 			void* bufferMappedPtr = wgpuBufferGetMappedRange(buffer, 0, AlignUp(bufferMappedSize, 4));
 
 			MemoryCopy(bufferMappedPtr, desc.data.data, bufferMappedSize);

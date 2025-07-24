@@ -13,11 +13,6 @@
 
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
 
-#define BK_ABS(x) ((x) < 0 ? -(x) : (x))
-#define BK_MIN(a, b) ((a) < (b) ? (a) : (b))
-#define BK_MAX(a, b) ((a) > (b) ? (a) : (b))
-#define BK_CLAMP(x, min, max) (((x) > (max)) ? (max) : ((x) < (min)) ? (min) : (x))
-
 #define BK_ASSERT(expr) BK_ASSERTF(expr, "")
 #define BK_ASSERTF(expr, format, ...) \
 	do { \
@@ -56,6 +51,32 @@ using uint64 = uint64_t;
 
 namespace Bk
 {
+	template<typename T>
+	constexpr T Abs(T value)
+	{
+		return value < 0 ? -value : value;
+	}
+
+	template<typename T, typename... ArgTypes>
+	constexpr T Min(T value, ArgTypes... args)
+	{
+		((value = args < value ? args : value), ...);
+		return value;
+	}
+
+	template<typename T, typename... ArgTypes>
+	constexpr T Max(T value, ArgTypes... args)
+	{
+		((value = args > value ? args : value), ...);
+		return value;
+	}
+
+	template<typename T>
+	constexpr T Clamp(T value, T min, T max)
+	{
+		return Max(min, Min(value, max));
+	}
+
 	template<typename EnumType>
 	bool EnumHasAllFlags(EnumType value, EnumType flags)
 	{
