@@ -553,10 +553,7 @@ namespace Bk
 		}
 
 		Chunk* chainedChunk = arena->Push<Chunk>();
-		chainedChunk->previous = chunk.previous;
-		chainedChunk->buffer = chunk.buffer;
-		chainedChunk->capacity = chunk.capacity;
-		chainedChunk->length = chunk.length;
+		*chainedChunk = chunk;
 
 		chunk.previous = chainedChunk;
 		chunk.capacity = Max(requiredCapacity, 64, Min(length, 8096));
@@ -585,6 +582,6 @@ namespace Bk
 		// Ensure the entire buffer has been filled
 		BK_ASSERT(buffer.data == bufferPtr);
 
-		return String(buffer.data, buffer.length);
+		return String(buffer.data, length);
 	}
 }
