@@ -16,11 +16,6 @@ namespace Bk
 	constexpr char ToLower(char c);
 	constexpr char ToUpper(char c);
 
-	constexpr size_t StringLength(const char* string);
-
-	int32 StringPrintf(char* dst, size_t dstLength, const char* format, ...);
-	int32 StringPrintv(char* dst, size_t dstLength, const char* format, va_list args);
-
 	struct String
 	{
 		String() = default;
@@ -140,18 +135,13 @@ namespace Bk
 		return (c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c;
 	}
 
-	constexpr size_t StringLength(const char* string)
-	{
-		return __builtin_strlen(string);
-	}
-
 	constexpr String::String(const char* string, size_t length)
 		: data(string), length(length)
 	{
 	}
 
 	constexpr String::String(const char* string)
-		: data(string), length(StringLength(string))
+		: data(string), length(__builtin_strlen(string))
 	{
 	}
 

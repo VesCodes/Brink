@@ -10,22 +10,6 @@
 
 namespace Bk
 {
-	int32 StringPrintf(char* dst, size_t dstLength, const char* format, ...)
-	{
-		va_list args;
-		va_start(args, format);
-
-		const int32 result = StringPrintv(dst, dstLength, format, args);
-		va_end(args);
-
-		return result;
-	}
-
-	int32 StringPrintv(char* dst, size_t dstLength, const char* format, va_list args)
-	{
-		return stbsp_vsnprintf(dst, dstLength, format, args);
-	}
-
 	String String::Slice(size_t offset, size_t count) const
 	{
 		BK_ASSERT(offset <= length);
@@ -522,6 +506,7 @@ namespace Bk
 	{
 		va_list args;
 		va_start(args, format);
+
 		bool result = Appendv(format, args);
 		va_end(args);
 
@@ -536,13 +521,13 @@ namespace Bk
 			[](const char* buffer, void* context, int32 length)
 			{
 				StringBuilder* builder = static_cast<StringBuilder*>(context);
-				bool result = builder->Append(String(buffer, length));
+				bool result = builder->Append(String(buffer, static_cast<size_t>(length)));
 
 				return result ? const_cast<char*>(buffer) : nullptr;
 			},
 			this, buffer, format, args);
 
-		return (result >= 0 && result < sizeof(buffer));
+		return (result >= 0 && static_cast<size_t>(result) < sizeof(buffer));
 	}
 
 	bool StringBuilder::Expand(size_t requiredCapacity)
@@ -555,8 +540,11 @@ namespace Bk
 		Chunk* chainedChunk = arena->Push<Chunk>();
 		*chainedChunk = chunk;
 
+		constexpr size_t minCapacity = 64;
+		constexpr size_t maxCapacityGrowth = 8096;
+
 		chunk.previous = chainedChunk;
-		chunk.capacity = Max(requiredCapacity, 64, Min(length, 8096));
+		chunk.capacity = Max(requiredCapacity, minCapacity, Min(length, maxCapacityGrowth));
 		chunk.buffer = arena->Push<char>(chunk.capacity);
 		chunk.length = 0;
 
