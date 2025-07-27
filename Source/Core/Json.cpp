@@ -107,7 +107,7 @@ namespace Bk
 						current->type = JsonType::Number;
 						current->value = json.Range(start, position);
 						current->parent = scope;
-						current->value.Parse(current->asNumber);
+						ParseValue(current->value, current->asNumber);
 
 						position -= 1;
 						break;
@@ -120,7 +120,7 @@ namespace Bk
 					current->type = JsonType::Number;
 					current->value = json.Range(start, position);
 					current->parent = scope;
-					current->value.Parse(current->asNumber);
+					ParseValue(current->value, current->asNumber);
 				}
 			}
 			else if (c == 't')
@@ -204,7 +204,7 @@ namespace Bk
 			String pathSlice = path.Range(0, pathDelimIdx);
 
 			uint64 index;
-			if (value->type == JsonType::Array && pathSlice.Parse(index))
+			if (value->type == JsonType::Array && ParseValue(pathSlice, index))
 			{
 				value = FindJsonValueInArray(value, index);
 			}

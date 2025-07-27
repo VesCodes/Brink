@@ -10,10 +10,10 @@
 
 namespace Bk
 {
-	String String::Slice(size_t offset, size_t count) const
+	String String::Slice(size_t start, size_t count) const
 	{
-		BK_ASSERT(offset <= length);
-		return String(data + offset, Min(count, length - offset));
+		BK_ASSERT(start <= length);
+		return String(data + start, Min(count, length - start));
 	}
 
 	String String::Range(size_t start, size_t end) const
@@ -168,15 +168,46 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
-	bool String::Parse(bool& value) const
+	char String::operator[](size_t index) const
 	{
-		if (Equals("true", true) || Equals("1"))
+		BK_ASSERT(index < length);
+		return data[index];
+	}
+
+	bool String::operator==(String other) const
+	{
+		return length == other.length && MemoryCompare(data, other.data, length) == 0;
+	}
+
+	bool String::operator!=(String other) const
+	{
+		return length != other.length || MemoryCompare(data, other.data, length) != 0;
+	}
+
+	const char* String::begin() const
+	{
+		return data;
+	}
+
+	const char* String::end() const
+	{
+		return data + length;
+	}
+
+	bool ParseValue(String stream, bool& value)
+	{
+		if (stream.length == 0)
+		{
+			return false;
+		}
+
+		if (stream.Equals("true", true) || stream.Equals("1"))
 		{
 			value = true;
 			return true;
 		}
 
-		if (Equals("false", true) || Equals("0"))
+		if (stream.Equals("false", true) || stream.Equals("0"))
 		{
 			value = false;
 			return true;
@@ -185,15 +216,15 @@ namespace Bk
 		return false;
 	}
 
-	bool String::Parse(int64& value) const
+	bool ParseValue(String stream, int64& value)
 	{
-		if (length == 0)
+		if (stream.length == 0)
 		{
 			return false;
 		}
 
-		const char* c = data;
-		const char* end = data + length;
+		const char* c = stream.data;
+		const char* end = stream.data + stream.length;
 
 		bool negative = false;
 		if (*c == '-')
@@ -235,10 +266,10 @@ namespace Bk
 		return true;
 	}
 
-	bool String::Parse(int32& value) const
+	bool ParseValue(String stream, int32& value)
 	{
 		int64 result;
-		if (Parse(result) && result >= INT32_MIN && result <= INT32_MAX)
+		if (ParseValue(stream, result) && result >= INT32_MIN && result <= INT32_MAX)
 		{
 			value = static_cast<int32>(result);
 			return true;
@@ -247,15 +278,15 @@ namespace Bk
 		return false;
 	}
 
-	bool String::Parse(uint64& value) const
+	bool ParseValue(String stream, uint64& value)
 	{
-		if (length == 0)
+		if (stream.length == 0)
 		{
 			return false;
 		}
 
-		const char* c = data;
-		const char* end = data + length;
+		const char* c = stream.data;
+		const char* end = stream.data + stream.length;
 
 		if (*c == '-')
 		{
@@ -294,10 +325,10 @@ namespace Bk
 		return true;
 	}
 
-	bool String::Parse(uint32& value) const
+	bool ParseValue(String stream, uint32& value)
 	{
 		uint64 result;
-		if (Parse(result) && result <= UINT32_MAX)
+		if (ParseValue(stream, result) && result <= UINT32_MAX)
 		{
 			value = static_cast<uint32>(result);
 			return true;
@@ -306,15 +337,15 @@ namespace Bk
 		return false;
 	}
 
-	bool String::Parse(double& value) const
+	bool ParseValue(String stream, double& value)
 	{
-		if (length == 0)
+		if (stream.length == 0)
 		{
 			return false;
 		}
 
-		const char* c = data;
-		const char* end = data + length;
+		const char* c = stream.data;
+		const char* end = stream.data + stream.length;
 
 		double sign = 1.0;
 		if (*c == '-')
@@ -400,10 +431,10 @@ namespace Bk
 		return true;
 	}
 
-	bool String::Parse(float& value) const
+	bool ParseValue(String stream, float& value)
 	{
 		double result;
-		if (Parse(result) && result >= -FLT_MAX && result <= FLT_MAX)
+		if (ParseValue(stream, result) && result >= -FLT_MAX && result <= FLT_MAX)
 		{
 			value = static_cast<float>(result);
 			return true;
@@ -412,30 +443,40 @@ namespace Bk
 		return false;
 	}
 
-	char String::operator[](size_t index) const
+	bool ParseToken(String& stream, String& token)
 	{
-		BK_ASSERT(index < length);
-		return data[index];
-	}
+		size_t tokenStart = 0;
+		while (tokenStart < stream.length && IsSpace(stream.data[tokenStart]))
+		{
+			tokenStart += 1;
+		}
 
-	bool String::operator==(String other) const
-	{
-		return length == other.length && MemoryCompare(data, other.data, length) == 0;
-	}
+		stream = stream.Slice(tokenStart);
+		if (stream.length == 0)
+		{
+			return false;
+		}
 
-	bool String::operator!=(String other) const
-	{
-		return length != other.length || MemoryCompare(data, other.data, length) != 0;
-	}
+		bool inQuotes = false;
+		size_t tokenEnd = stream.length;
 
-	const char* String::begin() const
-	{
-		return data;
-	}
+		for (size_t i = 0; i < stream.length; ++i)
+		{
+			if (stream.data[i] == '"' && (i == 0 || stream.data[i - 1] != '\\'))
+			{
+				inQuotes = !inQuotes;
+			}
+			else if (!inQuotes && IsSpace(stream.data[i]))
+			{
+				tokenEnd = i;
+				break;
+			}
+		}
 
-	const char* String::end() const
-	{
-		return data + length;
+		token = stream.Slice(0, tokenEnd);
+		stream = stream.Slice(tokenEnd);
+
+		return true;
 	}
 
 	StringBuilder::StringBuilder(char* buffer, size_t bufferSize)

@@ -23,7 +23,7 @@ namespace Bk
 		constexpr String(const char* string, size_t length);
 		constexpr String(const char* string);
 
-		String Slice(size_t offset, size_t count = SIZE_MAX) const;
+		String Slice(size_t start, size_t count = SIZE_MAX) const;
 		String Range(size_t start, size_t end) const;
 
 		bool Equals(String other, bool ignoreCase = false) const;
@@ -36,14 +36,6 @@ namespace Bk
 		size_t FindLast(char search, bool ignoreCase = false) const;
 		size_t FindLast(String search, bool ignoreCase = false) const;
 
-		bool Parse(bool& value) const;
-		bool Parse(int64& value) const;
-		bool Parse(int32& value) const;
-		bool Parse(uint64& value) const;
-		bool Parse(uint32& value) const;
-		bool Parse(double& value) const;
-		bool Parse(float& value) const;
-
 		char operator[](size_t index) const;
 		bool operator==(String other) const;
 		bool operator!=(String other) const;
@@ -54,6 +46,15 @@ namespace Bk
 		const char* data;
 		size_t length;
 	};
+
+	bool ParseValue(String stream, bool& value);
+	bool ParseValue(String stream, int64& value);
+	bool ParseValue(String stream, int32& value);
+	bool ParseValue(String stream, uint64& value);
+	bool ParseValue(String stream, uint32& value);
+	bool ParseValue(String stream, double& value);
+	bool ParseValue(String stream, float& value);
+	bool ParseToken(String& stream, String& token);
 
 	struct StringBuilder
 	{

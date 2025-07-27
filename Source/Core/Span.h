@@ -17,7 +17,7 @@ namespace Bk
 		template<size_t N>
 		TSpan(Type (&data)[N]);
 
-		TSpan Slice(size_t offset, size_t count = SIZE_MAX) const;
+		TSpan Slice(size_t start, size_t count = SIZE_MAX) const;
 
 		operator Type*() const;
 		Type& operator[](size_t index) const;
@@ -52,10 +52,10 @@ namespace Bk
 	}
 
 	template<typename Type>
-	TSpan<Type> TSpan<Type>::Slice(size_t offset, size_t count) const
+	TSpan<Type> TSpan<Type>::Slice(size_t start, size_t count) const
 	{
-		BK_ASSERT(offset >= 0 && offset < length);
-		return TSpan(data + offset, Min(count, length - offset));
+		BK_ASSERT(start >= 0 && start < length);
+		return TSpan(data + start, Min(count, length - start));
 	}
 
 	template<typename Type>
