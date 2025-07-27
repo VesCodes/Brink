@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
@@ -65,7 +65,7 @@ namespace Bk
 
 	uint64 GetCpuTicks()
 	{
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 		LARGE_INTEGER counter;
 		QueryPerformanceCounter(&counter);
 
@@ -80,7 +80,7 @@ namespace Bk
 
 	uint64 GetCpuFrequency()
 	{
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 		LARGE_INTEGER frequency;
 		QueryPerformanceFrequency(&frequency);
 
@@ -106,7 +106,7 @@ namespace Bk
 	{
 		DateTime result = {};
 
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 		SYSTEMTIME systemTime;
 		GetSystemTime(&systemTime);
 
@@ -140,7 +140,7 @@ namespace Bk
 
 	uint64 GetUnixTime()
 	{
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 		FILETIME fileTime = {};
 		GetSystemTimeAsFileTime(&fileTime);
 

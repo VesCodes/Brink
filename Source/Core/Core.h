@@ -3,12 +3,28 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef BK_PLATFORM_WINDOWS
 #if defined(_WIN32)
-#define BK_PLATFORM_WINDOWS
-#elif defined(__APPLE__)
-#define BK_PLATFORM_MACOS
-#elif defined(__EMSCRIPTEN__)
-#define BK_PLATFORM_EMSCRIPTEN
+#define BK_PLATFORM_WINDOWS 1
+#else
+#define BK_PLATFORM_WINDOWS 0
+#endif
+#endif
+
+#ifndef BK_PLATFORM_MACOS
+#if defined(__APPLE__)
+#define BK_PLATFORM_MACOS 1
+#else
+#define BK_PLATFORM_MACOS 0
+#endif
+#endif
+
+#ifndef BK_PLATFORM_EMSCRIPTEN
+#if defined(__EMSCRIPTEN__)
+#define BK_PLATFORM_EMSCRIPTEN 1
+#else
+#define BK_PLATFORM_EMSCRIPTEN 0
+#endif
 #endif
 
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
@@ -20,7 +36,7 @@
 		if (!(expr) && Bk::AssertError(#expr, __FILE__, __LINE__, format, ## __VA_ARGS__)) { BK_BREAK(); } \
 	} while(0)
 
-#if defined(BK_PLATFORM_EMSCRIPTEN)
+#if BK_PLATFORM_EMSCRIPTEN
 #define BK_BREAK() emscripten_debugger()
 extern "C" void emscripten_debugger(void);
 #else

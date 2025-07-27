@@ -2,7 +2,7 @@
 
 #include "Memory.h"
 
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
@@ -14,7 +14,7 @@
 
 namespace Bk
 {
-#if defined(BK_PLATFORM_WINDOWS)
+#if BK_PLATFORM_WINDOWS
 	wchar_t* ConvertFilePath(Arena& arena, String path)
 	{
 		int32 length = MultiByteToWideChar(CP_UTF8, 0, path.data, path.length, nullptr, 0);
@@ -25,7 +25,7 @@ namespace Bk
 
 		wchar_t* result = arena.Push<wchar_t>(length + 1);
 		MultiByteToWideChar(CP_UTF8, 0, path.data, path.length, result, length);
-		result[length] = 0;
+		result[length] = '\0';
 
 		return result;
 	}
@@ -59,7 +59,7 @@ namespace Bk
 
 		char* result = arena.Push<char>(path.length + 1);
 		MemoryCopy(result, path.data, path.length);
-		result[path.length] = 0;
+		result[path.length] = '\0';
 
 		return result;
 	}
@@ -88,8 +88,8 @@ namespace Bk
 	{
 		ArenaScope scratch = GetScratchArena();
 
-#if defined(BK_PLATFORM_WINDOWS)
-		wchar_t* osPath = ConvertFilePath(scratch.arena, path);
+#if BK_PLATFORM_WINDOWS
+		wchar_t* filePath = ConvertFilePath(scratch.arena, path);
 
 		DWORD accessFlags = 0;
 		DWORD disposition = OPEN_EXISTING;
@@ -98,21 +98,23 @@ namespace Bk
 		{
 			accessFlags |= GENERIC_READ;
 		}
+
 		if (EnumHasAnyFlags(access, FileAccess::Write))
 		{
 			accessFlags |= GENERIC_WRITE;
 			disposition = CREATE_ALWAYS;
 		}
+
 		if (EnumHasAnyFlags(access, FileAccess::Append))
 		{
 			accessFlags |= FILE_APPEND_DATA;
 			disposition = OPEN_ALWAYS;
 		}
 
-		HANDLE osHandle = CreateFileW(osPath, accessFlags, 0, nullptr, disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
-		return (osHandle != INVALID_HANDLE_VALUE) ? reinterpret_cast<FileHandle>(osHandle) : 0;
+		HANDLE fileHandle = CreateFileW(filePath, accessFlags, 0, nullptr, disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
+		return (fileHandle != INVALID_HANDLE_VALUE) ? reinterpret_cast<FileHandle>(fileHandle) : 0;
 #else
-		char* osPath = ConvertFilePath(scratch.arena, path);
+		char* filePath = ConvertFilePath(scratch.arena, path);
 
 		int flags = 0;
 		if (EnumHasAllFlags(access, FileAccess::Read | FileAccess::Write))
@@ -138,8 +140,8 @@ namespace Bk
 			flags |= O_APPEND;
 		}
 
-		int osHandle = open(osPath, flags, 0755);
-		return (osHandle != -1) ? static_cast<FileHandle>(osHandle) : 0;
+		int fileHandle = open(filePath, flags, 0755);
+		return (fileHandle != -1) ? static_cast<FileHandle>(fileHandle) : 0;
 #endif
 	}
 
@@ -149,12 +151,13 @@ namespace Bk
 		{
 			return;
 		}
-#if defined(BK_PLATFORM_WINDOWS)
-		HANDLE osHandle = reinterpret_cast<HANDLE>(handle);
-		CloseHandle(osHandle);
+
+#if BK_PLATFORM_WINDOWS
+		HANDLE fileHandle = reinterpret_cast<HANDLE>(handle);
+		CloseHandle(fileHandle);
 #else
-		int osHandle = static_cast<int>(handle);
-		close(osHandle);
+		int fileHandle = static_cast<int>(handle);
+		close(fileHandle);
 #endif
 	}
 
@@ -165,8 +168,8 @@ namespace Bk
 			return 0;
 		}
 
-#if defined(BK_PLATFORM_WINDOWS)
-		HANDLE osHandle = reinterpret_cast<HANDLE>(handle);
+#if BK_PLATFORM_WINDOWS
+		HANDLE fileHandle = reinterpret_cast<HANDLE>(handle);
 
 		size_t totalBytesRead = 0;
 		size_t bytesLeft = buffer.length;
@@ -178,7 +181,7 @@ namespace Bk
 			// overlapped.OffsetHigh = static_cast<DWORD>(totalBytesRead >> 32);
 
 			DWORD bytesRead;
-			BOOL result = ::ReadFile(osHandle, buffer.data + totalBytesRead, bytesLeft, &bytesRead, nullptr);
+			BOOL result = ::ReadFile(fileHandle, buffer.data + totalBytesRead, bytesLeft, &bytesRead, nullptr);
 
 			if (result)
 			{
@@ -193,14 +196,14 @@ namespace Bk
 
 		return totalBytesRead;
 #else
-		int osHandle = static_cast<int>(handle);
+		int fileHandle = static_cast<int>(handle);
 
 		size_t totalBytesRead = 0;
 		size_t bytesLeft = buffer.length;
 
 		while (bytesLeft > 0)
 		{
-			ssize_t bytesRead = read(osHandle, buffer.data + totalBytesRead, bytesLeft);
+			ssize_t bytesRead = read(fileHandle, buffer.data + totalBytesRead, bytesLeft);
 			if (bytesRead > 0)
 			{
 				totalBytesRead += static_cast<size_t>(bytesRead);
@@ -223,8 +226,8 @@ namespace Bk
 			return 0;
 		}
 
-#if defined(BK_PLATFORM_WINDOWS)
-		HANDLE osHandle = reinterpret_cast<HANDLE>(handle);
+#if BK_PLATFORM_WINDOWS
+		HANDLE fileHandle = reinterpret_cast<HANDLE>(handle);
 
 		size_t totalBytesWritten = 0;
 		size_t bytesLeft = buffer.length;
@@ -236,7 +239,7 @@ namespace Bk
 			// overlapped.OffsetHigh = static_cast<DWORD>(totalBytesWritten >> 32);
 
 			DWORD bytesWritten;
-			BOOL result = ::WriteFile(osHandle, buffer.data + totalBytesWritten, bytesLeft, &bytesWritten, nullptr);
+			BOOL result = ::WriteFile(fileHandle, buffer.data + totalBytesWritten, bytesLeft, &bytesWritten, nullptr);
 
 			if (result)
 			{
@@ -251,14 +254,14 @@ namespace Bk
 
 		return totalBytesWritten;
 #else
-		int osHandle = static_cast<int>(handle);
+		int fileHandle = static_cast<int>(handle);
 
 		size_t totalBytesWritten = 0;
 		size_t bytesLeft = buffer.length;
 
 		while (bytesLeft > 0)
 		{
-			ssize_t bytesWritten = write(osHandle, buffer.data + totalBytesWritten, bytesLeft);
+			ssize_t bytesWritten = write(fileHandle, buffer.data + totalBytesWritten, bytesLeft);
 			if (bytesWritten > 0)
 			{
 				totalBytesWritten += static_cast<size_t>(bytesWritten);
@@ -281,18 +284,18 @@ namespace Bk
 			return 0;
 		}
 
-#if defined(BK_PLATFORM_WINDOWS)
-		HANDLE osHandle = reinterpret_cast<HANDLE>(handle);
+#if BK_PLATFORM_WINDOWS
+		HANDLE fileHandle = reinterpret_cast<HANDLE>(handle);
 
 		LARGE_INTEGER fileSize = {};
-		GetFileSizeEx(osHandle, &fileSize);
+		GetFileSizeEx(fileHandle, &fileSize);
 
 		return static_cast<size_t>(fileSize.QuadPart);
 #else
-		int osHandle = static_cast<int>(handle);
+		int fileHandle = static_cast<int>(handle);
 
 		struct stat fileStat = {};
-		fstat(osHandle, &fileStat);
+		fstat(fileHandle, &fileStat);
 
 		return static_cast<size_t>(fileStat.st_size);
 #endif
@@ -307,21 +310,21 @@ namespace Bk
 			return result;
 		}
 
-#if defined(BK_PLATFORM_WINDOWS)
-		HANDLE osHandle = reinterpret_cast<HANDLE>(handle);
+#if BK_PLATFORM_WINDOWS
+		HANDLE fileHandle = reinterpret_cast<HANDLE>(handle);
 
 		BY_HANDLE_FILE_INFORMATION fileInfo;
-		if (GetFileInformationByHandle(osHandle, &fileInfo))
+		if (GetFileInformationByHandle(fileHandle, &fileInfo))
 		{
 			result.size = static_cast<size_t>(fileInfo.nFileSizeHigh) << 32 | fileInfo.nFileSizeLow;
 			result.createdTime = ConvertFileTime(fileInfo.ftCreationTime);
 			result.modifiedTime = ConvertFileTime(fileInfo.ftLastWriteTime);
 		}
 #else
-		int osHandle = static_cast<int>(handle);
+		int fileHandle = static_cast<int>(handle);
 
 		struct stat fileStat = {};
-		if (fstat(osHandle, &fileStat) != -1)
+		if (fstat(fileHandle, &fileStat) != -1)
 		{
 			result.size = static_cast<size_t>(fileStat.st_size);
 			result.createdTime = ConvertFileTime(fileStat.st_ctime);
@@ -338,11 +341,11 @@ namespace Bk
 
 		FileProperties result = {};
 
-#if defined(BK_PLATFORM_WINDOWS)
-		wchar_t* osPath = ConvertFilePath(scratch.arena, path);
+#if BK_PLATFORM_WINDOWS
+		wchar_t* filePath = ConvertFilePath(scratch.arena, path);
 
 		WIN32_FIND_DATAW findInfo = {};
-		HANDLE findHandle = FindFirstFileW(osPath, &findInfo);
+		HANDLE findHandle = FindFirstFileW(filePath, &findInfo);
 
 		if (findHandle != INVALID_HANDLE_VALUE)
 		{
@@ -352,10 +355,10 @@ namespace Bk
 			FindClose(findHandle);
 		}
 #else
-		char* osPath = ConvertFilePath(scratch.arena, path);
+		char* filePath = ConvertFilePath(scratch.arena, path);
 
 		struct stat fileStat = {};
-		if (stat(osPath, &fileStat) != -1)
+		if (stat(filePath, &fileStat) != -1)
 		{
 			result.size = static_cast<size_t>(fileStat.st_size);
 			result.createdTime = ConvertFileTime(fileStat.st_ctime);
