@@ -1,4 +1,4 @@
-#include "File.h"
+#include "Platform.h"
 
 #include "Memory.h"
 
@@ -8,8 +8,13 @@
 #else
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <spawn.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
+extern char** environ;
 #endif
 
 namespace Bk
@@ -367,5 +372,112 @@ namespace Bk
 #endif
 
 		return result;
+	}
+
+	ProcessHandle CreateProcess(const ProcessParams& params)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		int32 executableLength = MultiByteToWideChar(CP_UTF8, 0, params.executable.data, params.executable.length, nullptr, 0);
+		int32 argumentsLength = MultiByteToWideChar(CP_UTF8, 0, params.arguments.data, params.arguments.length, nullptr, 0);
+
+		size_t commandLineLength = executableLength + 3 + argumentsLength;
+		wchar_t* commandLine = scratch.arena.Push<wchar_t>(commandLineLength + 1);
+
+		MultiByteToWideChar(CP_UTF8, 0, params.executable.data, params.executable.length, commandLine + 1, executableLength);
+		commandLine[0] = '\"';
+		commandLine[executableLength + 1] = '\"';
+		commandLine[executableLength + 2] = ' ';
+
+		MultiByteToWideChar(CP_UTF8, 0, params.arguments.data, params.arguments.length, commandLine + executableLength + 3, argumentsLength);
+		commandLine[commandLineLength] = '\0';
+
+		STARTUPINFOW startupInfo = {};
+		startupInfo.cb = sizeof(startupInfo);
+
+		uint32 flags = CREATE_UNICODE_ENVIRONMENT;
+		wchar_t* environment = nullptr;
+
+		PROCESS_INFORMATION processInfo = {};
+
+		if (!CreateProcessW(nullptr, commandLine, nullptr, nullptr, false, flags, environment, nullptr, &startupInfo, &processInfo))
+		{
+			return 0;
+		}
+
+		CloseHandle(processInfo.hThread);
+
+		return reinterpret_cast<ProcessHandle>(processInfo.hProcess);
+#else
+		TSpan<char*> arguments = scratch.arena.Push<char*>(1024);
+		arguments[0] = ConvertFilePath(scratch.arena, params.executable.TrimQuotes());
+
+		String argumentStream = params.arguments;
+		for (size_t i = 1; i < arguments.length; ++i)
+		{
+			String argument = {};
+			if (!ParseToken(argumentStream, argument))
+			{
+				arguments[i] = nullptr;
+				break;
+			}
+
+			arguments[i] = ConvertFilePath(scratch.arena, argument.TrimQuotes());
+		}
+
+		int processHandle;
+		if (posix_spawnp(&processHandle, arguments[0], nullptr, nullptr, arguments, environ) != 0)
+		{
+			return 0;
+		}
+
+		return static_cast<ProcessHandle>(processHandle);
+#endif
+	}
+
+	void DestroyProcess(ProcessHandle handle)
+	{
+		if (!handle)
+		{
+			return;
+		}
+
+#if BK_PLATFORM_WINDOWS
+		HANDLE processHandle = reinterpret_cast<HANDLE>(handle);
+		CloseHandle(processHandle);
+#endif
+	}
+
+	bool WaitForProcess(ProcessHandle handle)
+	{
+		if (!handle)
+		{
+			return false;
+		}
+
+#if BK_PLATFORM_WINDOWS
+		HANDLE processHandle = reinterpret_cast<HANDLE>(handle);
+		return WaitForSingleObject(processHandle, INFINITE) == WAIT_OBJECT_0;
+#else
+		int processHandle = static_cast<int>(handle);
+		return waitpid(processHandle, nullptr, 0) == processHandle;
+#endif
+	}
+
+	bool TerminateProcess(ProcessHandle handle)
+	{
+		if (!handle)
+		{
+			return false;
+		}
+
+#if BK_PLATFORM_WINDOWS
+		HANDLE processHandle = reinterpret_cast<HANDLE>(handle);
+		return ::TerminateProcess(processHandle, 0);
+#else
+		int processHandle = static_cast<int>(handle);
+		return kill(processHandle, SIGKILL) == 0;
+#endif
 	}
 }

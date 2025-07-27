@@ -6,6 +6,8 @@
 
 namespace Bk
 {
+	// File system
+
 	using FileHandle = uintptr_t;
 
 	enum class FileAccess : uint8
@@ -33,4 +35,19 @@ namespace Bk
 
 	FileProperties GetFileProperties(FileHandle handle);
 	FileProperties GetFileProperties(String path);
+
+	// Process
+
+	using ProcessHandle = uintptr_t;
+
+	struct ProcessParams
+	{
+		String executable;
+		String arguments;
+	};
+
+	ProcessHandle CreateProcess(const ProcessParams& params);
+	void DestroyProcess(ProcessHandle handle);
+	bool WaitForProcess(ProcessHandle handle);
+	bool TerminateProcess(ProcessHandle handle);
 }

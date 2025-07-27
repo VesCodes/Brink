@@ -168,6 +168,24 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
+	String String::TrimQuotes() const
+	{
+		size_t start = 0;
+		size_t end = length;
+
+		if (length > 0 && data[0] == '"')
+		{
+			start = 1;
+		}
+
+		if (length > 1 && data[length - 1] == '"')
+		{
+			end = length - 1;
+		}
+
+		return Range(start, end);
+	}
+
 	char String::operator[](size_t index) const
 	{
 		BK_ASSERT(index < length);

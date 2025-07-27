@@ -36,6 +36,8 @@ namespace Bk
 		size_t FindLast(char search, bool ignoreCase = false) const;
 		size_t FindLast(String search, bool ignoreCase = false) const;
 
+		String TrimQuotes() const;
+
 		char operator[](size_t index) const;
 		bool operator==(String other) const;
 		bool operator!=(String other) const;
