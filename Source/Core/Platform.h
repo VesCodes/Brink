@@ -6,6 +6,17 @@
 
 namespace Bk
 {
+	// Time
+
+	uint64 GetCpuTicks();
+	uint64 GetCpuFrequency();
+
+	uint64 GetTimeMs();
+	double GetTimeSec();
+
+	DateTime GetUtcTime();
+	uint64 GetUnixTime();
+
 	// File system
 
 	using FileHandle = uintptr_t;

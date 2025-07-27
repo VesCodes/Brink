@@ -135,13 +135,4 @@ namespace Bk
 		uint8 second;
 		uint16 millisecond;
 	};
-
-	uint64 GetCpuTicks();
-	uint64 GetCpuFrequency();
-
-	uint64 GetTimeMs();
-	double GetTimeSec();
-
-	DateTime GetUtcTime();
-	uint64 GetUnixTime();
 }
