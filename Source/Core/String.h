@@ -36,6 +36,10 @@ namespace Bk
 		size_t FindLast(char search, bool ignoreCase = false) const;
 		size_t FindLast(String search, bool ignoreCase = false) const;
 
+		bool StartsWith(String prefix, bool ignoreCase = false) const;
+		bool EndsWith(String suffix, bool ignoreCase = false) const;
+
+		String Trim() const;
 		String TrimQuotes() const;
 
 		char operator[](size_t index) const;
@@ -69,6 +73,7 @@ namespace Bk
 		bool Appendv(const char* format, va_list args);
 
 		bool Expand(size_t requiredCapacity);
+		void Reset();
 
 		String ToString(Arena& arena, bool nullTerminate = false) const;
 

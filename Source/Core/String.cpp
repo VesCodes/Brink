@@ -168,6 +168,44 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
+	bool String::StartsWith(String prefix, bool ignoreCase) const
+	{
+		if (prefix.length > length)
+		{
+			return false;
+		}
+
+		return Slice(0, prefix.length).Equals(prefix, ignoreCase);
+	}
+
+	bool String::EndsWith(String suffix, bool ignoreCase) const
+	{
+		if (suffix.length > length)
+		{
+			return false;
+		}
+
+		return Slice(length - suffix.length).Equals(suffix, ignoreCase);
+	}
+
+	String String::Trim() const
+	{
+		size_t start = 0;
+		size_t end = length;
+
+		while (start < length && IsSpace(data[start]))
+		{
+			start += 1;
+		}
+
+		while (end > start && IsSpace(data[end - 1]))
+		{
+			end -= 1;
+		}
+
+		return Range(start, end);
+	}
+
 	String String::TrimQuotes() const
 	{
 		size_t start = 0;
@@ -608,6 +646,15 @@ namespace Bk
 		chunk.length = 0;
 
 		return true;
+	}
+
+	void StringBuilder::Reset()
+	{
+		// #TODO: Reuse chunks
+		chunk.previous = nullptr;
+
+		chunk.length = 0;
+		length = 0;
 	}
 
 	String StringBuilder::ToString(Arena& arena, bool nullTerminate) const
