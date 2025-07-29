@@ -47,6 +47,9 @@ namespace Bk
 	FileProperties GetFileProperties(FileHandle handle);
 	FileProperties GetFileProperties(String path);
 
+	typedef bool (*EnumerateDirectoryCb)(String path, const FileProperties& properties);
+	void EnumerateDirectory(String path, EnumerateDirectoryCb callback);
+
 	// Process
 
 	using ProcessHandle = uintptr_t;

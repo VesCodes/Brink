@@ -6,6 +6,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -113,19 +114,35 @@ namespace Bk
 	}
 
 #if BK_PLATFORM_WINDOWS
-	wchar_t* ConvertFilePath(Arena& arena, String path)
+	wchar_t* ConvertString(Arena& arena, String string)
 	{
-		int32 length = MultiByteToWideChar(CP_UTF8, 0, path.data, path.length, nullptr, 0);
+		int32 length = MultiByteToWideChar(CP_UTF8, 0, string.data, string.length, nullptr, 0);
 		if (length == 0)
 		{
 			return nullptr;
 		}
 
 		wchar_t* result = arena.Push<wchar_t>(length + 1);
-		MultiByteToWideChar(CP_UTF8, 0, path.data, path.length, result, length);
+		MultiByteToWideChar(CP_UTF8, 0, string.data, string.length, result, length);
 		result[length] = '\0';
 
 		return result;
+	}
+
+	String ConvertString(Arena& arena, const wchar_t* string)
+	{
+		size_t stringLength = wcslen(string);
+
+		int32 length = WideCharToMultiByte(CP_UTF8, 0, string, stringLength, nullptr, 0, nullptr, nullptr);
+		if (length == 0)
+		{
+			return String();
+		}
+
+		TSpan<char> result = arena.Push<char>(length);
+		WideCharToMultiByte(CP_UTF8, 0, string, stringLength, result.data, result.length, nullptr, nullptr);
+
+		return String(result.data, result.length);
 	}
 
 	DateTime ConvertFileTime(FILETIME time)
@@ -148,7 +165,7 @@ namespace Bk
 		return result;
 	}
 #else
-	char* ConvertFilePath(Arena& arena, String path)
+	char* ConvertString(Arena& arena, String path)
 	{
 		if (path.length == 0)
 		{
@@ -187,7 +204,7 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena();
 
 #if BK_PLATFORM_WINDOWS
-		wchar_t* filePath = ConvertFilePath(scratch.arena, path);
+		wchar_t* filePath = ConvertString(scratch.arena, path);
 
 		DWORD accessFlags = 0;
 		DWORD disposition = OPEN_EXISTING;
@@ -212,7 +229,7 @@ namespace Bk
 		HANDLE fileHandle = CreateFileW(filePath, accessFlags, 0, nullptr, disposition, FILE_ATTRIBUTE_NORMAL, nullptr);
 		return (fileHandle != INVALID_HANDLE_VALUE) ? reinterpret_cast<FileHandle>(fileHandle) : 0;
 #else
-		char* filePath = ConvertFilePath(scratch.arena, path);
+		char* filePath = ConvertString(scratch.arena, path);
 
 		int flags = 0;
 		if (EnumHasAllFlags(access, FileAccess::Read | FileAccess::Write))
@@ -440,7 +457,7 @@ namespace Bk
 		FileProperties result = {};
 
 #if BK_PLATFORM_WINDOWS
-		wchar_t* filePath = ConvertFilePath(scratch.arena, path);
+		wchar_t* filePath = ConvertString(scratch.arena, path);
 
 		WIN32_FIND_DATAW findInfo = {};
 		HANDLE findHandle = FindFirstFileW(filePath, &findInfo);
@@ -453,7 +470,7 @@ namespace Bk
 			FindClose(findHandle);
 		}
 #else
-		char* filePath = ConvertFilePath(scratch.arena, path);
+		char* filePath = ConvertString(scratch.arena, path);
 
 		struct stat fileStat = {};
 		if (stat(filePath, &fileStat) != -1)
@@ -465,6 +482,94 @@ namespace Bk
 #endif
 
 		return result;
+	}
+
+	void EnumerateDirectory(String path, EnumerateDirectoryCb callback)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		StringBuilder builder(scratch.arena);
+		builder.Append(path);
+		builder.Append("\\*");
+
+		wchar_t* searchPath = ConvertString(scratch.arena, builder.ToString(scratch.arena));
+
+		WIN32_FIND_DATAW findInfo = {};
+		HANDLE findHandle = FindFirstFileW(searchPath, &findInfo);
+
+		if (findHandle != INVALID_HANDLE_VALUE)
+		{
+			do
+			{
+				String fileName = ConvertString(scratch.arena, findInfo.cFileName);
+				if (fileName == "." || fileName == "..")
+				{
+					continue;
+				}
+
+				builder.Reset();
+				builder.Append(path);
+				builder.Append('/');
+				builder.Append(fileName);
+
+				String filePath = builder.ToString(scratch.arena);
+				FileProperties fileProps = {};
+
+				fileProps.size = static_cast<size_t>(findInfo.nFileSizeHigh) << 32 | findInfo.nFileSizeLow;
+				fileProps.createdTime = ConvertFileTime(findInfo.ftCreationTime);
+				fileProps.modifiedTime = ConvertFileTime(findInfo.ftLastWriteTime);
+
+				if (!callback(filePath, fileProps))
+				{
+					break;
+				}
+			} while (FindNextFileW(findHandle, &findInfo));
+
+			FindClose(findHandle);
+		}
+#else
+		StringBuilder builder(scratch.arena);
+
+		char* searchPath = ConvertString(scratch.arena, path);
+
+		DIR* dirHandle = opendir(searchPath);
+		if (dirHandle)
+		{
+			dirent* entryHandle;
+			while ((entryHandle = readdir(dirHandle)) != nullptr)
+			{
+				String fileName = entryHandle->d_name;
+				if (fileName == "." || fileName == "..")
+				{
+					continue;
+				}
+
+				builder.Reset();
+				builder.Append(path);
+				builder.Append('/');
+				builder.Append(fileName);
+
+				String filePath = builder.ToString(scratch.arena, true);
+				FileProperties fileProps = {};
+
+				struct stat fileStat = {};
+				if (stat(filePath.data, &fileStat) != -1)
+				{
+					fileProps.size = static_cast<size_t>(fileStat.st_size);
+					fileProps.createdTime = ConvertFileTime(fileStat.st_ctime);
+					fileProps.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+				}
+
+				if (!callback(filePath, fileProps))
+				{
+					break;
+				}
+			}
+
+			closedir(dirHandle);
+		}
+#endif
 	}
 
 	ProcessHandle CreateProcess(const ProcessParams& params)
@@ -504,7 +609,7 @@ namespace Bk
 		return reinterpret_cast<ProcessHandle>(processInfo.hProcess);
 #else
 		TSpan<char*> arguments = scratch.arena.Push<char*>(1024);
-		arguments[0] = ConvertFilePath(scratch.arena, params.executable.TrimQuotes());
+		arguments[0] = ConvertString(scratch.arena, params.executable.TrimQuotes());
 
 		String argumentStream = params.arguments;
 		for (size_t i = 1; i < arguments.length; ++i)
@@ -516,7 +621,7 @@ namespace Bk
 				break;
 			}
 
-			arguments[i] = ConvertFilePath(scratch.arena, argument.TrimQuotes());
+			arguments[i] = ConvertString(scratch.arena, argument.TrimQuotes());
 		}
 
 		int processHandle;
