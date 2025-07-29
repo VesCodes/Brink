@@ -629,18 +629,40 @@ namespace Bk
 
 	bool StringBuilder::Expand(size_t requiredCapacity)
 	{
+		for (Chunk* chainedChunk = &chunk; chainedChunk && chainedChunk->previous; chainedChunk = chainedChunk->previous)
+		{
+			Chunk* reusableChunk = chainedChunk->previous;
+			if (reusableChunk->length == 0)
+			{
+				chainedChunk->previous = reusableChunk->previous;
+
+				Chunk archivedChunk = chunk;
+
+				chunk = *reusableChunk;
+				chunk.previous = reusableChunk;
+
+				*reusableChunk = archivedChunk;
+
+				return true;
+			}
+		}
+
 		if (!arena)
 		{
 			return false;
 		}
 
-		Chunk* chainedChunk = arena->Push<Chunk>();
-		*chainedChunk = chunk;
+		Chunk* archivedChunk = nullptr;
+		if (chunk.capacity > 0)
+		{
+			archivedChunk = arena->Push<Chunk>();
+			*archivedChunk = chunk;
+		}
 
 		constexpr size_t minCapacity = 64;
 		constexpr size_t maxCapacityGrowth = 8096;
 
-		chunk.previous = chainedChunk;
+		chunk.previous = archivedChunk;
 		chunk.capacity = Max(requiredCapacity, minCapacity, Min(length, maxCapacityGrowth));
 		chunk.buffer = arena->Push<char>(chunk.capacity);
 		chunk.length = 0;
@@ -650,10 +672,11 @@ namespace Bk
 
 	void StringBuilder::Reset()
 	{
-		// #TODO: Reuse chunks
-		chunk.previous = nullptr;
+		for (Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		{
+			chainedChunk->length = 0;
+		}
 
-		chunk.length = 0;
 		length = 0;
 	}
 
