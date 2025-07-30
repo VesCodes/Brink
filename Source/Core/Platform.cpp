@@ -523,6 +523,49 @@ namespace Bk
 		return result;
 	}
 
+	bool MoveFile(String srcPath, String dstPath)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		wchar_t* srcFilePath = ConvertString(scratch.arena, srcPath);
+		wchar_t* dstFilePath = ConvertString(scratch.arena, dstPath);
+
+		return MoveFileW(srcFilePath, dstFilePath);
+#else
+		char* srcFilePath = ConvertString(scratch.arena, srcPath);
+		char* dstFilePath = ConvertString(scratch.arena, dstPath);
+
+		return rename(srcFilePath, dstFilePath) == 0;
+#endif
+	}
+
+	bool DeleteFile(String path)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		wchar_t* filePath = ConvertString(scratch.arena, path);
+		return DeleteFileW(filePath);
+#else
+		char* filePath = ConvertString(scratch.arena, path);
+		return unlink(filePath) == 0;
+#endif
+	}
+
+	bool CreateDirectory(String path)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		wchar_t* filePath = ConvertString(scratch.arena, path);
+		return CreateDirectoryW(filePath, nullptr) || GetLastError() == ERROR_ALREADY_EXISTS;
+#else
+		char* filePath = ConvertString(scratch.arena, path);
+		return mkdir(filePath, 0755) == 0 || errno == EEXIST;
+#endif
+	}
+
 	void EnumerateDirectory(String path, EnumerateDirectoryCb callback, bool recursive)
 	{
 		ArenaScope scratch = GetScratchArena();
@@ -703,7 +746,7 @@ namespace Bk
 #endif
 	}
 
-	void DestroyProcess(ProcessHandle handle)
+	void DetachProcess(ProcessHandle handle)
 	{
 		if (!handle)
 		{

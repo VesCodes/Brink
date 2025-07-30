@@ -56,6 +56,11 @@ namespace Bk
 	FileProperties GetFileProperties(FileHandle handle);
 	FileProperties GetFileProperties(String path);
 
+	bool MoveFile(String srcPath, String dstPath);
+	bool DeleteFile(String path);
+
+	bool CreateDirectory(String path);
+
 	typedef bool (*EnumerateDirectoryCb)(String path, const FileProperties& properties);
 	void EnumerateDirectory(String path, EnumerateDirectoryCb callback, bool recursive = false);
 
@@ -70,7 +75,7 @@ namespace Bk
 	};
 
 	ProcessHandle CreateProcess(const ProcessParams& params);
-	void DestroyProcess(ProcessHandle handle);
+	void DetachProcess(ProcessHandle handle);
 	bool WaitForProcess(ProcessHandle handle);
 	bool TerminateProcess(ProcessHandle handle);
 }
