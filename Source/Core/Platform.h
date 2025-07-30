@@ -28,13 +28,22 @@ namespace Bk
 		Append = (1 << 2),
 	};
 
-	BK_ENUM_CLASS_FLAGS(FileAccess);
+	BK_ENUM_FLAGS(FileAccess);
+
+	enum class FileAttributes : uint8
+	{
+		Directory = (1 << 0),
+		ReadOnly = (1 << 1),
+	};
+
+	BK_ENUM_FLAGS(FileAttributes);
 
 	struct FileProperties
 	{
 		size_t size;
 		DateTime createdTime;
 		DateTime modifiedTime;
+		FileAttributes attributes;
 	};
 
 	FileHandle OpenFile(String path, FileAccess access);
@@ -48,7 +57,7 @@ namespace Bk
 	FileProperties GetFileProperties(String path);
 
 	typedef bool (*EnumerateDirectoryCb)(String path, const FileProperties& properties);
-	void EnumerateDirectory(String path, EnumerateDirectoryCb callback);
+	void EnumerateDirectory(String path, EnumerateDirectoryCb callback, bool recursive = false);
 
 	// Process
 

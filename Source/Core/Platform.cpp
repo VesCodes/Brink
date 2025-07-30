@@ -434,6 +434,15 @@ namespace Bk
 			result.size = static_cast<size_t>(fileInfo.nFileSizeHigh) << 32 | fileInfo.nFileSizeLow;
 			result.createdTime = ConvertFileTime(fileInfo.ftCreationTime);
 			result.modifiedTime = ConvertFileTime(fileInfo.ftLastWriteTime);
+
+			if (fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			{
+				result.attributes |= FileAttributes::Directory;
+			}
+			if (fileInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
+			{
+				result.attributes |= FileAttributes::ReadOnly;
+			}
 		}
 #else
 		int fileHandle = static_cast<int>(handle);
@@ -444,6 +453,16 @@ namespace Bk
 			result.size = static_cast<size_t>(fileStat.st_size);
 			result.createdTime = ConvertFileTime(fileStat.st_ctime);
 			result.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+
+			if ((fileStat.st_mode & S_IFDIR) != 0)
+			{
+				result.attributes |= FileAttributes::Directory;
+			}
+
+			if ((fileStat.st_mode & S_IWUSR) == 0)
+			{
+				result.attributes |= FileAttributes::ReadOnly;
+			}
 		}
 #endif
 
@@ -467,6 +486,16 @@ namespace Bk
 			result.size = static_cast<size_t>(findInfo.nFileSizeHigh) << 32 | findInfo.nFileSizeLow;
 			result.createdTime = ConvertFileTime(findInfo.ftCreationTime);
 			result.modifiedTime = ConvertFileTime(findInfo.ftLastWriteTime);
+
+			if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			{
+				result.attributes |= FileAttributes::Directory;
+			}
+			if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
+			{
+				result.attributes |= FileAttributes::ReadOnly;
+			}
+
 			FindClose(findHandle);
 		}
 #else
@@ -478,13 +507,23 @@ namespace Bk
 			result.size = static_cast<size_t>(fileStat.st_size);
 			result.createdTime = ConvertFileTime(fileStat.st_ctime);
 			result.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+
+			if ((fileStat.st_mode & S_IFDIR) != 0)
+			{
+				result.attributes |= FileAttributes::Directory;
+			}
+
+			if ((fileStat.st_mode & S_IWUSR) == 0)
+			{
+				result.attributes |= FileAttributes::ReadOnly;
+			}
 		}
 #endif
 
 		return result;
 	}
 
-	void EnumerateDirectory(String path, EnumerateDirectoryCb callback)
+	void EnumerateDirectory(String path, EnumerateDirectoryCb callback, bool recursive)
 	{
 		ArenaScope scratch = GetScratchArena();
 
@@ -520,9 +559,24 @@ namespace Bk
 				fileProps.createdTime = ConvertFileTime(findInfo.ftCreationTime);
 				fileProps.modifiedTime = ConvertFileTime(findInfo.ftLastWriteTime);
 
+				if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				{
+					fileProps.attributes |= FileAttributes::Directory;
+				}
+
+				if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
+				{
+					fileProps.attributes |= FileAttributes::ReadOnly;
+				}
+
 				if (!callback(filePath, fileProps))
 				{
 					break;
+				}
+
+				if (recursive && EnumHasAnyFlags(fileProps.attributes, FileAttributes::Directory))
+				{
+					EnumerateDirectory(filePath, callback, true);
 				}
 			} while (FindNextFileW(findHandle, &findInfo));
 
@@ -559,11 +613,26 @@ namespace Bk
 					fileProps.size = static_cast<size_t>(fileStat.st_size);
 					fileProps.createdTime = ConvertFileTime(fileStat.st_ctime);
 					fileProps.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+
+					if ((fileStat.st_mode & S_IFDIR) != 0)
+					{
+						fileProps.attributes |= FileAttributes::Directory;
+					}
+
+					if ((fileStat.st_mode & S_IWUSR) == 0)
+					{
+						fileProps.attributes |= FileAttributes::ReadOnly;
+					}
 				}
 
 				if (!callback(filePath, fileProps))
 				{
 					break;
+				}
+
+				if (recursive && EnumHasAnyFlags(fileProps.attributes, FileAttributes::Directory))
+				{
+					EnumerateDirectory(filePath, callback, true);
 				}
 			}
 

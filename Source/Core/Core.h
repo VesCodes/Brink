@@ -46,7 +46,7 @@ extern "C" void emscripten_debugger(void);
 #define BK_CHECK_FORMAT(format, ...) ((void)sizeof(printf(format, ## __VA_ARGS__)))
 extern "C" int printf(const char*, ...);
 
-#define BK_ENUM_CLASS_FLAGS(EnumType) \
+#define BK_ENUM_FLAGS(EnumType) \
 	constexpr EnumType& operator&=(EnumType& a, EnumType b) { return a = (EnumType)((__underlying_type(EnumType))a & (__underlying_type(EnumType))b); } \
 	constexpr EnumType& operator|=(EnumType& a, EnumType b) { return a = (EnumType)((__underlying_type(EnumType))a | (__underlying_type(EnumType))b); } \
 	constexpr EnumType& operator^=(EnumType& a, EnumType b) { return a = (EnumType)((__underlying_type(EnumType))a ^ (__underlying_type(EnumType))b); } \

@@ -93,14 +93,13 @@ namespace Bk
 
 	enum class GpuBindingStage : uint8
 	{
-		None,
 		Vertex = (1 << 0),
 		Pixel = (1 << 1),
 		Compute = (1 << 2),
 		All = (Vertex | Pixel | Compute),
 	};
 
-	BK_ENUM_CLASS_FLAGS(GpuBindingStage);
+	BK_ENUM_FLAGS(GpuBindingStage);
 
 	struct GpuBindingLayoutEntry
 	{
