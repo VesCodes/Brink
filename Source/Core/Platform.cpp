@@ -136,7 +136,7 @@ namespace Bk
 		int32 length = WideCharToMultiByte(CP_UTF8, 0, string, stringLength, nullptr, 0, nullptr, nullptr);
 		if (length == 0)
 		{
-			return String();
+			return String::Empty;
 		}
 
 		TSpan<char> result = arena.Push<char>(length);
@@ -165,16 +165,16 @@ namespace Bk
 		return result;
 	}
 #else
-	char* ConvertString(Arena& arena, String path)
+	char* ConvertString(Arena& arena, String string)
 	{
-		if (path.length == 0)
+		if (string.length == 0)
 		{
 			return nullptr;
 		}
 
-		char* result = arena.Push<char>(path.length + 1);
-		MemoryCopy(result, path.data, path.length);
-		result[path.length] = '\0';
+		char* result = arena.Push<char>(string.length + 1);
+		MemoryCopy(result, string.data, string.length);
+		result[string.length] = '\0';
 
 		return result;
 	}
@@ -572,7 +572,7 @@ namespace Bk
 
 #if BK_PLATFORM_WINDOWS
 		StringBuilder builder(scratch.arena);
-		builder.Append(path);
+		builder.AppendPath(path);
 		builder.Append("\\*");
 
 		wchar_t* searchPath = ConvertString(scratch.arena, builder.ToString(scratch.arena));
@@ -591,9 +591,8 @@ namespace Bk
 				}
 
 				builder.Reset();
-				builder.Append(path);
-				builder.Append('/');
-				builder.Append(fileName);
+				builder.AppendPath(path);
+				builder.AppendPath(fileName);
 
 				String filePath = builder.ToString(scratch.arena);
 				FileProperties fileProps = {};
@@ -643,9 +642,8 @@ namespace Bk
 				}
 
 				builder.Reset();
-				builder.Append(path);
-				builder.Append('/');
-				builder.Append(fileName);
+				builder.AppendPath(path);
+				builder.AppendPath(fileName);
 
 				String filePath = builder.ToString(scratch.arena, true);
 				FileProperties fileProps = {};

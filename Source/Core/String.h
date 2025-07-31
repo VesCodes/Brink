@@ -18,6 +18,8 @@ namespace Bk
 
 	struct String
 	{
+		static const String Empty;
+
 		String() = default;
 
 		constexpr String(const char* string, size_t length);
@@ -72,6 +74,12 @@ namespace Bk
 		bool Appendf(const char* format, ...);
 		bool Appendv(const char* format, va_list args);
 
+		bool AppendLine(String line);
+		bool AppendLinef(const char* format, ...);
+
+		bool AppendPath(String path);
+		bool AppendPathf(const char* format, ...);
+
 		bool Expand(size_t requiredCapacity);
 		void Reset();
 
@@ -89,6 +97,11 @@ namespace Bk
 
 		size_t length;
 	};
+
+	String GetDirectoryName(String path);
+	String GetFileName(String path);
+	String GetFileNameWithoutExtension(String path);
+	String GetExtension(String path);
 
 	template<size_t BufferSize>
 	struct TStringBuilder : StringBuilder

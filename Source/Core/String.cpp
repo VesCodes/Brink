@@ -10,6 +10,8 @@
 
 namespace Bk
 {
+	const String String::Empty = {};
+
 	String String::Slice(size_t start, size_t count) const
 	{
 		BK_ASSERT(start <= length);
@@ -627,6 +629,67 @@ namespace Bk
 		return (result >= 0 && static_cast<size_t>(result) < sizeof(buffer));
 	}
 
+	bool StringBuilder::AppendLine(String line)
+	{
+		if (!Append(line))
+		{
+			return false;
+		}
+
+		return Append('\n');
+	}
+
+	bool StringBuilder::AppendLinef(const char* format, ...)
+	{
+		va_list args;
+		va_start(args, format);
+
+		bool result = Appendv(format, args);
+		va_end(args);
+
+		return result && Append('\n');
+	}
+
+	bool StringBuilder::AppendPath(String path)
+	{
+		if (chunk.length > 0)
+		{
+			char lastChar = chunk.buffer[chunk.length - 1];
+			if (lastChar != '/' && lastChar != '\\')
+			{
+				if (!Append('/'))
+				{
+					return false;
+				}
+			}
+		}
+
+		return Append(path);
+	}
+
+	bool StringBuilder::AppendPathf(const char* format, ...)
+	{
+		if (chunk.length > 0)
+		{
+			char lastChar = chunk.buffer[chunk.length - 1];
+			if (lastChar != '/' && lastChar != '\\')
+			{
+				if (!Append('/'))
+				{
+					return false;
+				}
+			}
+		}
+
+		va_list args;
+		va_start(args, format);
+
+		bool result = Appendv(format, args);
+		va_end(args);
+
+		return result;
+	}
+
 	bool StringBuilder::Expand(size_t requiredCapacity)
 	{
 		for (Chunk* chainedChunk = &chunk; chainedChunk && chainedChunk->previous; chainedChunk = chainedChunk->previous)
@@ -700,5 +763,43 @@ namespace Bk
 		BK_ASSERT(buffer.data == bufferPtr);
 
 		return String(buffer.data, length);
+	}
+
+	String GetDirectoryName(String path)
+	{
+		size_t slashIdx = path.FindLast('/');
+		if (slashIdx == SIZE_MAX)
+		{
+			slashIdx = path.FindLast('\\');
+		}
+
+		return slashIdx != SIZE_MAX ? path.Slice(0, slashIdx) : String::Empty;
+	}
+
+	String GetFileName(String path)
+	{
+		size_t slashIdx = path.FindLast('/');
+		if (slashIdx == SIZE_MAX)
+		{
+			slashIdx = path.FindLast('\\');
+		}
+
+		return slashIdx != SIZE_MAX ? path.Slice(slashIdx + 1) : path;
+	}
+
+	String GetFileNameWithoutExtension(String path)
+	{
+		String fileName = GetFileName(path);
+		size_t dotIdx = fileName.FindLast('.');
+
+		return dotIdx != SIZE_MAX ? fileName.Slice(0, dotIdx) : fileName;
+	}
+
+	String GetExtension(String path)
+	{
+		String fileName = GetFileName(path);
+		size_t dotIdx = fileName.FindLast('.');
+
+		return dotIdx != SIZE_MAX ? fileName.Slice(dotIdx + 1) : String::Empty;
 	}
 }
