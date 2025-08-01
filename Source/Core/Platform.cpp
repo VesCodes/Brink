@@ -566,118 +566,154 @@ namespace Bk
 #endif
 	}
 
-	void EnumerateDirectory(String path, EnumerateDirectoryCb callback, bool recursive)
+	struct FileIterator
 	{
-		ArenaScope scratch = GetScratchArena();
+		Arena* arena;
+
+		StringBuilder pathBuilder;
+		size_t pathLength;
 
 #if BK_PLATFORM_WINDOWS
-		StringBuilder builder(scratch.arena);
-		builder.AppendPath(path);
-		builder.Append("\\*");
+		HANDLE findHandle;
+		WIN32_FIND_DATAW findInfo;
+#else
+		DIR* dirHandle;
+#endif
+	};
 
-		wchar_t* searchPath = ConvertString(scratch.arena, builder.ToString(scratch.arena));
+	FileIteratorHandle CreateFileIterator(Arena& arena, String path)
+	{
+		ArenaScope scratch = GetScratchArena(&arena);
 
-		WIN32_FIND_DATAW findInfo = {};
-		HANDLE findHandle = FindFirstFileW(searchPath, &findInfo);
+		FileIterator* iterator = arena.Push<FileIterator>();
+		iterator->arena = &arena;
+		iterator->pathBuilder = StringBuilder(arena);
+		iterator->pathBuilder.AppendPath(path);
+		iterator->pathLength = path.length;
 
-		if (findHandle != INVALID_HANDLE_VALUE)
+#if BK_PLATFORM_WINDOWS
+		iterator->pathBuilder.AppendPath("*");
+
+		wchar_t* filePath = ConvertString(scratch.arena, iterator->pathBuilder.ToString(scratch.arena));
+		iterator->findHandle = FindFirstFileW(filePath, &iterator->findInfo);
+#else
+		char* filePath = ConvertString(scratch.arena, path);
+		iterator->dirHandle = opendir(filePath);
+#endif
+
+		return iterator;
+	}
+
+	bool AdvanceFileIterator(FileIteratorHandle iterator, FileIteratorEntry& entry)
+	{
+		if (!iterator)
 		{
-			do
+			return false;
+		}
+
+		bool result = false;
+
+#if BK_PLATFORM_WINDOWS
+		ArenaScope scratch = GetScratchArena(iterator->arena);
+		while (iterator->findHandle != INVALID_HANDLE_VALUE)
+		{
+			String fileName = ConvertString(scratch.arena, iterator->findInfo.cFileName);
+			if (fileName != "." && fileName != "..")
 			{
-				String fileName = ConvertString(scratch.arena, findInfo.cFileName);
-				if (fileName == "." || fileName == "..")
+				iterator->pathBuilder.Reset(iterator->pathLength);
+				iterator->pathBuilder.AppendPath(fileName);
+
+				entry.path = iterator->pathBuilder.ToString(*iterator->arena);
+				entry.properties = {};
+
+				entry.properties.size = static_cast<size_t>(iterator->findInfo.nFileSizeHigh) << 32 | iterator->findInfo.nFileSizeLow;
+				entry.properties.createdTime = ConvertFileTime(iterator->findInfo.ftCreationTime);
+				entry.properties.modifiedTime = ConvertFileTime(iterator->findInfo.ftLastWriteTime);
+
+				if (iterator->findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 				{
-					continue;
+					entry.properties.attributes |= FileAttributes::Directory;
 				}
 
-				builder.Reset();
-				builder.AppendPath(path);
-				builder.AppendPath(fileName);
-
-				String filePath = builder.ToString(scratch.arena);
-				FileProperties fileProps = {};
-
-				fileProps.size = static_cast<size_t>(findInfo.nFileSizeHigh) << 32 | findInfo.nFileSizeLow;
-				fileProps.createdTime = ConvertFileTime(findInfo.ftCreationTime);
-				fileProps.modifiedTime = ConvertFileTime(findInfo.ftLastWriteTime);
-
-				if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				if (iterator->findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
 				{
-					fileProps.attributes |= FileAttributes::Directory;
+					entry.properties.attributes |= FileAttributes::ReadOnly;
 				}
 
-				if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
-				{
-					fileProps.attributes |= FileAttributes::ReadOnly;
-				}
+				result = true;
+			}
 
-				if (!callback(filePath, fileProps))
-				{
-					break;
-				}
+			if (!FindNextFileW(iterator->findHandle, &iterator->findInfo))
+			{
+				FindClose(iterator->findHandle);
+				iterator->findHandle = INVALID_HANDLE_VALUE;
+			}
 
-				if (recursive && EnumHasAnyFlags(fileProps.attributes, FileAttributes::Directory))
-				{
-					EnumerateDirectory(filePath, callback, true);
-				}
-			} while (FindNextFileW(findHandle, &findInfo));
-
-			FindClose(findHandle);
+			if (result)
+			{
+				break;
+			}
 		}
 #else
-		StringBuilder builder(scratch.arena);
-
-		char* searchPath = ConvertString(scratch.arena, path);
-
-		DIR* dirHandle = opendir(searchPath);
-		if (dirHandle)
+		dirent* entryHandle;
+		while ((entryHandle = readdir(iterator->dirHandle)) != nullptr)
 		{
-			dirent* entryHandle;
-			while ((entryHandle = readdir(dirHandle)) != nullptr)
+			String fileName = entryHandle->d_name;
+			if (fileName == "." || fileName == "..")
 			{
-				String fileName = entryHandle->d_name;
-				if (fileName == "." || fileName == "..")
+				continue;
+			}
+
+			iterator->pathBuilder.Reset(iterator->pathLength);
+			iterator->pathBuilder.AppendPath(fileName);
+
+			entry.path = iterator->pathBuilder.ToString(*iterator->arena, true);
+			entry.properties = {};
+
+			struct stat fileStat = {};
+			if (stat(entry.path.data, &fileStat) != -1)
+			{
+				entry.properties.size = static_cast<size_t>(fileStat.st_size);
+				entry.properties.createdTime = ConvertFileTime(fileStat.st_ctime);
+				entry.properties.modifiedTime = ConvertFileTime(fileStat.st_mtime);
+
+				if ((fileStat.st_mode & S_IFDIR) != 0)
 				{
-					continue;
+					entry.properties.attributes |= FileAttributes::Directory;
 				}
 
-				builder.Reset();
-				builder.AppendPath(path);
-				builder.AppendPath(fileName);
-
-				String filePath = builder.ToString(scratch.arena, true);
-				FileProperties fileProps = {};
-
-				struct stat fileStat = {};
-				if (stat(filePath.data, &fileStat) != -1)
+				if ((fileStat.st_mode & S_IWUSR) == 0)
 				{
-					fileProps.size = static_cast<size_t>(fileStat.st_size);
-					fileProps.createdTime = ConvertFileTime(fileStat.st_ctime);
-					fileProps.modifiedTime = ConvertFileTime(fileStat.st_mtime);
-
-					if ((fileStat.st_mode & S_IFDIR) != 0)
-					{
-						fileProps.attributes |= FileAttributes::Directory;
-					}
-
-					if ((fileStat.st_mode & S_IWUSR) == 0)
-					{
-						fileProps.attributes |= FileAttributes::ReadOnly;
-					}
-				}
-
-				if (!callback(filePath, fileProps))
-				{
-					break;
-				}
-
-				if (recursive && EnumHasAnyFlags(fileProps.attributes, FileAttributes::Directory))
-				{
-					EnumerateDirectory(filePath, callback, true);
+					entry.properties.attributes |= FileAttributes::ReadOnly;
 				}
 			}
 
-			closedir(dirHandle);
+			result = true;
+			break;
+		}
+#endif
+
+		return result;
+	}
+
+	void DestroyFileIterator(FileIteratorHandle iterator)
+	{
+		if (!iterator)
+		{
+			return;
+		}
+
+#if BK_PLATFORM_WINDOWS
+		if (iterator->findHandle != INVALID_HANDLE_VALUE)
+		{
+			FindClose(iterator->findHandle);
+			iterator->findHandle = INVALID_HANDLE_VALUE;
+		}
+#else
+		if (iterator->dirHandle)
+		{
+			closedir(iterator->dirHandle);
+			iterator->dirHandle = nullptr;
 		}
 #endif
 	}

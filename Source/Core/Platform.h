@@ -61,8 +61,17 @@ namespace Bk
 
 	bool CreateDirectory(String path);
 
-	typedef bool (*EnumerateDirectoryCb)(String path, const FileProperties& properties);
-	void EnumerateDirectory(String path, EnumerateDirectoryCb callback, bool recursive = false);
+	using FileIteratorHandle = struct FileIterator*;
+
+	struct FileIteratorEntry
+	{
+		String path;
+		FileProperties properties;
+	};
+
+	FileIteratorHandle CreateFileIterator(Arena& arena, String path);
+	bool AdvanceFileIterator(FileIteratorHandle iterator, FileIteratorEntry& entry);
+	void DestroyFileIterator(FileIteratorHandle iterator);
 
 	// Process
 
