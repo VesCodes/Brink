@@ -1,5 +1,6 @@
 #include "Gpu.h"
 
+#if BK_PLATFORM_EMSCRIPTEN
 #include "Pool.h"
 
 #include <emscripten/html5.h>
@@ -607,3 +608,4 @@ namespace Bk
 		}
 	}
 }
+#endif

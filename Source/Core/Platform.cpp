@@ -5,6 +5,11 @@
 #if BK_PLATFORM_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+#undef MoveFile
+#undef DeleteFile
+#undef CreateDirectory
+#undef CreateProcess
 #else
 #include <dirent.h>
 #include <errno.h>
@@ -523,6 +528,21 @@ namespace Bk
 		return result;
 	}
 
+	bool FileExists(String path)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		wchar_t* filePath = ConvertString(scratch.arena, path);
+		uint32 fileAttributes = GetFileAttributesW(filePath);
+
+		return fileAttributes != INVALID_FILE_ATTRIBUTES && (fileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+#else
+		char* filePath = ConvertString(scratch.arena, path);
+		return access(filePath, F_OK);
+#endif
+	}
+
 	bool MoveFile(String srcPath, String dstPath)
 	{
 		ArenaScope scratch = GetScratchArena();
@@ -589,7 +609,7 @@ namespace Bk
 		iterator->arena = &arena;
 		iterator->pathBuilder = StringBuilder(arena);
 		iterator->pathBuilder.AppendPath(path);
-		iterator->pathLength = path.length;
+		iterator->pathLength = iterator->pathBuilder.length;
 
 #if BK_PLATFORM_WINDOWS
 		iterator->pathBuilder.AppendPath("*");
@@ -793,7 +813,7 @@ namespace Bk
 #endif
 	}
 
-	bool WaitForProcess(ProcessHandle handle)
+	bool WaitForProcess(ProcessHandle handle, int32* exitCode)
 	{
 		if (!handle)
 		{
@@ -802,10 +822,25 @@ namespace Bk
 
 #if BK_PLATFORM_WINDOWS
 		HANDLE processHandle = reinterpret_cast<HANDLE>(handle);
-		return WaitForSingleObject(processHandle, INFINITE) == WAIT_OBJECT_0;
+
+		bool result = WaitForSingleObject(processHandle, INFINITE) == WAIT_OBJECT_0;
+		if (result && exitCode != nullptr)
+		{
+			result = GetExitCodeProcess(processHandle, reinterpret_cast<DWORD*>(exitCode));
+		}
+
+		return result;
 #else
 		int processHandle = static_cast<int>(handle);
-		return waitpid(processHandle, nullptr, 0) == processHandle;
+
+		int processStatus;
+		bool result = waitpid(processHandle, &processStatus, 0) == processHandle;
+		if (result && exitCode != nullptr)
+		{
+			*exitCode = WIFEXITED(processStatus) ? WEXITSTATUS(processStatus) : EXIT_FAILURE;
+		}
+
+		return result;
 #endif
 	}
 

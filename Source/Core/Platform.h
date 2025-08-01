@@ -56,6 +56,7 @@ namespace Bk
 	FileProperties GetFileProperties(FileHandle handle);
 	FileProperties GetFileProperties(String path);
 
+	bool FileExists(String path);
 	bool MoveFile(String srcPath, String dstPath);
 	bool DeleteFile(String path);
 
@@ -85,6 +86,6 @@ namespace Bk
 
 	ProcessHandle CreateProcess(const ProcessParams& params);
 	void DetachProcess(ProcessHandle handle);
-	bool WaitForProcess(ProcessHandle handle);
+	bool WaitForProcess(ProcessHandle handle, int32* exitCode = nullptr);
 	bool TerminateProcess(ProcessHandle handle);
 }
