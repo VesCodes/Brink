@@ -81,7 +81,7 @@ namespace Bk
 		bool AppendPathf(const char* format, ...);
 
 		bool Expand(size_t requiredCapacity);
-		void Reset();
+		void Reset(size_t keepLength = 0);
 
 		String ToString(Arena& arena, bool nullTerminate = false) const;
 

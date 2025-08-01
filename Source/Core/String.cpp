@@ -692,22 +692,22 @@ namespace Bk
 
 	bool StringBuilder::Expand(size_t requiredCapacity)
 	{
-		for (Chunk* chainedChunk = &chunk; chainedChunk && chainedChunk->previous; chainedChunk = chainedChunk->previous)
+		for (Chunk *chainedChunk = chunk.previous, *lastChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
 		{
-			Chunk* reusableChunk = chainedChunk->previous;
-			if (reusableChunk->length == 0)
+			if (chainedChunk->length == 0)
 			{
-				chainedChunk->previous = reusableChunk->previous;
+				lastChunk->previous = chainedChunk->previous;
 
 				Chunk archivedChunk = chunk;
 
-				chunk = *reusableChunk;
-				chunk.previous = reusableChunk;
-
-				*reusableChunk = archivedChunk;
+				chunk = *chainedChunk;
+				*chainedChunk = archivedChunk;
+				chunk.previous = chainedChunk;
 
 				return true;
 			}
+
+			lastChunk = chainedChunk;
 		}
 
 		if (!arena)
@@ -733,14 +733,49 @@ namespace Bk
 		return true;
 	}
 
-	void StringBuilder::Reset()
+	void StringBuilder::Reset(size_t keepLength)
 	{
-		for (Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		if (keepLength == 0)
 		{
-			chainedChunk->length = 0;
-		}
+			for (Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+			{
+				chainedChunk->length = 0;
+			}
 
-		length = 0;
+			length = 0;
+		}
+		else if (keepLength < length)
+		{
+			size_t discardLength = length - keepLength;
+
+			for (Chunk *chainedChunk = &chunk, *lastChunk = nullptr; chainedChunk; chainedChunk = chainedChunk->previous)
+			{
+				if (discardLength <= chainedChunk->length)
+				{
+					chainedChunk->length -= discardLength;
+
+					if (lastChunk)
+					{
+						lastChunk->previous = chainedChunk->previous;
+
+						Chunk archivedChunk = chunk;
+
+						chunk = *chainedChunk;
+						*chainedChunk = archivedChunk;
+						chunk.previous = chainedChunk;
+					}
+
+					break;
+				}
+
+				discardLength -= chainedChunk->length;
+				chainedChunk->length = 0;
+
+				lastChunk = chainedChunk;
+			}
+
+			length = keepLength;
+		}
 	}
 
 	String StringBuilder::ToString(Arena& arena, bool nullTerminate) const
@@ -755,8 +790,11 @@ namespace Bk
 		char* bufferPtr = buffer.data + length;
 		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
 		{
-			bufferPtr -= chainedChunk->length;
-			MemoryCopy(bufferPtr, chainedChunk->buffer, chainedChunk->length);
+			if (chainedChunk->length > 0)
+			{
+				bufferPtr -= chainedChunk->length;
+				MemoryCopy(bufferPtr, chainedChunk->buffer, chainedChunk->length);
+			}
 		}
 
 		// Ensure the entire buffer has been filled
