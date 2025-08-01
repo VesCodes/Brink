@@ -30,6 +30,13 @@ namespace Bk
 	void BitsetUnset(uint32* bitset, size_t index);
 	size_t BitsetFind(const uint32* bitset, bool value, size_t offset, size_t length);
 
+	enum class ArenaFlags : uint8
+	{
+		KeepFirstBlock = (1 << 0),
+	};
+
+	BK_ENUM_FLAGS(ArenaFlags);
+
 	struct ArenaBlock
 	{
 		ArenaBlock* previous;
@@ -62,6 +69,7 @@ namespace Bk
 
 		ArenaBlock* currentBlock;
 		size_t blockAlignment;
+		ArenaFlags flags;
 	};
 
 	struct ArenaScope

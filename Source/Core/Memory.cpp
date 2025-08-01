@@ -100,7 +100,10 @@ namespace Bk
 
 	thread_local struct
 	{
-		Arena scratchArenas[2];
+		Arena scratchArenas[2] = {
+			{ .blockAlignment = BK_MEGABYTES(4), .flags = ArenaFlags::KeepFirstBlock },
+			{ .blockAlignment = BK_MEGABYTES(4), .flags = ArenaFlags::KeepFirstBlock },
+		};
 	} arenaTls;
 
 	size_t Arena::DefaultAlignment = 8;
@@ -165,6 +168,11 @@ namespace Bk
 	{
 		while (currentBlock && currentBlock != marker.block)
 		{
+			if (!currentBlock->previous && EnumHasAnyFlags(flags, ArenaFlags::KeepFirstBlock))
+			{
+				break;
+			}
+
 			ArenaBlock* block = currentBlock;
 			currentBlock = currentBlock->previous;
 			MemoryDeallocate(block, block->size);
@@ -172,8 +180,7 @@ namespace Bk
 
 		if (currentBlock)
 		{
-			BK_ASSERT(marker.offset >= sizeof(ArenaBlock));
-			currentBlock->offset = marker.offset;
+			currentBlock->offset = Max(marker.offset, sizeof(ArenaBlock));
 		}
 	}
 
