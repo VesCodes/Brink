@@ -690,6 +690,23 @@ namespace Bk
 		return result;
 	}
 
+	void StringBuilder::NormalizePath()
+	{
+		for (Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		{
+			char* start = chainedChunk->buffer;
+			char* end = chainedChunk->buffer + chainedChunk->length;
+
+			for (char* c = start; c < end; ++c)
+			{
+				if (*c == '\\')
+				{
+					*c = '/';
+				}
+			}
+		}
+	}
+
 	bool StringBuilder::Expand(size_t requiredCapacity)
 	{
 		for (Chunk *chainedChunk = chunk.previous, *lastChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)

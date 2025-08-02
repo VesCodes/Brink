@@ -34,22 +34,18 @@ struct BuildContext
 	TSpan<String> extraLinkerArguments;
 };
 
-bool WriteTextFile(String outputFile, StringBuilder& builder)
+bool WriteTextFile(String outputFile, String content)
 {
+	bool result = false;
+
 	FileHandle fileHandle = OpenFile(outputFile, FileAccess::Write);
-	if (!fileHandle)
+	if (fileHandle)
 	{
-		return false;
+		result = WriteFile(fileHandle, TSpan((uint8_t*)content.data, content.length)) == content.length;
+		CloseFile(fileHandle);
 	}
 
-	ArenaScope scratch = GetScratchArena();
-
-	String fileContent = builder.ToString(scratch.arena);
-	size_t bytesWritten = WriteFile(fileHandle, TSpan((uint8_t*)fileContent.data, fileContent.length));
-
-	CloseFile(fileHandle);
-
-	return bytesWritten == fileContent.length;
+	return result;
 }
 
 String GetResponseFilePath(Arena& arena, const BuildContext& context, String targetFile)
@@ -113,6 +109,33 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 	CloseFile(fileHandle);
 
 	return true;
+}
+
+ProcessHandle RunCompiler(const BuildContext& context, String arguments)
+{
+	ArenaScope scratch = GetScratchArena();
+
+	String executable = "clang++";
+
+	if (context.platform.Equals("Emscripten", true))
+	{
+#if BK_PLATFORM_WINDOWS
+		executable = "cmd.exe";
+
+		StringBuilder builder(scratch.arena);
+		builder.Append("/c em++ ");
+		builder.Append(arguments);
+
+		arguments = builder.ToString(scratch.arena);
+#else
+		executable = "em++";
+#endif
+	}
+
+	return CreateProcess({
+		.executable = executable,
+		.arguments = arguments,
+	});
 }
 
 ProcessHandle CompileFile(const BuildContext& context, String inputFile, String outputFile)
@@ -183,7 +206,7 @@ ProcessHandle CompileFile(const BuildContext& context, String inputFile, String 
 	arguments.AppendLinef("-o \"%.*s\"", outputFile.length, outputFile.data);
 
 	String responseFile = GetResponseFilePath(scratch.arena, context, outputFile);
-	if (!WriteTextFile(responseFile, arguments))
+	if (!WriteTextFile(responseFile, arguments.ToString(scratch.arena)))
 	{
 		printf("Failed to write response file '%.*s'\n", int32(responseFile.length), responseFile.data);
 		return 0;
@@ -193,10 +216,7 @@ ProcessHandle CompileFile(const BuildContext& context, String inputFile, String 
 	arguments.Append('@');
 	arguments.Append(responseFile);
 
-	return CreateProcess({
-		.executable = "clang++",
-		.arguments = arguments.ToString(scratch.arena),
-	});
+	return RunCompiler(context, arguments.ToString(scratch.arena));
 }
 
 ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, String outputFile)
@@ -213,7 +233,7 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 
 	arguments.AppendLine("-fdiagnostics-absolute-paths");
 
-	arguments.AppendLine("-Wl,-incremental:no");
+	// arguments.AppendLine("-Wl,-incremental:no");
 
 	for (String extraArgument : context.extraLinkerArguments)
 	{
@@ -228,7 +248,7 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 	arguments.AppendLinef("-o \"%.*s\"", outputFile.length, outputFile.data);
 
 	String responseFile = GetResponseFilePath(scratch.arena, context, outputFile);
-	if (!WriteTextFile(responseFile, arguments))
+	if (!WriteTextFile(responseFile, arguments.ToString(scratch.arena)))
 	{
 		printf("Failed to write response file '%.*s'\n", int32(responseFile.length), responseFile.data);
 		return 0;
@@ -238,10 +258,7 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 	arguments.Append('@');
 	arguments.Append(responseFile);
 
-	return CreateProcess({
-		.executable = "clang++",
-		.arguments = arguments.ToString(scratch.arena),
-	});
+	return RunCompiler(context, arguments.ToString(scratch.arena));
 }
 
 ProcessHandle CompileModule(const BuildContext& context, String moduleName)
@@ -281,16 +298,24 @@ ProcessHandle CompileModule(const BuildContext& context, String moduleName)
 
 	DestroyFileIterator(fileIterator);
 
-	if (!WriteTextFile(moduleUnityFile, builder))
+	if (!WriteTextFile(moduleUnityFile, builder.ToString(scratch.arena)))
 	{
 		printf("Failed to write module unity file '%.*s'\n", int32(moduleUnityFile.length), moduleUnityFile.data);
-		return 0;
+		return false;
 	}
 
-	return CompileFile(context, moduleUnityFile, moduleObjectFile);
+	ProcessHandle process = CompileFile(context, moduleUnityFile, moduleObjectFile);
+
+	int32 processExitCode = -1;
+	if (!process || !WaitForProcess(process, &processExitCode))
+	{
+		return false;
+	}
+
+	return processExitCode == 0;
 }
 
-ProcessHandle LinkModules(const BuildContext& context, TSpan<String> moduleNames, String executableName)
+bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String executableName)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -309,50 +334,22 @@ ProcessHandle LinkModules(const BuildContext& context, TSpan<String> moduleNames
 		builder.Reset(cacheDirLength);
 	}
 
-	return LinkFiles(context, moduleObjectFiles, executableName);
-}
+	ProcessHandle process = LinkFiles(context, moduleObjectFiles, executableName);
 
-int32 main(int32 argc, char** argv)
-{
-	Arena arena = {};
-
-	BuildContext context = {
-		.config = BuildConfig::Debug,
-		.includes = { "Source", "ThirdParty" },
-		.definitions = { "BK_BUILD" },
-	};
-
-	for (int32 i = 1; i < argc; ++i)
+	int32 processExitCode = -1;
+	if (!process || !WaitForProcess(process, &processExitCode))
 	{
-		String argName = argv[i];
-		String argValue = {};
-
-		if (size_t equalsIdx = argName.Find('='); equalsIdx != SIZE_MAX)
-		{
-			argValue = argName.Slice(equalsIdx + 1);
-			argName = argName.Slice(0, equalsIdx);
-		}
-
-		if (argName.Equals("-Platform", true))
-		{
-			context.platform = argValue;
-		}
-		else if (argName.Equals("-Config", true))
-		{
-			if (argValue.Equals("Debug", true))
-			{
-				context.config = BuildConfig::Debug;
-			}
-			else if (argValue.Equals("Release", true))
-			{
-				context.config = BuildConfig::Release;
-			}
-		}
+		return false;
 	}
 
+	return processExitCode == 0;
+}
+
+void PrepareBuildContext(Arena& arena, BuildContext& context)
+{
 	StringBuilder builder(arena);
 	builder.AppendPath("Build/Cache");
-	// builder.AppendPath(context.platform);
+	builder.AppendPath(context.platform);
 	builder.AppendPath(context.config == BuildConfig::Debug ? "Debug" : "Release");
 
 	context.cacheDir = builder.ToString(arena);
@@ -373,34 +370,86 @@ int32 main(int32 argc, char** argv)
 		String cachePath = context.cacheDir.Slice(0, slashIdx);
 		CreateDirectory(cachePath);
 	}
+}
 
-	ProcessHandle process = CompileModule(context, "Core");
-	int32 processExitCode = -1;
+int32 main(int32 argc, char** argv)
+{
+	Arena arena = {};
 
-	if (!WaitForProcess(process, &processExitCode) || processExitCode != 0)
+	BuildContext context = {
+		.config = BuildConfig::Debug,
+		.includes = { "Source", "ThirdParty" },
+		.definitions = { "BK_BUILD" },
+	};
+
+	// Build
 	{
-		printf("Failed to compile Core module (%d)\n", processExitCode);
-		return 1;
+		PrepareBuildContext(arena, context);
+
+		if (!CompileModule(context, "Core"))
+		{
+			printf("Failed to compile Core module\n");
+			return 1;
+		}
+
+		if (!CompileModule(context, "Build"))
+		{
+			printf("Failed to compile Build module\n");
+			return 1;
+		}
+
+		StringBuilder builder(arena);
+		builder.AppendPath(argv[0]);
+		builder.NormalizePath();
+		builder.Append(".bak");
+
+		String backupFile = builder.ToString(arena);
+		String targetFile = backupFile.Slice(0, backupFile.length - 4);
+
+		DeleteFile(backupFile);
+		MoveFile(targetFile, backupFile);
+
+		if (!LinkModules(context, { "Core", "Build" }, targetFile))
+		{
+			MoveFile(backupFile, targetFile);
+
+			printf("Failed to link Build target\n");
+			return 1;
+		}
 	}
 
-	process = CompileModule(context, "Build");
-
-	if (!WaitForProcess(process, &processExitCode) || processExitCode != 0)
+	// Sandbox
 	{
-		printf("Failed to compile Build module (%d)\n", processExitCode);
-		return 1;
-	}
+		context.platform = "Emscripten";
 
-	DeleteFile("Build/Cache/BkBuild.exe");
-	MoveFile("Build/BkBuild.exe", "Build/Cache/BkBuild.exe");
+		context.extraCompilerArguments = {
+			"--use-port=emdawnwebgpu",
+		};
 
-	process = LinkModules(context, { "Core", "Build" }, "Build/BkBuild.exe");
-	if (!WaitForProcess(process, &processExitCode) || processExitCode != 0)
-	{
-		MoveFile("Build/Cache/BkBuild.exe", "Build/BkBuild.exe");
+		context.extraLinkerArguments = {
+			"--use-port=emdawnwebgpu",
+			"--shell-file=Source/Sandbox/Sandbox.html",
+		};
 
-		printf("Failed to link BkBuild executable (%d)\n", processExitCode);
-		return 1;
+		PrepareBuildContext(arena, context);
+
+		if (!CompileModule(context, "Core"))
+		{
+			printf("Failed to compile Core module\n");
+			return 1;
+		}
+
+		if (!CompileModule(context, "Sandbox"))
+		{
+			printf("Failed to compile Sandbox module\n");
+			return 1;
+		}
+
+		if (!LinkModules(context, { "Core", "Sandbox" }, "Build/index.html"))
+		{
+			printf("Failed to link Sandbox target\n");
+			return 1;
+		}
 	}
 
 	return 0;

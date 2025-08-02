@@ -79,6 +79,7 @@ namespace Bk
 
 		bool AppendPath(String path);
 		bool AppendPathf(const char* format, ...);
+		void NormalizePath();
 
 		bool Expand(size_t requiredCapacity);
 		void Reset(size_t keepLength = 0);

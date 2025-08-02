@@ -1,12 +1,14 @@
-#include "Core/Core.cpp"
-#include "Core/Gpu.cpp"
-#include "Core/Json.cpp"
-#include "Core/Memory.cpp"
-#include "Core/Platform.cpp"
-#include "Core/String.cpp"
+#include "Core/Core.h"
+#include "Core/Gpu.h"
+#include "Core/Json.h"
+#include "Core/Memory.h"
+#include "Core/Platform.h"
+#include "Core/String.h"
 
 #define HANDMADE_MATH_USE_DEGREES
 #include <HandmadeMath.h>
+
+#include <emscripten/emscripten.h>
 
 using namespace Bk;
 
