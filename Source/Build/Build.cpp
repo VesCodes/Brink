@@ -21,7 +21,7 @@ enum class BuildConfig : uint8
 
 struct BuildContext
 {
-	String platform;
+	Platform platform;
 	BuildConfig config;
 
 	String cacheDir;
@@ -151,7 +151,7 @@ ProcessHandle RunCompiler(const BuildContext& context, String arguments)
 
 	String executable = "clang++";
 
-	if (context.platform == "Emscripten")
+	if (context.platform == Platform::Emscripten)
 	{
 #if BK_PLATFORM_WINDOWS
 		executable = "cmd.exe";
@@ -265,7 +265,7 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 
 	arguments.AppendLine("-fdiagnostics-absolute-paths");
 
-	if (context.platform == "Windows")
+	if (context.platform == Platform::Windows)
 	{
 		arguments.AppendLine("-Wl,-incremental:no");
 	}
@@ -390,7 +390,7 @@ void PrepareBuildContext(Arena& arena, BuildContext& context)
 {
 	StringBuilder builder(arena);
 	builder.AppendPath("Build/Cache");
-	builder.AppendPath(context.platform);
+	builder.AppendPath(GetPlatformName(context.platform));
 	builder.AppendPath(context.config == BuildConfig::Debug ? "Debug" : "Release");
 
 	context.cacheDir = builder.ToString(arena);
@@ -418,6 +418,7 @@ int32 main(int32 argc, char** argv)
 	Arena arena = {};
 
 	BuildContext context = {
+		.platform = GetPlatform(),
 		.config = BuildConfig::Debug,
 		.includes = { "Source", "ThirdParty" },
 		.definitions = { "BK_BUILD" },
@@ -425,6 +426,8 @@ int32 main(int32 argc, char** argv)
 
 	// Build
 	{
+		double startTime = GetTimeSec();
+
 		PrepareBuildContext(arena, context);
 
 		if (!CompileModule(context, "Core"))
@@ -438,6 +441,9 @@ int32 main(int32 argc, char** argv)
 			printf("Failed to compile Build module\n");
 			return 1;
 		}
+
+		double compileTime = GetTimeSec();
+		printf("Compiled modules for Build in %0.4fs\n", compileTime - startTime);
 
 		StringBuilder builder(arena);
 		builder.AppendPath(argv[0]);
@@ -457,11 +463,16 @@ int32 main(int32 argc, char** argv)
 			printf("Failed to link Build target\n");
 			return 1;
 		}
+
+		double linkTime = GetTimeSec();
+		printf("Linked modules for Build in %0.4fs\n", linkTime - compileTime);
 	}
 
 	// Sandbox
 	{
-		context.platform = "Emscripten";
+		double startTime = GetTimeSec();
+
+		context.platform = Platform::Emscripten;
 
 		context.extraCompilerArguments = {
 			"--use-port=emdawnwebgpu",
@@ -486,11 +497,17 @@ int32 main(int32 argc, char** argv)
 			return 1;
 		}
 
+		double compileTime = GetTimeSec();
+		printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - startTime);
+
 		if (!LinkModules(context, { "Core", "Sandbox" }, "Build/index.html"))
 		{
 			printf("Failed to link Sandbox target\n");
 			return 1;
 		}
+
+		double linkTime = GetTimeSec();
+		printf("Linked modules for Sandbox in %0.4fs\n", linkTime - compileTime);
 	}
 
 	return 0;

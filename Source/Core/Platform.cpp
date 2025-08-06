@@ -27,6 +27,33 @@ extern char** environ;
 
 namespace Bk
 {
+	Platform GetPlatform()
+	{
+#if BK_PLATFORM_WINDOWS
+		return Platform::Windows;
+#elif BK_PLATFORM_MACOS
+		return Platform::MacOS;
+#elif BK_PLATFORM_EMSCRIPTEN
+		return Platform::Emscripten;
+#endif
+	}
+
+	String GetPlatformName()
+	{
+		Platform platform = GetPlatform();
+		return GetPlatformName(platform);
+	}
+
+	String GetPlatformName(Platform platform)
+	{
+		switch (platform)
+		{
+			case Platform::Windows: return "Windows";
+			case Platform::MacOS: return "MacOS";
+			case Platform::Emscripten: return "Emscripten";
+		}
+	}
+
 	uint64 GetCpuTicks()
 	{
 #if BK_PLATFORM_WINDOWS

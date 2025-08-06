@@ -6,6 +6,17 @@
 
 namespace Bk
 {
+	enum class Platform : uint8
+	{
+		Windows,
+		MacOS,
+		Emscripten,
+	};
+
+	Platform GetPlatform();
+	String GetPlatformName();
+	String GetPlatformName(Platform platform);
+
 	// Time
 
 	uint64 GetCpuTicks();
