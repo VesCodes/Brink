@@ -566,7 +566,7 @@ namespace Bk
 		return fileAttributes != INVALID_FILE_ATTRIBUTES && (fileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 #else
 		char* filePath = ConvertString(scratch.arena, path);
-		return access(filePath, F_OK);
+		return access(filePath, F_OK) == 0;
 #endif
 	}
 
