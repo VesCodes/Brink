@@ -81,6 +81,8 @@ namespace Bk
 		bool AppendPathf(const char* format, ...);
 		void NormalizePath();
 
+		char* GetLastChar() const;
+
 		bool Expand(size_t requiredCapacity);
 		void Reset(size_t keepLength = 0);
 

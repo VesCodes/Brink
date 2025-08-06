@@ -652,15 +652,12 @@ namespace Bk
 
 	bool StringBuilder::AppendPath(String path)
 	{
-		if (chunk.length > 0)
+		char* lastChar = GetLastChar();
+		if (lastChar && *lastChar != '/' && *lastChar != '\\')
 		{
-			char lastChar = chunk.buffer[chunk.length - 1];
-			if (lastChar != '/' && lastChar != '\\')
+			if (!Append('/'))
 			{
-				if (!Append('/'))
-				{
-					return false;
-				}
+				return false;
 			}
 		}
 
@@ -669,15 +666,12 @@ namespace Bk
 
 	bool StringBuilder::AppendPathf(const char* format, ...)
 	{
-		if (chunk.length > 0)
+		char* lastChar = GetLastChar();
+		if (lastChar && *lastChar != '/' && *lastChar != '\\')
 		{
-			char lastChar = chunk.buffer[chunk.length - 1];
-			if (lastChar != '/' && lastChar != '\\')
+			if (!Append('/'))
 			{
-				if (!Append('/'))
-				{
-					return false;
-				}
+				return false;
 			}
 		}
 
@@ -705,6 +699,24 @@ namespace Bk
 				}
 			}
 		}
+	}
+
+	char* StringBuilder::GetLastChar() const
+	{
+		if (length > 0)
+		{
+			for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+			{
+				if (chainedChunk->length == 0)
+				{
+					continue;
+				}
+
+				return chainedChunk->buffer + chainedChunk->length - 1;
+			}
+		}
+
+		return nullptr;
 	}
 
 	bool StringBuilder::Expand(size_t requiredCapacity)
