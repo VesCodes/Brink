@@ -127,12 +127,17 @@ namespace Bk
 	struct DateTime
 	{
 		uint16 year;
-		uint8 month;
-		uint8 weekday;
-		uint8 day;
-		uint8 hour;
-		uint8 minute;
-		uint8 second;
-		uint16 millisecond;
+		uint8 month;        // [1, 12]
+		uint8 weekday;      // [0, 6]
+		uint8 day;          // [1, 31]
+		uint8 hour;         // [0, 23]
+		uint8 minute;       // [0, 59]
+		uint8 second;       // [0, 59]
+		uint16 millisecond; // [0, 999]
 	};
+
+	uint64 GetPackedTimeFromDateTime(DateTime time);
+	DateTime GetDateTimeFromPackedTime(uint64 time);
+
+	uint64 GetUnixTimeFromDateTime(DateTime time);
 }
