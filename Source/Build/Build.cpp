@@ -81,6 +81,9 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 		return true;
 	}
 
+	FileProperties outputFileProps = GetFileProperties(outputFile);
+	uint64 outputFileTime = GetPackedTimeFromDateTime(outputFileProps.createdTime);
+
 	String dependencyFile = GetDependencyFilePath(scratch.arena, context, outputFile);
 	if (!FileExists(dependencyFile))
 	{
@@ -90,25 +93,56 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 	FileHandle fileHandle = OpenFile(dependencyFile, FileAccess::Read);
 	if (!fileHandle)
 	{
+		printf("Failed to open dependency file '%.*s'\n", int32(dependencyFile.length), dependencyFile.data);
 		return true;
 	}
 
-	size_t fileSize = GetFileSize(fileHandle);
-
-	TSpan<uint8> fileContent = scratch.arena.Push<uint8>(fileSize);
-	if (ReadFile(fileHandle, fileContent))
-	{
-		// #TODO: Parse dependencies and check if out of date
-		// String dependencyText((char*)fileContent.data, fileContent.length);
-		// for (String token; ParseToken(dependencyText, token);)
-		// {
-		// 	printf("'%.*s'\n", int32(token.length), token.data);
-		// }
-	}
-
+	TSpan<uint8> fileContent = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+	fileContent.length = ReadFile(fileHandle, fileContent);
 	CloseFile(fileHandle);
 
-	return true;
+	String tokenStream((char*)fileContent.data, fileContent.length);
+
+	String targetFile;
+	if (!ParseToken(tokenStream, targetFile))
+	{
+		printf("Failed to parse dependency file '%.*s'\n", int32(dependencyFile.length), dependencyFile.data);
+		return true;
+	}
+
+	targetFile = targetFile.Slice(0, targetFile.length - 1);
+	if (targetFile != outputFile)
+	{
+		printf("[%.*s] Mismatched dependency target '%.*s'\n", int32(outputFile.length), outputFile.data, int32(targetFile.length), targetFile.data);
+		return true;
+	}
+
+	bool result = false;
+
+	for (String token; ParseToken(tokenStream, token);)
+	{
+		if (token == "\\")
+		{
+			continue;
+		}
+
+		if (!FileExists(token))
+		{
+			printf("[%.*s] Missing dependency '%.*s'\n", int32(outputFile.length), outputFile.data, int32(token.length), token.data);
+			result = true;
+		}
+
+		FileProperties dependencyFileProps = GetFileProperties(token);
+		uint64 dependencyFileTime = GetPackedTimeFromDateTime(dependencyFileProps.modifiedTime);
+
+		if (dependencyFileTime > outputFileTime)
+		{
+			printf("[%.*s] Modified dependency '%.*s'\n", int32(outputFile.length), outputFile.data, int32(token.length), token.data);
+			result = true;
+		}
+	}
+
+	return result;
 }
 
 ProcessHandle RunCompiler(const BuildContext& context, String arguments)
@@ -117,7 +151,7 @@ ProcessHandle RunCompiler(const BuildContext& context, String arguments)
 
 	String executable = "clang++";
 
-	if (context.platform.Equals("Emscripten", true))
+	if (context.platform == "Emscripten")
 	{
 #if BK_PLATFORM_WINDOWS
 		executable = "cmd.exe";
@@ -141,8 +175,6 @@ ProcessHandle RunCompiler(const BuildContext& context, String arguments)
 ProcessHandle CompileFile(const BuildContext& context, String inputFile, String outputFile)
 {
 	ArenaScope scratch = GetScratchArena();
-
-	ShouldCompile(context, outputFile);
 
 	StringBuilder arguments(scratch.arena);
 
@@ -233,7 +265,10 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 
 	arguments.AppendLine("-fdiagnostics-absolute-paths");
 
-	// arguments.AppendLine("-Wl,-incremental:no");
+	if (context.platform == "Windows")
+	{
+		arguments.AppendLine("-Wl,-incremental:no");
+	}
 
 	for (String extraArgument : context.extraLinkerArguments)
 	{
@@ -261,7 +296,7 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 	return RunCompiler(context, arguments.ToString(scratch.arena));
 }
 
-ProcessHandle CompileModule(const BuildContext& context, String moduleName)
+bool CompileModule(const BuildContext& context, String moduleName)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -270,6 +305,7 @@ ProcessHandle CompileModule(const BuildContext& context, String moduleName)
 	builder.AppendPath(moduleName);
 
 	String moduleSourceDir = builder.ToString(scratch.arena);
+	size_t moduleSourceDirPrefixLength = moduleSourceDir.length - moduleName.length;
 
 	builder.Reset();
 	builder.AppendPath(context.cacheDir);
@@ -283,6 +319,11 @@ ProcessHandle CompileModule(const BuildContext& context, String moduleName)
 
 	String moduleObjectFile = builder.ToString(scratch.arena);
 
+	if (!ShouldCompile(context, moduleObjectFile))
+	{
+		return true;
+	}
+
 	builder.Reset();
 	builder.AppendLine("// Automatically generated module unity file");
 
@@ -291,7 +332,7 @@ ProcessHandle CompileModule(const BuildContext& context, String moduleName)
 	{
 		if (entry.path.EndsWith(".cpp", true))
 		{
-			String sourceFile = entry.path.Slice(7);
+			String sourceFile = entry.path.Slice(moduleSourceDirPrefixLength);
 			builder.AppendLinef("#include \"%.*s\"", sourceFile.length, sourceFile.data);
 		}
 	}
