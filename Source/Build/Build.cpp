@@ -386,6 +386,142 @@ bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String 
 	return processExitCode == 0;
 }
 
+void GenerateProjectFiles(StringBuilder& builder, String path)
+{
+	ArenaScope scratch = GetScratchArena(builder.arena);
+
+	StringBuilder fileBuilder(scratch.arena);
+
+	FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, path);
+	for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
+	{
+		if (EnumHasAnyFlags(file.properties.attributes, FileAttributes::Directory))
+		{
+			GenerateProjectFiles(builder, file.path);
+			continue;
+		}
+
+		String fileExt = GetExtension(file.path);
+
+		if (fileExt.Equals("cpp", true))
+		{
+			fileBuilder.AppendLinef("\t<ClCompile Include=\"%.*s\"/>", file.path.length, file.path.data);
+		}
+		else if (fileExt.Equals("h", true))
+		{
+			fileBuilder.AppendLinef("\t<ClInclude Include=\"%.*s\"/>", file.path.length, file.path.data);
+		}
+		else
+		{
+			fileBuilder.AppendLinef("\t<None Include=\"%.*s\"/>", file.path.length, file.path.data);
+		}
+	}
+
+	DestroyFileIterator(fileIt);
+
+	if (fileBuilder.length > 0)
+	{
+		builder.AppendLine("<ItemGroup>");
+		builder.Append(fileBuilder.ToString(scratch.arena));
+		builder.AppendLine("</ItemGroup>");
+	}
+}
+
+void GenerateProject()
+{
+	ArenaScope scratch = GetScratchArena();
+
+	StringBuilder builder(scratch.arena);
+
+	TSpan<String> platforms = { "x64" };
+	TSpan<String> configs = { "Debug", "Release" };
+
+	// https://learn.microsoft.com/en-us/cpp/build/reference/vcxproj-file-structure?view=msvc-170
+
+	builder.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+	builder.AppendLine("<Project DefaultTargets=\"Build\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">");
+
+	{
+		builder.AppendLine("<ItemGroup Label=\"ProjectConfigurations\">");
+
+		for (String config : configs)
+		{
+			for (String platform : platforms)
+			{
+				builder.AppendLinef("\t<ProjectConfiguration Include=\"%.*s|%.*s\">",
+									config.length, config.data, platform.length, platform.data);
+
+				builder.AppendLinef("\t\t<Configuration>%.*s</Configuration>", config.length, config.data);
+				builder.AppendLinef("\t\t<Platform>%.*s</Platform>", platform.length, platform.data);
+
+				builder.AppendLine("\t</ProjectConfiguration>");
+			}
+		}
+
+		builder.AppendLine("</ItemGroup>");
+	}
+
+	{
+		builder.AppendLine("<PropertyGroup Label=\"Globals\">");
+		builder.AppendLine("\t<ProjectGuid>{933974FC-CE18-4E00-8D40-8E36298DE709}</ProjectGuid>");
+		builder.AppendLine("\t<VCProjectVersion>17.0</VCProjectVersion>");
+		builder.AppendLine("\t<Keyword>MakeFileProj</Keyword>");
+		builder.AppendLine("</PropertyGroup>");
+	}
+
+	builder.AppendLine("<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.default.props\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.default.props')\"/>");
+
+	{
+		builder.AppendLine("<PropertyGroup Label=\"Configuration\">");
+		builder.AppendLine("\t<ConfigurationType>Makefile</ConfigurationType>");
+		builder.AppendLine("\t<PlatformToolset>v143</PlatformToolset>");
+		builder.AppendLine("</PropertyGroup>");
+	}
+
+	builder.AppendLine("<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.props\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.props')\"/>");
+
+	builder.AppendLine("<ImportGroup Label=\"ExtensionSettings\"/>");
+	builder.AppendLine("<ImportGroup Label=\"PropertySheets\"/>");
+	builder.AppendLine("<PropertyGroup Label=\"UserMacros\"/>");
+
+	{
+		builder.AppendLine("<PropertyGroup>");
+		builder.AppendLine("\t<BuildCommand Condition=\"'$(OS)' == 'Windows_NT'\">Build.bat</BuildCommand>");
+		builder.AppendLine("\t<BuildCommand Condition=\"'$(OS)' != 'Windows_NT'\">bash Build.sh</BuildCommand>");
+		builder.AppendLine("\t<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);BK_BUILD</NMakePreprocessorDefinitions>");
+		builder.AppendLine("\t<IncludePath>$(IncludePath);Source;ThirdParty</IncludePath>");
+		builder.AppendLine("\t<AdditionalOptions>/std:c++20</AdditionalOptions>");
+		builder.AppendLine("\t<OutDir>Build\\Cache</OutDir>");
+		builder.AppendLine("\t<IntDir>Build\\Cache</IntDir>");
+		builder.AppendLine("</PropertyGroup>");
+
+		for (String config : configs)
+		{
+			for (String platform : platforms)
+			{
+				builder.AppendLinef("<PropertyGroup Condition=\"'$(Configuration)|$(Platform)' == '%.*s|%.*s'\">",
+				                    config.length, config.data, platform.length, platform.data);
+
+				builder.AppendLine("\t<NMakeBuildCommandLine>$(BuildCommand)</NMakeBuildCommandLine>");
+				builder.AppendLine("\t<NMakeReBuildCommandLine>$(BuildCommand)</NMakeReBuildCommandLine>");
+				builder.AppendLine("\t<NMakeCleanCommandLine>$(BuildCommand)</NMakeCleanCommandLine>");
+				builder.AppendLine("\t<NMakeOutput>Build\\BkBuild.exe</NMakeOutput>");
+
+				builder.AppendLinef("</PropertyGroup>");
+			}
+		}
+	}
+
+	GenerateProjectFiles(builder, "Source");
+
+	builder.AppendLine("<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.targets\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.targets')\"/>");
+	builder.AppendLine("<ImportGroup Label=\"ExtensionTargets\"/>");
+
+	builder.AppendLine("</Project>");
+
+	WriteTextFile("Brink.vcxproj", builder.ToString(scratch.arena));
+}
+
 void PrepareBuildContext(Arena& arena, BuildContext& context)
 {
 	StringBuilder builder(arena);
@@ -423,6 +559,15 @@ int32 main(int32 argc, char** argv)
 		.includes = { "Source", "ThirdParty" },
 		.definitions = { "BK_BUILD" },
 	};
+
+	for (int32 i = 1; i < argc; ++i)
+	{
+		String argument = argv[i];
+		if (argument == "-GenerateProject")
+		{
+			GenerateProject();
+		}
+	}
 
 	// Build
 	{
