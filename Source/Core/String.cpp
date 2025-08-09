@@ -719,6 +719,21 @@ namespace Bk
 		return nullptr;
 	}
 
+	void StringBuilder::Replace(char oldChar, char newChar)
+	{
+		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		{
+			for (size_t idx = 0; idx < chainedChunk->length; ++idx)
+			{
+				char* c = chainedChunk->buffer + idx;
+				if (*c == oldChar)
+				{
+					*c = newChar;
+				}
+			}
+		}
+	}
+
 	bool StringBuilder::Expand(size_t requiredCapacity)
 	{
 		for (Chunk *chainedChunk = chunk.previous, *lastChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)

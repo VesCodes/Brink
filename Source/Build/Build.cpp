@@ -386,6 +386,28 @@ bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String 
 	return processExitCode == 0;
 }
 
+String GenerateGuid(Arena& arena)
+{
+	// #TODO: Super dirty, revisit
+	uint8 bytes[16];
+
+	uint64 mix = GetCpuTicks();
+	for (size_t idx = 0; idx < 16; ++idx)
+	{
+		bytes[idx] ^= (mix >> (idx % sizeof(mix) * 8)) & 0xFF;
+		mix ^= bytes[idx];
+	}
+
+	ArenaScope scratch = GetScratchArena(&arena);
+
+	StringBuilder builder(scratch.arena);
+	builder.Appendf("%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+	                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+	                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
+
+	return builder.ToString(arena);
+}
+
 void GenerateProjectFiles(StringBuilder& builder, String path)
 {
 	ArenaScope scratch = GetScratchArena(builder.arena);
@@ -427,6 +449,67 @@ void GenerateProjectFiles(StringBuilder& builder, String path)
 	}
 }
 
+void GenerateProjectFilters(StringBuilder& builder, String path)
+{
+	ArenaScope scratch = GetScratchArena(builder.arena);
+
+	StringBuilder fileBuilder(scratch.arena);
+
+	fileBuilder.Append(path);
+	fileBuilder.Replace('/', '\\');
+
+	String filterPath = fileBuilder.ToString(scratch.arena);
+	fileBuilder.Reset();
+
+	FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, path);
+	for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
+	{
+		if (EnumHasAnyFlags(file.properties.attributes, FileAttributes::Directory))
+		{
+			GenerateProjectFilters(builder, file.path);
+			continue;
+		}
+
+		String fileExt = GetExtension(file.path);
+
+		if (fileExt.Equals("cpp", true))
+		{
+			fileBuilder.AppendLinef("\t<ClCompile Include=\"%.*s\">", file.path.length, file.path.data);
+			fileBuilder.AppendLinef("\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
+			fileBuilder.AppendLinef("\t</ClCompile>", file.path.length, file.path.data);
+		}
+		else if (fileExt.Equals("h", true))
+		{
+			fileBuilder.AppendLinef("\t<ClInclude Include=\"%.*s\">", file.path.length, file.path.data);
+			fileBuilder.AppendLinef("\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
+			fileBuilder.AppendLinef("\t</ClInclude>", file.path.length, file.path.data);
+		}
+		else
+		{
+			fileBuilder.AppendLinef("\t<None Include=\"%.*s\">", file.path.length, file.path.data);
+			fileBuilder.AppendLinef("\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
+			fileBuilder.AppendLinef("\t</None>", file.path.length, file.path.data);
+		}
+	}
+
+	DestroyFileIterator(fileIt);
+
+	builder.AppendLine("<ItemGroup>");
+
+	String filterGuid = GenerateGuid(scratch.arena);
+
+	builder.AppendLinef("\t<Filter Include=\"%.*s\">", filterPath.length, filterPath.data);
+	builder.AppendLinef("\t\t<UniqueIdentifier>{%.*s}</UniqueIdentifier>", filterGuid.length, filterGuid.data);
+	builder.AppendLine("\t</Filter>");
+
+	if (fileBuilder.length > 0)
+	{
+		builder.Append(fileBuilder.ToString(scratch.arena));
+	}
+
+	builder.AppendLine("</ItemGroup>");
+}
+
 void GenerateProject()
 {
 	ArenaScope scratch = GetScratchArena();
@@ -448,12 +531,9 @@ void GenerateProject()
 		{
 			for (String platform : platforms)
 			{
-				builder.AppendLinef("\t<ProjectConfiguration Include=\"%.*s|%.*s\">",
-									config.length, config.data, platform.length, platform.data);
-
+				builder.AppendLinef("\t<ProjectConfiguration Include=\"%.*s|%.*s\">", config.length, config.data, platform.length, platform.data);
 				builder.AppendLinef("\t\t<Configuration>%.*s</Configuration>", config.length, config.data);
 				builder.AppendLinef("\t\t<Platform>%.*s</Platform>", platform.length, platform.data);
-
 				builder.AppendLine("\t</ProjectConfiguration>");
 			}
 		}
@@ -462,8 +542,10 @@ void GenerateProject()
 	}
 
 	{
+		String projectGuid = GenerateGuid(scratch.arena);
+
 		builder.AppendLine("<PropertyGroup Label=\"Globals\">");
-		builder.AppendLine("\t<ProjectGuid>{933974FC-CE18-4E00-8D40-8E36298DE709}</ProjectGuid>");
+		builder.AppendLinef("\t<ProjectGuid>{%.*s}</ProjectGuid>", projectGuid.length, projectGuid.data);
 		builder.AppendLine("\t<VCProjectVersion>17.0</VCProjectVersion>");
 		builder.AppendLine("\t<Keyword>MakeFileProj</Keyword>");
 		builder.AppendLine("</PropertyGroup>");
@@ -520,6 +602,17 @@ void GenerateProject()
 	builder.AppendLine("</Project>");
 
 	WriteTextFile("Brink.vcxproj", builder.ToString(scratch.arena));
+
+	builder.Reset();
+
+	builder.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+	builder.AppendLine("<Project xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">");
+
+	GenerateProjectFilters(builder, "Source");
+
+	builder.AppendLine("</Project>");
+
+	WriteTextFile("Brink.vcxproj.filters", builder.ToString(scratch.arena));
 }
 
 void PrepareBuildContext(Arena& arena, BuildContext& context)

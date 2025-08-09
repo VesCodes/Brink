@@ -82,6 +82,7 @@ namespace Bk
 		void NormalizePath();
 
 		char* GetLastChar() const;
+		void Replace(char oldChar, char newChar);
 
 		bool Expand(size_t requiredCapacity);
 		void Reset(size_t keepLength = 0);
