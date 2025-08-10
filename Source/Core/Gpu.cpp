@@ -35,6 +35,8 @@ namespace Bk
 		WGPUInstance instance;
 		WGPUSurface surface;
 		WGPUSurfaceConfiguration surfaceConfig;
+		WGPUTexture depthTexture;
+		WGPUTextureView depthTextureView;
 		WGPUAdapter adapter;
 		WGPUDevice device;
 		WGPUQueue queue;
@@ -85,6 +87,33 @@ namespace Bk
 		wgpuSurfaceConfigure(gpuContext.surface, &gpuContext.surfaceConfig);
 
 		printf("Configured surface: (%d x %d)\n", gpuContext.surfaceConfig.width, gpuContext.surfaceConfig.height);
+
+		if (gpuContext.depthTextureView)
+		{
+			wgpuTextureViewRelease(gpuContext.depthTextureView);
+			gpuContext.depthTextureView = nullptr;
+		}
+
+		if (gpuContext.depthTexture)
+		{
+			wgpuTextureRelease(gpuContext.depthTexture);
+			gpuContext.depthTexture = nullptr;
+		}
+
+		WGPUTextureDescriptor depthTextureDesc = {};
+		depthTextureDesc.usage = WGPUTextureUsage_RenderAttachment;
+		depthTextureDesc.dimension = WGPUTextureDimension_2D;
+		depthTextureDesc.size.width = gpuContext.surfaceConfig.width;
+		depthTextureDesc.size.height = gpuContext.surfaceConfig.height;
+		depthTextureDesc.size.depthOrArrayLayers = 1;
+		depthTextureDesc.format = WGPUTextureFormat_Depth24Plus;
+		depthTextureDesc.mipLevelCount = 1;
+		depthTextureDesc.sampleCount = 1;
+		depthTextureDesc.viewFormatCount = 1;
+		depthTextureDesc.viewFormats = &depthTextureDesc.format;
+
+		gpuContext.depthTexture = wgpuDeviceCreateTexture(gpuContext.device, &depthTextureDesc);
+		gpuContext.depthTextureView = wgpuTextureCreateView(gpuContext.depthTexture, nullptr);
 	}
 
 	bool OnResize(int eventType, const EmscriptenUiEvent* event, void* userData)
@@ -225,7 +254,15 @@ namespace Bk
 		pipelineDesc.label = WgpuConvert(desc.name);
 		pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
 		pipelineDesc.primitive.frontFace = WGPUFrontFace_CW;
-		pipelineDesc.primitive.cullMode = WGPUCullMode_Back;
+		pipelineDesc.primitive.cullMode = WGPUCullMode_Front;
+
+		WGPUDepthStencilState depthStencil = {};
+		depthStencil.format = WGPUTextureFormat_Depth24Plus;
+		depthStencil.depthWriteEnabled = WGPUOptionalBool_True;
+		depthStencil.depthCompare = WGPUCompareFunction_Less;
+
+		pipelineDesc.depthStencil = &depthStencil;
+
 		pipelineDesc.multisample.count = 1;
 		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
@@ -558,6 +595,14 @@ namespace Bk
 
 		passDesc.colorAttachments = &colorAttachment;
 		passDesc.colorAttachmentCount = 1;
+
+		WGPURenderPassDepthStencilAttachment depthAttachment = {};
+		depthAttachment.view = gpuContext.depthTextureView;
+		depthAttachment.depthClearValue = 1.0f;
+		depthAttachment.depthLoadOp = WGPULoadOp_Clear;
+		depthAttachment.depthStoreOp = WGPUStoreOp_Store;
+
+		passDesc.depthStencilAttachment = &depthAttachment;
 
 		gpuContext.renderPassEncoder = wgpuCommandEncoderBeginRenderPass(gpuContext.commandEncoder, &passDesc);
 	}

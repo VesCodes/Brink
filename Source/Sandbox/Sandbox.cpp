@@ -37,23 +37,26 @@ struct VsInput
 
 struct VsOutput {
 	@builtin(position) position: vec4f,
-	@location(0) color: vec4f,
+	@location(0) worldPosition: vec3f,
 }
 
 @vertex fn VsMain(input: VsInput) -> VsOutput {
 	var output: VsOutput;
 	output.position = mvp * vec4(input.position, 1);
-	output.color = vec4(0.5, 0.675, 0.6, 1.0);
+	output.worldPosition = input.position;
 	return output;
 }
 
 struct PsInput
 {
-	@location(0) color: vec4f,
+	@location(0) worldPosition: vec3f,
 }
 
 @fragment fn PsMain(input: PsInput) -> @location(0) vec4f {
-	return input.color;
+	let dx = dpdx(input.worldPosition);
+	let dy = dpdy(input.worldPosition);
+	let normal = normalize(cross(dx, dy));
+	return vec4((normal + 1.0) * 0.5, 1.0);
 }
 )";
 
@@ -93,16 +96,16 @@ void Initialize()
 	state.testVertexBuffer = CreateBuffer({
 		.name = "Test Vertex Buffer",
 		.type = GpuBufferType::Vertex,
-		.data = meshes[1].sections[0].positionBuffer,
+		.data = meshes[12].sections[0].positionBuffer,
 	});
 
 	state.testIndexBuffer = CreateBuffer({
 		.name = "Test Index Buffer",
 		.type = GpuBufferType::Index,
-		.data = meshes[1].sections[0].indexBuffer,
+		.data = meshes[12].sections[0].indexBuffer,
 	});
 
-	state.testTriangleCount = meshes[1].sections[0].indexBuffer.length / sizeof(uint16) / 3;
+	state.testTriangleCount = meshes[12].sections[0].indexBuffer.length / sizeof(uint16) / 3;
 
 	state.testUniformBuffer = CreateBuffer({
 		.name = "Test Uniform Buffer",
@@ -136,8 +139,8 @@ void Update()
 	float t = static_cast<float>(GetTimeSec());
 
 	HMM_Mat4 proj = HMM_Perspective_RH_ZO(75, 16.0f / 9.0f, 0.01f, 100);
-	HMM_Mat4 view = HMM_LookAt_RH(HMM_V3(0, 2, 6), HMM_V3(0, 0, 0), HMM_V3(0, 1, 0));
-	HMM_Mat4 model = HMM_Translate(HMM_V3(0, HMM_SinF(t * 16 * HMM_PI32), 0)) * HMM_Rotate_RH(t * 32, HMM_V3(0, 1, 0));
+	HMM_Mat4 view = HMM_LookAt_RH(HMM_V3(0, 2, 4), HMM_V3(0, 1, 0), HMM_V3(0, 1, 0));
+	HMM_Mat4 model = HMM_Translate(HMM_V3(0, HMM_SinF(t * 12 * HMM_PI32) * 0.5f, 0)) * HMM_Rotate_RH(t * 64, HMM_V3(0, 1, 0));
 
 	HMM_Mat4 mvp = proj * view * model;
 
