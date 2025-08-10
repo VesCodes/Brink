@@ -1,9 +1,10 @@
 #include "Core/Core.h"
 #include "Core/Gpu.h"
-#include "Core/Json.h"
 #include "Core/Memory.h"
 #include "Core/Platform.h"
 #include "Core/String.h"
+
+#include "GltfLoader.h"
 
 #define HANDMADE_MATH_USE_DEGREES
 #include <HandmadeMath.h>
@@ -23,6 +24,7 @@ struct
 	uint32 testIndexBuffer;
 	uint32 testUniformBuffer;
 	uint32 testBindingGroup;
+	uint32 testTriangleCount;
 } state;
 
 const char* testShader = R"(
@@ -30,8 +32,7 @@ const char* testShader = R"(
 
 struct VsInput
 {
-	@location(0) position: vec4f,
-	@location(1) color: vec4f,
+	@location(0) position: vec3f,
 }
 
 struct VsOutput {
@@ -41,8 +42,8 @@ struct VsOutput {
 
 @vertex fn VsMain(input: VsInput) -> VsOutput {
 	var output: VsOutput;
-	output.position = mvp * input.position;
-	output.color = input.color;
+	output.position = mvp * vec4(input.position, 1);
+	output.color = vec4(0.5, 0.675, 0.6, 1.0);
 	return output;
 }
 
@@ -55,49 +56,6 @@ struct PsInput
 	return input.color;
 }
 )";
-
-// clang-format off
-float vertices[] = {
-	-1.0, -1.0, -1.0,	1.0, 0.0, 0.0, 1.0,
-	 1.0, -1.0, -1.0,	1.0, 0.0, 0.0, 1.0,
-	 1.0,  1.0, -1.0,	1.0, 0.0, 0.0, 1.0,
-	-1.0,  1.0, -1.0,	1.0, 0.0, 0.0, 1.0,
-
-	-1.0, -1.0,  1.0,	0.0, 1.0, 0.0, 1.0,
-	 1.0, -1.0,  1.0,	0.0, 1.0, 0.0, 1.0,
-	 1.0,  1.0,  1.0,	0.0, 1.0, 0.0, 1.0,
-	-1.0,  1.0,  1.0,	0.0, 1.0, 0.0, 1.0,
-
-	-1.0, -1.0, -1.0,	0.0, 0.0, 1.0, 1.0,
-	-1.0,  1.0, -1.0,	0.0, 0.0, 1.0, 1.0,
-	-1.0,  1.0,  1.0,	0.0, 0.0, 1.0, 1.0,
-	-1.0, -1.0,  1.0,	0.0, 0.0, 1.0, 1.0,
-
-	1.0, -1.0, -1.0,	1.0, 0.5, 0.0, 1.0,
-	1.0,  1.0, -1.0,	1.0, 0.5, 0.0, 1.0,
-	1.0,  1.0,  1.0,	1.0, 0.5, 0.0, 1.0,
-	1.0, -1.0,  1.0,	1.0, 0.5, 0.0, 1.0,
-
-	-1.0, -1.0, -1.0,	0.0, 0.5, 1.0, 1.0,
-	-1.0, -1.0,  1.0,	0.0, 0.5, 1.0, 1.0,
-	 1.0, -1.0,  1.0,	0.0, 0.5, 1.0, 1.0,
-	 1.0, -1.0, -1.0,	0.0, 0.5, 1.0, 1.0,
-
-	-1.0,  1.0, -1.0,	1.0, 0.0, 0.5, 1.0,
-	-1.0,  1.0,  1.0,	1.0, 0.0, 0.5, 1.0,
-	 1.0,  1.0,  1.0,	1.0, 0.0, 0.5, 1.0,
-	 1.0,  1.0, -1.0,	1.0, 0.0, 0.5, 1.0
-};
-
-uint16 indices[] = {
-	0,	1,	2,	0,	2,	3,
-	6,	5,	4,	7,	6,	4,
-	8,	9,	10,	8,	10, 11,
-	14, 13, 12,	15, 14, 12,
-	16, 17, 18,	16, 18, 19,
-	22, 21, 20,	23, 22, 20
-};
-// clang-format on
 
 void Initialize()
 {
@@ -114,10 +72,9 @@ void Initialize()
 			.code = testShader,
 			.buffers = {
 				{
-					.stride = 28,
+					.stride = 12,
 					.attributes = {
 						{ .offset = 0, .format = GpuVertexFormat::Float32x3 },
-						{ .offset = 12, .format = GpuVertexFormat::Float32x4 },
 					},
 				},
 			},
@@ -130,17 +87,22 @@ void Initialize()
 		},
 	});
 
+	TSpan<Mesh> meshes;
+	LoadGltfMeshes(state.arena, "Assets/Knight.glb", meshes);
+
 	state.testVertexBuffer = CreateBuffer({
 		.name = "Test Vertex Buffer",
 		.type = GpuBufferType::Vertex,
-		.data = TSpan((uint8*)vertices, sizeof(vertices)),
+		.data = meshes[1].sections[0].positionBuffer,
 	});
 
 	state.testIndexBuffer = CreateBuffer({
 		.name = "Test Index Buffer",
 		.type = GpuBufferType::Index,
-		.data = TSpan((uint8*)indices, sizeof(indices)),
+		.data = meshes[1].sections[0].indexBuffer,
 	});
+
+	state.testTriangleCount = meshes[1].sections[0].indexBuffer.length / sizeof(uint16) / 3;
 
 	state.testUniformBuffer = CreateBuffer({
 		.name = "Test Uniform Buffer",
@@ -193,7 +155,7 @@ void Update()
 		.bindingGroups = {
 			state.testBindingGroup,
 		},
-		.triangleCount = BK_ARRAY_COUNT(indices) / 3,
+		.triangleCount = state.testTriangleCount,
 		.instanceCount = 1,
 	});
 

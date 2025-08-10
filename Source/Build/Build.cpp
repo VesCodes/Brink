@@ -717,8 +717,10 @@ int32 main(int32 argc, char** argv)
 		};
 
 		context.extraLinkerArguments = {
+			"-sALLOW_MEMORY_GROWTH=1",
 			"--use-port=emdawnwebgpu",
 			"--shell-file=Source/Sandbox/Sandbox.html",
+			"--preload-file=Source/Sandbox/Assets@Assets",
 		};
 
 		PrepareBuildContext(arena, context);
