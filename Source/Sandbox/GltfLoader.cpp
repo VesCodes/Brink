@@ -53,6 +53,24 @@ namespace Bk
 		int32 byteLength;
 	};
 
+	struct GltfSkin
+	{
+		int32 inverseBindMatrices;
+		int32 skeleton;
+		TSpan<int32> joints;
+	};
+
+	struct GltfAsset
+	{
+		String filePath;
+		TSpan<uint8> buffer;
+
+		TSpan<GltfAccessor> accessors;
+		TSpan<GltfBufferView> bufferViews;
+		TSpan<GltfBuffer> buffers;
+		TSpan<GltfSkin> skins;
+	};
+
 	int32 GetComponentTypeSize(GltfComponentType componentType)
 	{
 		switch (componentType)
@@ -73,17 +91,11 @@ namespace Bk
 		}
 	}
 
-	bool GetAccessor(JsonValue* gltfAccessors, size_t idx, GltfAccessor& result)
+	GltfAccessor ParseAccessor(JsonValue* accessor)
 	{
-		JsonValue* gltfAccessor = FindJsonValueInArray(gltfAccessors, idx);
-		if (!gltfAccessor)
-		{
-			return false;
-		}
+		GltfAccessor result = {};
 
-		result = {};
-
-		if (JsonValue* bufferView = FindJsonValueInObject(gltfAccessor, "bufferView"))
+		if (JsonValue* bufferView = FindJsonValueInObject(accessor, "bufferView"))
 		{
 			result.bufferView = static_cast<int32>(bufferView->asNumber);
 		}
@@ -92,17 +104,17 @@ namespace Bk
 			result.bufferView = -1;
 		}
 
-		if (JsonValue* byteOffset = FindJsonValueInObject(gltfAccessor, "byteOffset"))
+		if (JsonValue* byteOffset = FindJsonValueInObject(accessor, "byteOffset"))
 		{
 			result.byteOffset = static_cast<int32>(byteOffset->asNumber);
 		}
 
-		if (JsonValue* componentType = FindJsonValueInObject(gltfAccessor, "componentType"))
+		if (JsonValue* componentType = FindJsonValueInObject(accessor, "componentType"))
 		{
 			result.componentType = static_cast<GltfComponentType>(componentType->asNumber);
 		}
 
-		if (JsonValue* type = FindJsonValueInObject(gltfAccessor, "type"))
+		if (JsonValue* type = FindJsonValueInObject(accessor, "type"))
 		{
 			if (type->value == "SCALAR")
 			{
@@ -130,102 +142,175 @@ namespace Bk
 			}
 		}
 
-		if (JsonValue* normalized = FindJsonValueInObject(gltfAccessor, "normalized"))
+		if (JsonValue* normalized = FindJsonValueInObject(accessor, "normalized"))
 		{
 			result.normalized = normalized->asBool;
 		}
 
-		if (JsonValue* count = FindJsonValueInObject(gltfAccessor, "count"))
+		if (JsonValue* count = FindJsonValueInObject(accessor, "count"))
 		{
 			result.count = static_cast<int32>(count->asNumber);
 		}
 
-		return true;
+		return result;
 	}
 
-	bool GetBufferView(JsonValue* gltfBufferViews, size_t idx, GltfBufferView& result)
+	GltfBufferView ParseBufferView(JsonValue* bufferView)
 	{
-		JsonValue* gltfBufferView = FindJsonValueInArray(gltfBufferViews, idx);
-		if (!gltfBufferView)
-		{
-			return false;
-		}
+		GltfBufferView result = {};
 
-		result = {};
-
-		if (JsonValue* buffer = FindJsonValueInObject(gltfBufferView, "buffer"))
+		if (JsonValue* buffer = FindJsonValueInObject(bufferView, "buffer"))
 		{
 			result.buffer = static_cast<int32>(buffer->asNumber);
 		}
 
-		if (JsonValue* byteOffset = FindJsonValueInObject(gltfBufferView, "byteOffset"))
+		if (JsonValue* byteOffset = FindJsonValueInObject(bufferView, "byteOffset"))
 		{
 			result.byteOffset = static_cast<int32>(byteOffset->asNumber);
 		}
 
-		if (JsonValue* byteLength = FindJsonValueInObject(gltfBufferView, "byteLength"))
+		if (JsonValue* byteLength = FindJsonValueInObject(bufferView, "byteLength"))
 		{
 			result.byteLength = static_cast<int32>(byteLength->asNumber);
 		}
 
-		if (JsonValue* byteStride = FindJsonValueInObject(gltfBufferView, "byteStride"))
+		if (JsonValue* byteStride = FindJsonValueInObject(bufferView, "byteStride"))
 		{
 			result.byteStride = static_cast<int32>(byteStride->asNumber);
 		}
 
-		return true;
+		return result;
 	}
 
-	bool GetBuffer(JsonValue* gltfBuffers, size_t idx, GltfBuffer& result)
+	GltfBuffer ParseBuffer(JsonValue* buffer)
 	{
-		JsonValue* gltfBuffer = FindJsonValueInArray(gltfBuffers, idx);
-		if (!gltfBuffer)
-		{
-			return false;
-		}
+		GltfBuffer result = {};
 
-		result = {};
-
-		if (JsonValue* bufferUri = FindJsonValueInObject(gltfBuffer, "uri"))
+		if (JsonValue* bufferUri = FindJsonValueInObject(buffer, "uri"))
 		{
 			result.uri = bufferUri->value;
 		}
 
-		if (JsonValue* byteLength = FindJsonValueInObject(gltfBuffer, "byteLength"))
+		if (JsonValue* byteLength = FindJsonValueInObject(buffer, "byteLength"))
 		{
 			result.byteLength = static_cast<int32>(byteLength->asNumber);
 		}
 
-		return true;
+		return result;
 	}
 
-	TSpan<uint8> MaterializeBuffer(Arena& arena, JsonValue* gltf, TSpan<uint8> gltfBuffer, const GltfAccessor& accessor)
+	GltfSkin ParseSkin(Arena& arena, JsonValue* skin)
+	{
+		GltfSkin result = {};
+
+		if (JsonValue* inverseBindMatrices = FindJsonValueInObject(skin, "inverseBindMatrices"))
+		{
+			result.inverseBindMatrices = static_cast<int32>(inverseBindMatrices->asNumber);
+		}
+		else
+		{
+			result.inverseBindMatrices = -1;
+		}
+
+		if (JsonValue* skeleton = FindJsonValueInObject(skin, "skeleton"))
+		{
+			result.skeleton = static_cast<int32>(skeleton->asNumber);
+		}
+		else
+		{
+			result.skeleton = -1;
+		}
+
+		if (JsonValue* joints = FindJsonValueInObject(skin, "joints"))
+		{
+			result.joints = arena.Push<int32>(joints->children);
+
+			size_t jointIdx = 0;
+			for (JsonValue* joint = FindJsonValueInArray(joints, 0); joint; joint = joint->sibling, ++jointIdx)
+			{
+				result.joints[jointIdx] = static_cast<int32>(joint->asNumber);
+			}
+		}
+
+		return result;
+	}
+
+	GltfAsset ParseGltf(Arena& arena, JsonValue* gltf)
+	{
+		GltfAsset result = {};
+
+		JsonValue* gltfAccessors = FindJsonValueInObject(gltf, "accessors");
+		if (gltfAccessors && gltfAccessors->children > 0)
+		{
+			result.accessors = arena.Push<GltfAccessor>(gltfAccessors->children);
+
+			size_t accessorIdx = 0;
+			for (JsonValue* gltfAccessor = FindJsonValueInArray(gltfAccessors, 0); gltfAccessor; gltfAccessor = gltfAccessor->sibling, ++accessorIdx)
+			{
+				result.accessors[accessorIdx] = ParseAccessor(gltfAccessor);
+			}
+		}
+
+		JsonValue* gltfBufferViews = FindJsonValueInObject(gltf, "bufferViews");
+		if (gltfBufferViews && gltfBufferViews->children > 0)
+		{
+			result.bufferViews = arena.Push<GltfBufferView>(gltfBufferViews->children);
+
+			size_t bufferViewIdx = 0;
+			for (JsonValue* gltfBufferView = FindJsonValueInArray(gltfBufferViews, 0); gltfBufferView; gltfBufferView = gltfBufferView->sibling, ++bufferViewIdx)
+			{
+				result.bufferViews[bufferViewIdx] = ParseBufferView(gltfBufferView);
+			}
+		}
+
+		JsonValue* gltfBuffers = FindJsonValueInObject(gltf, "buffers");
+		if (gltfBuffers && gltfBuffers->children > 0)
+		{
+			result.buffers = arena.Push<GltfBuffer>(gltfBuffers->children);
+
+			size_t bufferIdx = 0;
+			for (JsonValue* gltfBuffer = FindJsonValueInArray(gltfBuffers, 0); gltfBuffer; gltfBuffer = gltfBuffer->sibling, ++bufferIdx)
+			{
+				result.buffers[bufferIdx] = ParseBuffer(gltfBuffer);
+			}
+		}
+
+		JsonValue* gltfSkins = FindJsonValueInObject(gltf, "skins");
+		if (gltfSkins && gltfSkins->children > 0)
+		{
+			result.skins = arena.Push<GltfSkin>(gltfSkins->children);
+
+			size_t skinIdx = 0;
+			for (JsonValue* gltfSkin = FindJsonValueInArray(gltfSkins, 0); gltfSkin; gltfSkin = gltfSkin->sibling, ++skinIdx)
+			{
+				result.skins[skinIdx] = ParseSkin(arena, gltfSkin);
+			}
+		}
+
+		return result;
+	}
+
+	TSpan<uint8> MaterializeBuffer(Arena& arena, const GltfAsset& asset, const GltfAccessor& accessor)
 	{
 		TSpan<uint8> result = {};
 
-		JsonValue* gltfBufferViews = FindJsonValue(gltf, "bufferViews");
-		JsonValue* gltfBuffers = FindJsonValue(gltf, "buffers");
-
-		GltfBufferView bufferView;
-		if (!GetBufferView(gltfBufferViews, accessor.bufferView, bufferView))
+		if (accessor.bufferView == -1)
 		{
 			return result;
 		}
+
+		const GltfBufferView& bufferView = asset.bufferViews[accessor.bufferView];
+		const GltfBuffer& buffer = asset.buffers[bufferView.buffer];
+
+		// #TODO: load from base64/file uri
+		BK_ASSERT(buffer.uri.length == 0);
+		BK_ASSERT(asset.buffer.length != 0);
 
 		// #TODO: strided copy
 		BK_ASSERT(bufferView.byteStride == 0);
 
-		GltfBuffer buffer;
-		if (!GetBuffer(gltfBuffers, bufferView.buffer, buffer))
-		{
-			return result;
-		}
-
-		// #TODO: load from base64/file uri
-		BK_ASSERT(buffer.uri.length == 0);
-
 		result = arena.Push<uint8>(GetComponentTypeSize(accessor.componentType) * accessor.count * accessor.componentCount);
-		MemoryCopy(result.data, gltfBuffer.data + bufferView.byteOffset + accessor.byteOffset, result.length);
+		MemoryCopy(result.data, asset.buffer.data + bufferView.byteOffset + accessor.byteOffset, result.length);
 
 		return result;
 	}
@@ -272,15 +357,16 @@ namespace Bk
 		uint8* binaryChunkData = (uint8*)(binaryChunk + 1);
 
 		JsonValue* gltf = ParseJson(scratch.arena, String((char*)jsonChunkData, jsonChunk->length));
-		TSpan<uint8> gltfBuffer = TSpan(binaryChunkData, binaryChunk->length);
 
-		JsonValue* gltfAccessors = FindJsonValue(gltf, "accessors");
-		JsonValue* gltfMeshes = FindJsonValue(gltf, "meshes");
-
+		JsonValue* gltfMeshes = FindJsonValueInObject(gltf, "meshes");
 		if (!gltfMeshes || gltfMeshes->children == 0)
 		{
 			return false;
 		}
+
+		GltfAsset asset = ParseGltf(scratch.arena, gltf);
+		asset.filePath = String::Empty;
+		asset.buffer = TSpan(binaryChunkData, binaryChunk->length);
 
 		meshes = arena.PushZeroed<Mesh>(gltfMeshes->children);
 
@@ -289,7 +375,7 @@ namespace Bk
 		{
 			Mesh& mesh = meshes[meshIdx];
 
-			JsonValue* primitives = FindJsonValue(gltfMesh, "primitives");
+			JsonValue* primitives = FindJsonValueInObject(gltfMesh, "primitives");
 			if (!primitives || primitives->children == 0)
 			{
 				continue;
@@ -314,24 +400,22 @@ namespace Bk
 				section.vertexOffset = vertexCount;
 				section.indexOffset = indexCount;
 
-				JsonValue* positionAttrib = FindJsonValue(primitive, "attributes.POSITION");
-
-				GltfAccessor positionAccessor;
-				if (positionAttrib && GetAccessor(gltfAccessors, size_t(positionAttrib->asNumber), positionAccessor))
+				if (JsonValue* positionAttrib = FindJsonValue(primitive, "attributes.POSITION"))
 				{
-					positionBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, gltf, gltfBuffer, positionAccessor);
+					const GltfAccessor& accessor = asset.accessors[size_t(positionAttrib->asNumber)];
+
+					positionBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
 					positionBufferSize += positionBuffers[sectionIdx].length;
-					vertexCount += positionAccessor.componentCount * positionAccessor.count;
+					vertexCount += accessor.componentCount * accessor.count;
 				}
 
-				JsonValue* indicesAttrib = FindJsonValue(primitive, "indices");
-
-				GltfAccessor indicesAccessor;
-				if (indicesAttrib && GetAccessor(gltfAccessors, size_t(indicesAttrib->asNumber), indicesAccessor))
+				if (JsonValue* indicesAttrib = FindJsonValueInObject(primitive, "indices"))
 				{
-					indexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, gltf, gltfBuffer, indicesAccessor);
+					const GltfAccessor& accessor = asset.accessors[size_t(indicesAttrib->asNumber)];
+
+					indexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
 					indexBufferSize += indexBuffers[sectionIdx].length;
-					indexCount += indicesAccessor.componentCount * indicesAccessor.count;
+					indexCount += accessor.componentCount * accessor.count;
 				}
 
 				section.triangleCount = (indexCount - section.indexOffset) / 3;
