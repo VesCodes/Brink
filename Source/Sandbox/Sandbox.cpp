@@ -48,7 +48,7 @@ struct VsOutput {
 
 @vertex fn VsMain(input: VsInput) -> VsOutput {
 	var output: VsOutput;
-	output.position = mvp * vec4(input.position, 1);
+	output.position = mvp * vec4f(input.position, 1);
 	output.worldPosition = input.position;
 	return output;
 }
@@ -62,7 +62,18 @@ struct PsInput
 	let dx = dpdx(input.worldPosition);
 	let dy = dpdy(input.worldPosition);
 	let normal = normalize(cross(dx, dy));
-	return vec4((normal + 1.0) * 0.5, 1.0);
+
+    let lightDir = normalize(vec3f(0.0, -0.75, -1.0));
+
+	let ambient = 0.25;
+    let ambientColor = (normal + 1.0) * 0.5;
+
+    let diffuse = max(dot(normal, lightDir), 0.0);
+    let diffuseColor = vec3f(0.8, 0.6, 0.2);
+
+    let color = ambient * ambientColor + diffuse * diffuseColor;
+
+	return vec4f(color, 1.0);
 }
 )";
 
