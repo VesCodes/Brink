@@ -33,8 +33,8 @@ namespace Bk
 	{
 		int32 bufferView;
 		int32 byteOffset;
-		int32 componentCount;
 		GltfComponentType componentType;
+		int32 componentElements;
 		bool normalized;
 		int32 count;
 	};
@@ -118,27 +118,27 @@ namespace Bk
 		{
 			if (type->value == "SCALAR")
 			{
-				result.componentCount = 1;
+				result.componentElements = 1;
 			}
 			else if (type->value == "VEC2")
 			{
-				result.componentCount = 2;
+				result.componentElements = 2;
 			}
 			else if (type->value == "VEC3")
 			{
-				result.componentCount = 3;
+				result.componentElements = 3;
 			}
 			else if (type->value == "VEC4" || type->value == "MAT2")
 			{
-				result.componentCount = 4;
+				result.componentElements = 4;
 			}
 			else if (type->value == "MAT3")
 			{
-				result.componentCount = 9;
+				result.componentElements = 9;
 			}
 			else if (type->value == "MAT4")
 			{
-				result.componentCount = 16;
+				result.componentElements = 16;
 			}
 		}
 
@@ -306,11 +306,27 @@ namespace Bk
 		BK_ASSERT(buffer.uri.length == 0);
 		BK_ASSERT(asset.buffer.length != 0);
 
-		// #TODO: strided copy
-		BK_ASSERT(bufferView.byteStride == 0);
+		size_t componentSize = GetComponentTypeSize(accessor.componentType) * accessor.componentElements;
 
-		result = arena.Push<uint8>(GetComponentTypeSize(accessor.componentType) * accessor.count * accessor.componentCount);
-		MemoryCopy(result.data, asset.buffer.data + bufferView.byteOffset + accessor.byteOffset, result.length);
+		result = arena.Push<uint8>(componentSize * accessor.count);
+
+		uint8* srcBufferPtr = asset.buffer.data + bufferView.byteOffset + accessor.byteOffset;
+		uint8* dstBufferPtr = result.data;
+
+		if (bufferView.byteStride == 0)
+		{
+			MemoryCopy(dstBufferPtr, srcBufferPtr, result.length);
+		}
+		else
+		{
+			for (size_t componentIdx = 0; componentIdx < accessor.count; ++componentIdx)
+			{
+				MemoryCopy(dstBufferPtr, srcBufferPtr, componentSize);
+
+				srcBufferPtr += bufferView.byteStride;
+				dstBufferPtr += componentSize;
+			}
+		}
 
 		return result;
 	}
@@ -406,7 +422,9 @@ namespace Bk
 
 					positionBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
 					positionBufferSize += positionBuffers[sectionIdx].length;
-					vertexCount += accessor.componentCount * accessor.count;
+					vertexCount += accessor.count;
+
+					section.triangleCount = accessor.count / 3;
 				}
 
 				if (JsonValue* indicesAttrib = FindJsonValueInObject(primitive, "indices"))
@@ -415,10 +433,10 @@ namespace Bk
 
 					indexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
 					indexBufferSize += indexBuffers[sectionIdx].length;
-					indexCount += accessor.componentCount * accessor.count;
-				}
+					indexCount += accessor.count;
 
-				section.triangleCount = (indexCount - section.indexOffset) / 3;
+					section.triangleCount = accessor.count / 3;
+				}
 			}
 
 			mesh.positionBuffer = arena.Push<uint8>(positionBufferSize);

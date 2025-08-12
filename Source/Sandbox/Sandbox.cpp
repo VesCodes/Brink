@@ -66,7 +66,7 @@ struct PsInput
 }
 )";
 
-extern "C" EMSCRIPTEN_KEEPALIVE void OnFileDropped(uint8* data, size_t length)
+extern "C" EMSCRIPTEN_KEEPALIVE void LoadGlb(uint8* data, size_t length)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -150,28 +150,16 @@ void Initialize()
 		},
 	});
 
-	TSpan<Mesh> meshes;
-	if (LoadGlbMeshes(scratch.arena, "Assets/Knight.glb", meshes))
+	FileHandle fileHandle = OpenFile("Assets/Knight.glb", FileAccess::Read);
+	if (fileHandle)
 	{
-		state.meshProxies = state.arena.Push<MeshProxy>(meshes.length);
-		for (size_t meshIdx = 0; meshIdx < state.meshProxies.length; ++meshIdx)
+		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+		if (ReadFile(fileHandle, fileData) == fileData.length)
 		{
-			const Mesh& mesh = meshes[meshIdx];
-			MeshProxy& meshProxy = state.meshProxies[meshIdx];
-
-			meshProxy.sections = state.arena.Push<MeshSection>(mesh.sections.length);
-			MemoryCopy(meshProxy.sections.data, mesh.sections.data, mesh.sections.length * sizeof(MeshSection));
-
-			meshProxy.vertexBuffer = CreateBuffer({
-				.type = GpuBufferType::Vertex,
-				.data = mesh.positionBuffer,
-			});
-
-			meshProxy.indexBuffer = CreateBuffer({
-				.type = GpuBufferType::Index,
-				.data = mesh.indexBuffer,
-			});
+			LoadGlb(fileData.data, fileData.length);
 		}
+
+		CloseFile(fileHandle);
 	}
 }
 

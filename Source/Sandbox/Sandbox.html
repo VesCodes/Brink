@@ -46,7 +46,7 @@
                     const dataPtr = _malloc(length);
                     HEAPU8.set(data, dataPtr);
 
-                    _OnFileDropped(dataPtr, length);
+                    _LoadGlb(dataPtr, length);
 
                     _free(dataPtr);
                 }
