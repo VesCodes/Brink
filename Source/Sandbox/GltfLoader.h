@@ -8,14 +8,18 @@ namespace Bk
 {
 	struct MeshSection
 	{
-		TSpan<uint8> positionBuffer;
-		TSpan<uint8> indexBuffer;
+		size_t vertexOffset;
+		size_t indexOffset;
+		size_t triangleCount;
 	};
 
 	struct Mesh
 	{
 		TSpan<MeshSection> sections;
+		TSpan<uint8> positionBuffer;
+		TSpan<uint8> indexBuffer;
 	};
 
-	bool LoadGltfMeshes(Arena& arena, String filePath, TSpan<Mesh>& meshes);
+	bool LoadGlbMeshes(Arena& arena, String filePath, TSpan<Mesh>& meshes);
+	bool LoadGlbMeshes(Arena& arena, TSpan<uint8> fileData, TSpan<Mesh>& meshes);
 }

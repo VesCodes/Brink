@@ -13,6 +13,13 @@
 
 using namespace Bk;
 
+struct MeshProxy
+{
+	TSpan<MeshSection> sections;
+	uint32 vertexBuffer;
+	uint32 indexBuffer;
+};
+
 struct
 {
 	bool initialized;
@@ -20,11 +27,10 @@ struct
 	Arena arena;
 
 	uint32 testPipeline;
-	uint32 testVertexBuffer;
-	uint32 testIndexBuffer;
 	uint32 testUniformBuffer;
 	uint32 testBindingGroup;
-	uint32 testTriangleCount;
+
+	TSpan<MeshProxy> meshProxies;
 } state;
 
 const char* testShader = R"(
@@ -60,8 +66,47 @@ struct PsInput
 }
 )";
 
+extern "C" EMSCRIPTEN_KEEPALIVE void OnFileDropped(uint8* data, size_t length)
+{
+	ArenaScope scratch = GetScratchArena();
+
+	for (MeshProxy& meshProxy : state.meshProxies)
+	{
+		DestroyBuffer(meshProxy.vertexBuffer);
+		DestroyBuffer(meshProxy.indexBuffer);
+	}
+
+	state.meshProxies = {};
+
+	TSpan<Mesh> meshes;
+	if (LoadGlbMeshes(scratch.arena, TSpan(data, length), meshes))
+	{
+		state.meshProxies = state.arena.Push<MeshProxy>(meshes.length);
+		for (size_t meshIdx = 0; meshIdx < state.meshProxies.length; ++meshIdx)
+		{
+			const Mesh& mesh = meshes[meshIdx];
+			MeshProxy& meshProxy = state.meshProxies[meshIdx];
+
+			meshProxy.sections = state.arena.Push<MeshSection>(mesh.sections.length);
+			MemoryCopy(meshProxy.sections.data, mesh.sections.data, mesh.sections.length * sizeof(MeshSection));
+
+			meshProxy.vertexBuffer = CreateBuffer({
+				.type = GpuBufferType::Vertex,
+				.data = mesh.positionBuffer,
+			});
+
+			meshProxy.indexBuffer = CreateBuffer({
+				.type = GpuBufferType::Index,
+				.data = mesh.indexBuffer,
+			});
+		}
+	}
+}
+
 void Initialize()
 {
+	ArenaScope scratch = GetScratchArena();
+
 	uint32 testBindingLayout = CreateBindingLayout({
 		.name = "Test Binding Layout",
 		.bindings = {
@@ -90,23 +135,6 @@ void Initialize()
 		},
 	});
 
-	TSpan<Mesh> meshes;
-	LoadGltfMeshes(state.arena, "Assets/Knight.glb", meshes);
-
-	state.testVertexBuffer = CreateBuffer({
-		.name = "Test Vertex Buffer",
-		.type = GpuBufferType::Vertex,
-		.data = meshes[12].sections[0].positionBuffer,
-	});
-
-	state.testIndexBuffer = CreateBuffer({
-		.name = "Test Index Buffer",
-		.type = GpuBufferType::Index,
-		.data = meshes[12].sections[0].indexBuffer,
-	});
-
-	state.testTriangleCount = meshes[12].sections[0].indexBuffer.length / sizeof(uint16) / 3;
-
 	state.testUniformBuffer = CreateBuffer({
 		.name = "Test Uniform Buffer",
 		.type = GpuBufferType::Uniform,
@@ -121,6 +149,30 @@ void Initialize()
 			{ .buffer = state.testUniformBuffer },
 		},
 	});
+
+	TSpan<Mesh> meshes;
+	if (LoadGlbMeshes(scratch.arena, "Assets/Knight.glb", meshes))
+	{
+		state.meshProxies = state.arena.Push<MeshProxy>(meshes.length);
+		for (size_t meshIdx = 0; meshIdx < state.meshProxies.length; ++meshIdx)
+		{
+			const Mesh& mesh = meshes[meshIdx];
+			MeshProxy& meshProxy = state.meshProxies[meshIdx];
+
+			meshProxy.sections = state.arena.Push<MeshSection>(mesh.sections.length);
+			MemoryCopy(meshProxy.sections.data, mesh.sections.data, mesh.sections.length * sizeof(MeshSection));
+
+			meshProxy.vertexBuffer = CreateBuffer({
+				.type = GpuBufferType::Vertex,
+				.data = mesh.positionBuffer,
+			});
+
+			meshProxy.indexBuffer = CreateBuffer({
+				.type = GpuBufferType::Index,
+				.data = mesh.indexBuffer,
+			});
+		}
+	}
 }
 
 void Update()
@@ -151,16 +203,24 @@ void Update()
 		.clearColor = { 0.2f, 0.2f, 0.3f, 1.0f },
 	});
 
-	Draw({
-		.pipeline = state.testPipeline,
-		.vertexBuffer = state.testVertexBuffer,
-		.indexBuffer = state.testIndexBuffer,
-		.bindingGroups = {
-			state.testBindingGroup,
-		},
-		.triangleCount = state.testTriangleCount,
-		.instanceCount = 1,
-	});
+	for (const MeshProxy& meshProxy : state.meshProxies)
+	{
+		for (const MeshSection& meshSection : meshProxy.sections)
+		{
+			Draw({
+				.pipeline = state.testPipeline,
+				.vertexBuffer = meshProxy.vertexBuffer,
+				.indexBuffer = meshProxy.indexBuffer,
+				.bindingGroups = {
+					state.testBindingGroup,
+				},
+				.vertexOffset = meshSection.vertexOffset,
+				.indexOffset = meshSection.indexOffset,
+				.triangleCount = meshSection.triangleCount,
+				.instanceCount = 1,
+			});
+		}
+	}
 
 	EndPass();
 

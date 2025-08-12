@@ -26,4 +26,33 @@
         <canvas id="canvas"></canvas>
         {{{ SCRIPT }}}
     </body>
+
+	<script type="text/javascript">
+        document.addEventListener("dragover", function (e) {
+            e.preventDefault();
+        });
+
+        document.addEventListener("drop", function (e) {
+            e.preventDefault();
+
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const reader = new FileReader();
+
+                reader.onload = function (readerEvent) {
+                    const data = new Uint8Array(readerEvent.target.result);
+                    const length = data.length * data.BYTES_PER_ELEMENT;
+
+                    const dataPtr = _malloc(length);
+                    HEAPU8.set(data, dataPtr);
+
+                    _OnFileDropped(dataPtr, length);
+
+                    _free(dataPtr);
+                }
+
+                reader.readAsArrayBuffer(file);
+            }
+        });
+	</script>
 </html>
