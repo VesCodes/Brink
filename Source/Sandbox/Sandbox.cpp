@@ -41,50 +41,6 @@ struct
 	HMM_Quat cameraOrientation;
 } state;
 
-const char* testShader = R"(
-@group(0) @binding(0) var<uniform> mvp: mat4x4f;
-
-struct VsInput
-{
-	@location(0) position: vec3f,
-}
-
-struct VsOutput {
-	@builtin(position) position: vec4f,
-	@location(0) worldPosition: vec3f,
-}
-
-@vertex fn VsMain(input: VsInput) -> VsOutput {
-	var output: VsOutput;
-	output.position = mvp * vec4f(input.position, 1);
-	output.worldPosition = input.position;
-	return output;
-}
-
-struct PsInput
-{
-	@location(0) worldPosition: vec3f,
-}
-
-@fragment fn PsMain(input: PsInput) -> @location(0) vec4f {
-	let dx = dpdx(input.worldPosition);
-	let dy = dpdy(input.worldPosition);
-	let normal = normalize(cross(dx, dy));
-
-    let lightDir = normalize(vec3f(0.0, -2.0, -1.0));
-
-	let ambient = 0.25;
-    let ambientColor = (normal + 1.0) * 0.5;
-
-    let diffuse = max(dot(normal, lightDir), 0.0);
-    let diffuseColor = vec3f(0.8, 0.6, 0.2);
-
-    let color = ambient * ambientColor + diffuse * diffuseColor;
-
-	return vec4f(color, 1.0);
-}
-)";
-
 bool IsKeyDown(int32 keyCode)
 {
 	return BitsetIsSet(state.keys, keyCode);
@@ -136,6 +92,29 @@ void Initialize()
 	state.cameraPosition = HMM_V3(0, 1, 4);
 	state.cameraOrientation = HMM_Q(0, 0, 0, 1);
 
+	if (FileHandle fileHandle = OpenFile("Assets/Knight.glb", FileAccess::Read))
+	{
+		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+		if (ReadFile(fileHandle, fileData) == fileData.length)
+		{
+			LoadGlb(fileData.data, fileData.length);
+		}
+
+		CloseFile(fileHandle);
+	}
+
+	String shaderCode = {};
+	if (FileHandle fileHandle = OpenFile("Assets/Basic.wgsl", FileAccess::Read))
+	{
+		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+		if (ReadFile(fileHandle, fileData) == fileData.length)
+		{
+			shaderCode = String((char*)fileData.data, fileData.length);
+		}
+
+		CloseFile(fileHandle);
+	}
+
 	uint32 testBindingLayout = CreateBindingLayout({
 		.name = "Test Binding Layout",
 		.bindings = {
@@ -146,7 +125,7 @@ void Initialize()
 	state.testPipeline = CreatePipeline({
 		.name = "Test Pipeline",
 		.vertexShader = {
-			.code = testShader,
+			.code = shaderCode,
 			.buffers = {
 				{
 					.stride = 12,
@@ -157,7 +136,7 @@ void Initialize()
 			},
 		},
 		.pixelShader = {
-			.code = testShader,
+			.code = shaderCode,
 		},
 		.bindingLayouts = {
 			testBindingLayout,
@@ -178,18 +157,6 @@ void Initialize()
 			{ .buffer = state.testUniformBuffer },
 		},
 	});
-
-	FileHandle fileHandle = OpenFile("Assets/Knight.glb", FileAccess::Read);
-	if (fileHandle)
-	{
-		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
-		if (ReadFile(fileHandle, fileData) == fileData.length)
-		{
-			LoadGlb(fileData.data, fileData.length);
-		}
-
-		CloseFile(fileHandle);
-	}
 }
 
 void Update()
@@ -254,7 +221,7 @@ void Update()
 
 	BeginPass({
 		.name = "Sandbox Pass",
-		.clearColor = { 0.2f, 0.2f, 0.3f, 1.0f },
+		.clearColor = { 0.12f, 0.12f, 0.14f, 1.0f },
 	});
 
 	for (const MeshProxy& meshProxy : state.meshProxies)
@@ -285,7 +252,7 @@ bool OnKeyEvent(int32 eventType, const EmscriptenKeyboardEvent* event, void* use
 {
 	if (state.keys)
 	{
-		if (eventType == EMSCRIPTEN_EVENT_KEYDOWN && state.keys)
+		if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
 		{
 			int32 keyCode = emscripten_compute_dom_pk_code(event->code);
 			BitsetSet(state.keys, keyCode);
