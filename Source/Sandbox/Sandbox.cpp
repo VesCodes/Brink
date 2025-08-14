@@ -15,6 +15,24 @@
 
 using namespace Bk;
 
+enum class KeyCode : uint32
+{
+	Unknown,
+
+	W,
+	A,
+	S,
+	D,
+	Q,
+	E,
+
+	LeftMouseButton,
+	MiddleMouseButton,
+	RightMouseButton,
+
+	Count,
+};
+
 struct MeshProxy
 {
 	TSpan<MeshSection> sections;
@@ -35,15 +53,17 @@ struct
 	TSpan<MeshProxy> meshProxies;
 
 	HMM_Vec2 mousePosition;
+	HMM_Vec2 mouseDelta;
+
 	uint32* keys;
 
 	HMM_Vec3 cameraPosition;
 	HMM_Quat cameraOrientation;
 } state;
 
-bool IsKeyDown(int32 keyCode)
+bool IsKeyDown(KeyCode keyCode)
 {
-	return BitsetIsSet(state.keys, keyCode);
+	return BitsetIsSet(state.keys, (size_t)keyCode);
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE void LoadGlb(uint8* data, size_t length)
@@ -87,7 +107,7 @@ void Initialize()
 {
 	ArenaScope scratch = GetScratchArena();
 
-	state.keys = state.arena.PushZeroed<uint32>((DOM_PK_MEDIA_SELECT + 31) / 32);
+	state.keys = state.arena.PushZeroed<uint32>((size_t(KeyCode::Count) + 31) / 32);
 
 	state.cameraPosition = HMM_V3(0, 1, 4);
 	state.cameraOrientation = HMM_Q(0, 0, 0, 1);
@@ -172,43 +192,72 @@ void Update()
 		state.initialized = true;
 	}
 
-	HMM_Vec3 cameraMove = HMM_V3(0, 0, 0);
-	float cameraSpeed = 0.05f;
-
-	if (IsKeyDown(DOM_PK_Q))
+	if (IsKeyDown(KeyCode::RightMouseButton))
 	{
-		state.cameraPosition.Y -= cameraSpeed;
-	}
+		float cameraMoveSpeed = 0.05f;
+		float cameraRotateSpeed = 0.25f;
 
-	if (IsKeyDown(DOM_PK_E))
-	{
-		state.cameraPosition.Y += cameraSpeed;
-	}
+		HMM_Vec3 cameraMove = HMM_V3(0, 0, 0);
 
-	if (IsKeyDown(DOM_PK_W))
-	{
-		cameraMove.Z -= 1;
-	}
+		if (IsKeyDown(KeyCode::W))
+		{
+			cameraMove.Z -= 1;
+		}
 
-	if (IsKeyDown(DOM_PK_S))
-	{
-		cameraMove.Z += 1;
-	}
+		if (IsKeyDown(KeyCode::S))
+		{
+			cameraMove.Z += 1;
+		}
 
-	if (IsKeyDown(DOM_PK_A))
-	{
-		cameraMove.X -= 1;
-	}
+		if (IsKeyDown(KeyCode::A))
+		{
+			cameraMove.X -= 1;
+		}
 
-	if (IsKeyDown(DOM_PK_D))
-	{
-		cameraMove.X += 1;
-	}
+		if (IsKeyDown(KeyCode::D))
+		{
+			cameraMove.X += 1;
+		}
 
-	if (cameraMove.X != 0 || cameraMove.Z != 0)
-	{
-		cameraMove = HMM_NormV3(cameraMove);
-		state.cameraPosition += HMM_RotateV3Q(cameraMove, state.cameraOrientation) * cameraSpeed;
+		if (IsKeyDown(KeyCode::Q))
+		{
+			state.cameraPosition.Y -= cameraMoveSpeed;
+		}
+
+		if (IsKeyDown(KeyCode::E))
+		{
+			state.cameraPosition.Y += cameraMoveSpeed;
+		}
+
+		if (state.mouseDelta.X != 0 || state.mouseDelta.Y != 0)
+		{
+			if (state.mouseDelta.X != 0)
+			{
+				HMM_Vec3 worldUp = HMM_V3(0, 1, 0);
+				HMM_Vec3 cameraUp = HMM_RotateV3Q(worldUp, state.cameraOrientation);
+
+				float yawAngle = -state.mouseDelta.X * cameraRotateSpeed * (HMM_DotV3(worldUp, cameraUp) < 0 ? -1.0f : 1.0f);
+				HMM_Quat yawRotation = HMM_QFromAxisAngle_RH(HMM_V3(0, 1, 0), yawAngle);
+
+				state.cameraOrientation = yawRotation * state.cameraOrientation;
+			}
+
+			if (state.mouseDelta.Y != 0)
+			{
+				float pitchAngle = -state.mouseDelta.Y * cameraRotateSpeed;
+				HMM_Quat pitchRotation = HMM_QFromAxisAngle_RH(HMM_V3(1, 0, 0), pitchAngle);
+
+				state.cameraOrientation = state.cameraOrientation * pitchRotation;
+			}
+
+			state.cameraOrientation = HMM_NormQ(state.cameraOrientation);
+		}
+
+		if (cameraMove.X != 0 || cameraMove.Z != 0)
+		{
+			cameraMove = HMM_NormV3(cameraMove);
+			state.cameraPosition += HMM_RotateV3Q(cameraMove, state.cameraOrientation) * cameraMoveSpeed;
+		}
 	}
 
 	HMM_Mat4 proj = HMM_Perspective_RH_ZO(60, 16.0f / 9.0f, 0.01f, 100);
@@ -246,22 +295,53 @@ void Update()
 	EndPass();
 
 	EndFrame();
+
+	state.mouseDelta = HMM_V2(0, 0);
+}
+
+KeyCode ConvertKeyCode(int32 keyCode)
+{
+	switch (keyCode)
+	{
+		default: return KeyCode::Unknown;
+
+		case DOM_PK_W: return KeyCode::W;
+		case DOM_PK_A: return KeyCode::A;
+		case DOM_PK_S: return KeyCode::S;
+		case DOM_PK_D: return KeyCode::D;
+		case DOM_PK_Q: return KeyCode::Q;
+		case DOM_PK_E: return KeyCode::E;
+	}
+}
+
+KeyCode ConvertMouseButton(uint8 button)
+{
+	switch (button)
+	{
+		default: return KeyCode::Unknown;
+
+		case 0: return KeyCode::LeftMouseButton;
+		case 1: return KeyCode::MiddleMouseButton;
+		case 2: return KeyCode::RightMouseButton;
+	}
 }
 
 bool OnKeyEvent(int32 eventType, const EmscriptenKeyboardEvent* event, void* userData)
 {
-	if (state.keys)
+	if (!state.initialized)
 	{
-		if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
-		{
-			int32 keyCode = emscripten_compute_dom_pk_code(event->code);
-			BitsetSet(state.keys, keyCode);
-		}
-		else if (eventType == EMSCRIPTEN_EVENT_KEYUP)
-		{
-			int32 keyCode = emscripten_compute_dom_pk_code(event->code);
-			BitsetUnset(state.keys, keyCode);
-		}
+		return false;
+	}
+
+	if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
+	{
+		KeyCode keyCode = ConvertKeyCode(emscripten_compute_dom_pk_code(event->code));
+		BitsetSet(state.keys, size_t(keyCode));
+	}
+	else if (eventType == EMSCRIPTEN_EVENT_KEYUP)
+	{
+		KeyCode keyCode = ConvertKeyCode(emscripten_compute_dom_pk_code(event->code));
+		BitsetUnset(state.keys, size_t(keyCode));
 	}
 
 	return false;
@@ -269,30 +349,30 @@ bool OnKeyEvent(int32 eventType, const EmscriptenKeyboardEvent* event, void* use
 
 bool OnMouseEvent(int32 eventType, const EmscriptenMouseEvent* event, void* userData)
 {
-	bool handled = false;
+	if (!state.initialized)
+	{
+		return false;
+	}
 
-	if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
+	if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
+	{
+		KeyCode keyCode = ConvertMouseButton(event->button);
+		BitsetSet(state.keys, size_t(keyCode));
+	}
+	else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
+	{
+		KeyCode keyCode = ConvertMouseButton(event->button);
+		BitsetUnset(state.keys, size_t(keyCode));
+	}
+	else if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
 	{
 		HMM_Vec2 mousePosition = HMM_V2(static_cast<float>(event->screenX), static_cast<float>(event->screenY));
 
-		if ((event->buttons & (1 << 0)) != 0)
-		{
-			HMM_Vec2 mouseDelta = mousePosition - state.mousePosition;
-
-			HMM_Vec3 cameraRight = HMM_RotateV3Q(HMM_V3(1, 0, 0), state.cameraOrientation);
-
-			HMM_Quat yawRotation = HMM_QFromAxisAngle_RH(HMM_V3(0, 1, 0), -mouseDelta.X * 0.5f);
-			HMM_Quat pitchRotation = HMM_QFromAxisAngle_RH(cameraRight, -mouseDelta.Y * 0.5f);
-
-			state.cameraOrientation = (pitchRotation * state.cameraOrientation * yawRotation);
-
-			handled = true;
-		}
-
+		state.mouseDelta += mousePosition - state.mousePosition;
 		state.mousePosition = mousePosition;
 	}
 
-	return handled;
+	return false;
 }
 
 int main(int argc, char** argv)
