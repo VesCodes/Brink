@@ -296,7 +296,14 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 	return RunCompiler(context, arguments.ToString(scratch.arena));
 }
 
-bool CompileModule(const BuildContext& context, String moduleName)
+enum class ActionResult : uint8
+{
+	Failed,
+	Succeeded,
+	Skipped,
+};
+
+ActionResult CompileModule(const BuildContext& context, String moduleName)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -321,7 +328,7 @@ bool CompileModule(const BuildContext& context, String moduleName)
 
 	if (!ShouldCompile(context, moduleObjectFile))
 	{
-		return true;
+		return ActionResult::Skipped;
 	}
 
 	builder.Reset();
@@ -342,7 +349,7 @@ bool CompileModule(const BuildContext& context, String moduleName)
 	if (!WriteTextFile(moduleUnityFile, builder.ToString(scratch.arena)))
 	{
 		printf("Failed to write module unity file '%.*s'\n", int32(moduleUnityFile.length), moduleUnityFile.data);
-		return false;
+		return ActionResult::Failed;
 	}
 
 	ProcessHandle process = CompileFile(context, moduleUnityFile, moduleObjectFile);
@@ -350,13 +357,13 @@ bool CompileModule(const BuildContext& context, String moduleName)
 	int32 processExitCode = -1;
 	if (!process || !WaitForProcess(process, &processExitCode))
 	{
-		return false;
+		return ActionResult::Failed;
 	}
 
-	return processExitCode == 0;
+	return processExitCode == 0 ? ActionResult::Succeeded : ActionResult::Failed;
 }
 
-bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String executableName)
+ActionResult LinkModules(const BuildContext& context, TSpan<String> moduleNames, String executableName)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -380,10 +387,10 @@ bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String 
 	int32 processExitCode = -1;
 	if (!process || !WaitForProcess(process, &processExitCode))
 	{
-		return false;
+		return ActionResult::Failed;
 	}
 
-	return processExitCode == 0;
+	return processExitCode == 0 ? ActionResult::Succeeded : ActionResult::Failed;
 }
 
 String GenerateGuid(Arena& arena)
@@ -662,48 +669,62 @@ int32 main(int32 argc, char** argv)
 		}
 	}
 
+	DateTime buildTime = GetUtcTime();
+	double buildStartTime = GetTimeSec();
+
+	printf("Build started at %02d:%02d:%02d.%04d\n", buildTime.hour, buildTime.minute, buildTime.second, buildTime.millisecond);
+
 	// Build
 	{
 		double startTime = GetTimeSec();
 
 		PrepareBuildContext(arena, context);
 
-		if (!CompileModule(context, "Core"))
+		ActionResult compileResult = CompileModule(context, "Core");
+		bool skipLink = compileResult == ActionResult::Skipped;
+
+		if (compileResult == ActionResult::Failed)
 		{
 			printf("Failed to compile Core module\n");
 			return 1;
 		}
 
-		if (!CompileModule(context, "Build"))
+		compileResult = CompileModule(context, "Build");
+		skipLink &= compileResult == ActionResult::Skipped;
+
+		if (compileResult == ActionResult::Failed)
 		{
 			printf("Failed to compile Build module\n");
 			return 1;
 		}
 
-		double compileTime = GetTimeSec();
-		printf("Compiled modules for Build in %0.4fs\n", compileTime - startTime);
-
-		StringBuilder builder(arena);
-		builder.AppendPath(argv[0]);
-		builder.NormalizePath();
-		builder.Append(".bak");
-
-		String backupFile = builder.ToString(arena);
-		String targetFile = backupFile.Slice(0, backupFile.length - 4);
-
-		DeleteFile(backupFile);
-		MoveFile(targetFile, backupFile);
-
-		if (!LinkModules(context, { "Core", "Build" }, targetFile))
+		if (!skipLink)
 		{
-			MoveFile(backupFile, targetFile);
+			double compileTime = GetTimeSec();
+			printf("Compiled modules for Build in %0.4fs\n", compileTime - startTime);
 
-			printf("Failed to link Build target\n");
-			return 1;
+			StringBuilder builder(arena);
+			builder.AppendPath(argv[0]);
+			builder.NormalizePath();
+			builder.Append(".bak");
+
+			String backupFile = builder.ToString(arena);
+			String targetFile = backupFile.Slice(0, backupFile.length - 4);
+
+			DeleteFile(backupFile);
+			MoveFile(targetFile, backupFile);
+
+			if (LinkModules(context, { "Core", "Build" }, targetFile) == ActionResult::Failed)
+			{
+				MoveFile(backupFile, targetFile);
+
+				printf("Failed to link Build target\n");
+				return 1;
+			}
+
+			double linkTime = GetTimeSec();
+			printf("Linked modules for Build in %0.4fs\n", linkTime - compileTime);
 		}
-
-		double linkTime = GetTimeSec();
-		printf("Linked modules for Build in %0.4fs\n", linkTime - compileTime);
 	}
 
 	// Sandbox
@@ -725,30 +746,41 @@ int32 main(int32 argc, char** argv)
 
 		PrepareBuildContext(arena, context);
 
-		if (!CompileModule(context, "Core"))
+		ActionResult compileResult = CompileModule(context, "Core");
+		bool skipLink = compileResult == ActionResult::Skipped;
+
+		if (compileResult == ActionResult::Failed)
 		{
 			printf("Failed to compile Core module\n");
 			return 1;
 		}
 
-		if (!CompileModule(context, "Sandbox"))
+		compileResult = CompileModule(context, "Sandbox");
+		skipLink &= compileResult == ActionResult::Skipped;
+
+		if (compileResult == ActionResult::Failed)
 		{
 			printf("Failed to compile Sandbox module\n");
 			return 1;
 		}
 
-		double compileTime = GetTimeSec();
-		printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - startTime);
-
-		if (!LinkModules(context, { "Core", "Sandbox" }, "Build/index.html"))
+		if (!skipLink)
 		{
-			printf("Failed to link Sandbox target\n");
-			return 1;
-		}
+			double compileTime = GetTimeSec();
+			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - startTime);
 
-		double linkTime = GetTimeSec();
-		printf("Linked modules for Sandbox in %0.4fs\n", linkTime - compileTime);
+			if (LinkModules(context, { "Core", "Sandbox" }, "Build/index.html") == ActionResult::Failed)
+			{
+				printf("Failed to link Sandbox target\n");
+				return 1;
+			}
+
+			double linkTime = GetTimeSec();
+			printf("Linked modules for Sandbox in %0.4fs\n", linkTime - compileTime);
+		}
 	}
+
+	printf("Build completed in %0.4fs\n", GetTimeSec() - buildStartTime);
 
 	return 0;
 }
