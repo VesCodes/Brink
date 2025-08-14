@@ -669,11 +669,6 @@ int32 main(int32 argc, char** argv)
 		}
 	}
 
-	DateTime buildTime = GetUtcTime();
-	double buildStartTime = GetTimeSec();
-
-	printf("Build started at %02d:%02d:%02d.%04d\n", buildTime.hour, buildTime.minute, buildTime.second, buildTime.millisecond);
-
 	// Build
 	{
 		double startTime = GetTimeSec();
@@ -724,8 +719,41 @@ int32 main(int32 argc, char** argv)
 
 			double linkTime = GetTimeSec();
 			printf("Linked modules for Build in %0.4fs\n", linkTime - compileTime);
+
+			printf("-----\n");
+
+			builder.Reset();
+			for (int32 i = 1; i < argc; ++i)
+			{
+				String argValue = argv[i];
+
+				if (argValue.Contains(' '))
+				{
+					builder.Append('\"');
+					builder.Append(argValue);
+					builder.Append("\"");
+				}
+				else
+				{
+					builder.Append(argValue);
+				}
+
+				builder.Append(' ');
+			}
+
+			ProcessHandle buildProcess = CreateProcess({
+				.executable = argv[0],
+				.arguments = builder.ToString(arena),
+			});
+
+			return WaitForProcess(buildProcess);
 		}
 	}
+
+	DateTime buildTime = GetUtcTime();
+	double buildStartTime = GetTimeSec();
+
+	printf("Build started at %02d:%02d:%02d\n", buildTime.hour, buildTime.minute, buildTime.second);
 
 	// Sandbox
 	{
