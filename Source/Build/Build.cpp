@@ -750,7 +750,7 @@ int32 main(int32 argc, char** argv)
 		}
 	}
 
-	DateTime buildTime = GetUtcTime();
+	DateTime buildTime = GetLocalTime();
 	double buildStartTime = GetTimeSec();
 
 	printf("Build started at %02d:%02d:%02d\n", buildTime.hour, buildTime.minute, buildTime.second);

@@ -26,6 +26,7 @@ namespace Bk
 	double GetTimeSec();
 
 	DateTime GetUtcTime();
+	DateTime GetLocalTime();
 	uint64 GetUnixTime();
 
 	// File system

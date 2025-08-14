@@ -129,6 +129,42 @@ namespace Bk
 		return result;
 	}
 
+	DateTime GetLocalTime()
+	{
+		DateTime result = {};
+
+#if BK_PLATFORM_WINDOWS
+		SYSTEMTIME systemTime;
+		GetLocalTime(&systemTime);
+
+		result.year = systemTime.wYear;
+		result.month = static_cast<uint8>(systemTime.wMonth);
+		result.weekday = static_cast<uint8>(systemTime.wDayOfWeek);
+		result.day = static_cast<uint8>(systemTime.wDay);
+		result.hour = static_cast<uint8>(systemTime.wHour);
+		result.minute = static_cast<uint8>(systemTime.wMinute);
+		result.second = static_cast<uint8>(systemTime.wSecond);
+		result.millisecond = systemTime.wMilliseconds;
+#else
+		timeval time = {};
+		gettimeofday(&time, nullptr);
+
+		tm localTime = {};
+		localtime_r(&time.tv_sec, &localTime);
+
+		result.year = static_cast<uint16>(localTime.tm_year + 1900);
+		result.month = static_cast<uint8>(localTime.tm_mon + 1);
+		result.weekday = static_cast<uint8>(localTime.tm_wday);
+		result.day = static_cast<uint8>(localTime.tm_mday);
+		result.hour = static_cast<uint8>(localTime.tm_hour);
+		result.minute = static_cast<uint8>(localTime.tm_min);
+		result.second = static_cast<uint8>(localTime.tm_sec);
+		result.millisecond = static_cast<uint16>(time.tv_usec / 1000);
+#endif
+
+		return result;
+	}
+
 	uint64 GetUnixTime()
 	{
 #if BK_PLATFORM_WINDOWS
