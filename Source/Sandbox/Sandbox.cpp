@@ -1,3 +1,4 @@
+#include "Core/Application.h"
 #include "Core/Core.h"
 #include "Core/Gpu.h"
 #include "Core/Memory.h"
@@ -9,29 +10,7 @@
 #define HANDMADE_MATH_USE_DEGREES
 #include <HandmadeMath.h>
 
-#include <emscripten/dom_pk_codes.h>
-#include <emscripten/emscripten.h>
-#include <emscripten/html5.h>
-
 using namespace Bk;
-
-enum class KeyCode : uint32
-{
-	Unknown,
-
-	W,
-	A,
-	S,
-	D,
-	Q,
-	E,
-
-	LeftMouseButton,
-	MiddleMouseButton,
-	RightMouseButton,
-
-	Count,
-};
 
 struct MeshProxy
 {
@@ -66,7 +45,7 @@ bool IsKeyDown(KeyCode keyCode)
 	return BitsetIsSet(state.keys, (size_t)keyCode);
 }
 
-extern "C" EMSCRIPTEN_KEEPALIVE void LoadGlb(uint8* data, size_t length)
+extern "C" __attribute__((used)) void LoadGlb(uint8* data, size_t length)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -106,8 +85,6 @@ extern "C" EMSCRIPTEN_KEEPALIVE void LoadGlb(uint8* data, size_t length)
 void Initialize()
 {
 	ArenaScope scratch = GetScratchArena();
-
-	state.keys = state.arena.PushZeroed<uint32>((size_t(KeyCode::Count) + 31) / 32);
 
 	state.cameraPosition = HMM_V3(0, 1, 4);
 	state.cameraOrientation = HMM_Q(0, 0, 0, 1);
@@ -179,11 +156,11 @@ void Initialize()
 	});
 }
 
-void Update()
+bool OnAppUpdate()
 {
 	if (!BeginFrame())
 	{
-		return;
+		return true;
 	}
 
 	if (!state.initialized)
@@ -297,95 +274,55 @@ void Update()
 	EndFrame();
 
 	state.mouseDelta = HMM_V2(0, 0);
+
+	return true;
 }
 
-KeyCode ConvertKeyCode(int32 keyCode)
+bool OnAppEvent(const AppEvent& appEvent)
 {
-	switch (keyCode)
-	{
-		default: return KeyCode::Unknown;
+	bool result = false;
 
-		case DOM_PK_W: return KeyCode::W;
-		case DOM_PK_A: return KeyCode::A;
-		case DOM_PK_S: return KeyCode::S;
-		case DOM_PK_D: return KeyCode::D;
-		case DOM_PK_Q: return KeyCode::Q;
-		case DOM_PK_E: return KeyCode::E;
+	switch (appEvent.type)
+	{
+		case AppEventType::Key:
+		{
+			if (appEvent.keyPressed)
+			{
+				BitsetSet(state.keys, size_t(appEvent.keyCode));
+			}
+			else
+			{
+				BitsetUnset(state.keys, size_t(appEvent.keyCode));
+			}
+
+			break;
+		}
+
+		case AppEventType::MouseMove:
+		{
+			HMM_Vec2 mousePosition = HMM_V2(appEvent.mouseX, appEvent.mouseY);
+			state.mouseDelta += (mousePosition - state.mousePosition);
+			state.mousePosition = mousePosition;
+
+			break;
+		}
+
+		default: break;
 	}
+
+	return result;
 }
 
-KeyCode ConvertMouseButton(uint8 button)
-{
-	switch (button)
-	{
-		default: return KeyCode::Unknown;
-
-		case 0: return KeyCode::LeftMouseButton;
-		case 1: return KeyCode::MiddleMouseButton;
-		case 2: return KeyCode::RightMouseButton;
-	}
-}
-
-bool OnKeyEvent(int32 eventType, const EmscriptenKeyboardEvent* event, void* userData)
-{
-	if (!state.initialized)
-	{
-		return false;
-	}
-
-	if (eventType == EMSCRIPTEN_EVENT_KEYDOWN)
-	{
-		KeyCode keyCode = ConvertKeyCode(emscripten_compute_dom_pk_code(event->code));
-		BitsetSet(state.keys, size_t(keyCode));
-	}
-	else if (eventType == EMSCRIPTEN_EVENT_KEYUP)
-	{
-		KeyCode keyCode = ConvertKeyCode(emscripten_compute_dom_pk_code(event->code));
-		BitsetUnset(state.keys, size_t(keyCode));
-	}
-
-	return false;
-}
-
-bool OnMouseEvent(int32 eventType, const EmscriptenMouseEvent* event, void* userData)
-{
-	if (!state.initialized)
-	{
-		return false;
-	}
-
-	if (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN)
-	{
-		KeyCode keyCode = ConvertMouseButton(event->button);
-		BitsetSet(state.keys, size_t(keyCode));
-	}
-	else if (eventType == EMSCRIPTEN_EVENT_MOUSEUP)
-	{
-		KeyCode keyCode = ConvertMouseButton(event->button);
-		BitsetUnset(state.keys, size_t(keyCode));
-	}
-	else if (eventType == EMSCRIPTEN_EVENT_MOUSEMOVE)
-	{
-		HMM_Vec2 mousePosition = HMM_V2(static_cast<float>(event->screenX), static_cast<float>(event->screenY));
-
-		state.mouseDelta += mousePosition - state.mousePosition;
-		state.mousePosition = mousePosition;
-	}
-
-	return false;
-}
-
-int main(int argc, char** argv)
+int32 AppMain(int32 argc, char** argv)
 {
 	GpuInitialize();
 
-	emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, OnKeyEvent);
-	emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, OnKeyEvent);
-	emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, OnMouseEvent);
-	emscripten_set_mousedown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, OnMouseEvent);
-	emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, true, OnMouseEvent);
+	state.keys = state.arena.PushZeroed<uint32>((size_t(KeyCode::Count) + 31) / 32);
 
-	emscripten_set_main_loop(Update, 0, true);
+	ConfigureApp({
+		.updateCallback = OnAppUpdate,
+		.eventCallback = OnAppEvent,
+	});
 
 	return 0;
 }

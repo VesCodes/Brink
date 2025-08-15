@@ -5,6 +5,7 @@
 #include "Core/String.h"
 
 #ifndef BK_BUILD
+#include "Core/Application.cpp"
 #include "Core/Core.cpp"
 #include "Core/Memory.cpp"
 #include "Core/Platform.cpp"
@@ -649,7 +650,7 @@ void PrepareBuildContext(Arena& arena, BuildContext& context)
 	}
 }
 
-int32 main(int32 argc, char** argv)
+int32 AppMain(int32 argc, char** argv)
 {
 	Arena arena = {};
 
