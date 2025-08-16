@@ -3,7 +3,6 @@
 #if BK_PLATFORM_EMSCRIPTEN
 #include "Pool.h"
 
-#include <emscripten/html5.h>
 #include <webgpu/webgpu.h>
 
 namespace Bk
@@ -30,26 +29,32 @@ namespace Bk
 		WGPUBindGroup handle;
 	};
 
-	struct GpuContext
+	struct GpuSurface
 	{
-		WGPUInstance instance;
-		WGPUSurface surface;
-		WGPUSurfaceConfiguration surfaceConfig;
+		WGPUSurface handle;
+		WGPUSurfaceConfiguration config;
+
 		WGPUTexture depthTexture;
 		WGPUTextureView depthTextureView;
-		WGPUAdapter adapter;
-		WGPUDevice device;
-		WGPUQueue queue;
+	};
 
-		WGPUCommandEncoder commandEncoder;
-		WGPURenderPassEncoder renderPassEncoder;
-
+	struct GpuContext
+	{
 		Arena arena;
 
 		TPool<GpuPipeline> pipelines;
 		TPool<GpuBuffer> buffers;
 		TPool<GpuBindingLayout> bindingLayouts;
 		TPool<GpuBindingGroup> bindingGroups;
+		TPool<GpuSurface> surfaces;
+
+		WGPUInstance instance;
+		WGPUAdapter adapter;
+		WGPUDevice device;
+		WGPUQueue queue;
+
+		WGPUCommandEncoder commandEncoder;
+		WGPURenderPassEncoder renderPassEncoder;
 	} gpuContext;
 
 	static WGPUStringView WgpuConvert(String string)
@@ -67,62 +72,6 @@ namespace Bk
 		printf("Device Lost (%0x): %.*s\n", reason, static_cast<int32>(message.length), message.data);
 	}
 
-	void ConfigureSurface()
-	{
-		if (!gpuContext.surface)
-		{
-			return;
-		}
-
-		double canvasWidth, canvasHeight;
-		emscripten_get_element_css_size("#canvas", &canvasWidth, &canvasHeight);
-
-		gpuContext.surfaceConfig.device = gpuContext.device;
-		gpuContext.surfaceConfig.usage = WGPUTextureUsage_RenderAttachment;
-		gpuContext.surfaceConfig.alphaMode = WGPUCompositeAlphaMode_Auto;
-		gpuContext.surfaceConfig.width = static_cast<uint32_t>(canvasWidth);
-		gpuContext.surfaceConfig.height = static_cast<uint32_t>(canvasHeight);
-		gpuContext.surfaceConfig.presentMode = WGPUPresentMode_Fifo;
-
-		wgpuSurfaceConfigure(gpuContext.surface, &gpuContext.surfaceConfig);
-
-		printf("Configured surface: (%d x %d)\n", gpuContext.surfaceConfig.width, gpuContext.surfaceConfig.height);
-
-		if (gpuContext.depthTextureView)
-		{
-			wgpuTextureViewRelease(gpuContext.depthTextureView);
-			gpuContext.depthTextureView = nullptr;
-		}
-
-		if (gpuContext.depthTexture)
-		{
-			wgpuTextureRelease(gpuContext.depthTexture);
-			gpuContext.depthTexture = nullptr;
-		}
-
-		WGPUTextureDescriptor depthTextureDesc = {};
-		depthTextureDesc.usage = WGPUTextureUsage_RenderAttachment;
-		depthTextureDesc.dimension = WGPUTextureDimension_2D;
-		depthTextureDesc.size.width = gpuContext.surfaceConfig.width;
-		depthTextureDesc.size.height = gpuContext.surfaceConfig.height;
-		depthTextureDesc.size.depthOrArrayLayers = 1;
-		depthTextureDesc.format = WGPUTextureFormat_Depth24Plus;
-		depthTextureDesc.mipLevelCount = 1;
-		depthTextureDesc.sampleCount = 1;
-		depthTextureDesc.viewFormatCount = 1;
-		depthTextureDesc.viewFormats = &depthTextureDesc.format;
-
-		gpuContext.depthTexture = wgpuDeviceCreateTexture(gpuContext.device, &depthTextureDesc);
-		gpuContext.depthTextureView = wgpuTextureCreateView(gpuContext.depthTexture, nullptr);
-	}
-
-	bool OnResize(int eventType, const EmscriptenUiEvent* event, void* userData)
-	{
-		ConfigureSurface();
-
-		return true;
-	}
-
 	void OnDeviceAcquired(WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message, void* userdata1, void* userdata2)
 	{
 		if (status != WGPURequestDeviceStatus_Success)
@@ -135,23 +84,6 @@ namespace Bk
 
 		gpuContext.queue = wgpuDeviceGetQueue(gpuContext.device);
 		BK_ASSERTF(gpuContext.queue, "Failed to acquire WebGPU device queue");
-
-		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasDesc = {};
-		canvasDesc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
-		canvasDesc.selector = WgpuConvert("canvas");
-
-		WGPUSurfaceDescriptor surfaceDesc = {};
-		surfaceDesc.nextInChain = &canvasDesc.chain;
-
-		gpuContext.surface = wgpuInstanceCreateSurface(gpuContext.instance, &surfaceDesc);
-		BK_ASSERTF(gpuContext.surface, "Failed to create WebGPU surface");
-
-		WGPUSurfaceCapabilities surfaceCapabilities = {};
-		wgpuSurfaceGetCapabilities(gpuContext.surface, gpuContext.adapter, &surfaceCapabilities);
-
-		gpuContext.surfaceConfig.format = surfaceCapabilities.formatCount > 0 ? surfaceCapabilities.formats[0] : WGPUTextureFormat_Undefined;
-
-		ConfigureSurface();
 	}
 
 	void OnAdapterAcquired(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata1, void* userdata2)
@@ -178,13 +110,12 @@ namespace Bk
 		gpuContext.buffers.Initialize(gpuContext.arena, 32);
 		gpuContext.bindingLayouts.Initialize(gpuContext.arena, 32);
 		gpuContext.bindingGroups.Initialize(gpuContext.arena, 32);
+		gpuContext.surfaces.Initialize(gpuContext.arena, 32);
 
 		gpuContext.instance = wgpuCreateInstance(nullptr);
 		BK_ASSERTF(gpuContext.instance, "Failed to create WebGPU instance");
 
 		wgpuInstanceRequestAdapter(gpuContext.instance, nullptr, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnAdapterAcquired });
-
-		emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, false, OnResize);
 	}
 
 	static WGPUVertexFormat WgpuConvert(const GpuVertexFormat value)
@@ -202,8 +133,8 @@ namespace Bk
 	{
 		switch (value)
 		{
-			case GpuIndexFormat::Uint32: return WGPUIndexFormat_Uint32;
 			case GpuIndexFormat::Uint16: return WGPUIndexFormat_Uint16;
+			case GpuIndexFormat::Uint32: return WGPUIndexFormat_Uint32;
 		}
 	};
 
@@ -319,7 +250,7 @@ namespace Bk
 			fragmentState.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
 			fragmentState.entryPoint = WgpuConvert(desc.pixelShader.entryPoint);
 
-			WGPUColorTargetState surfaceTarget = { .format = gpuContext.surfaceConfig.format, .writeMask = WGPUColorWriteMask_All };
+			WGPUColorTargetState surfaceTarget = { .format = WGPUTextureFormat_BGRA8Unorm, .writeMask = WGPUColorWriteMask_All };
 			fragmentState.targets = &surfaceTarget;
 			fragmentState.targetCount = 1;
 
@@ -544,6 +475,101 @@ namespace Bk
 		}
 	}
 
+	uint32 CreateSurface(void* target, const GpuSurfaceDesc& desc)
+	{
+		WGPUSurfaceDescriptor surfaceDesc = {};
+
+#if BK_PLATFORM_EMSCRIPTEN
+		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasDesc = {};
+		canvasDesc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
+		canvasDesc.selector = WgpuConvert((const char*)target);
+
+		surfaceDesc.nextInChain = &canvasDesc.chain;
+#endif
+
+		WGPUSurface surface = wgpuInstanceCreateSurface(gpuContext.instance, &surfaceDesc);
+
+		uint32 surfaceHandle = 0;
+		if (surface)
+		{
+			GpuSurface* surfaceWrapper = gpuContext.surfaces.AllocateItem(&surfaceHandle);
+			surfaceWrapper->handle = surface;
+
+			ConfigureSurface(surfaceHandle, desc);
+		}
+
+		return surfaceHandle;
+	}
+
+	void ConfigureSurface(uint32 handle, const GpuSurfaceDesc& desc)
+	{
+		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
+		if (surface)
+		{
+			WGPUSurfaceCapabilities surfaceCaps = {};
+			wgpuSurfaceGetCapabilities(surface->handle, gpuContext.adapter, &surfaceCaps);
+
+			surface->config.device = gpuContext.device;
+			surface->config.format = surfaceCaps.formatCount > 0 ? surfaceCaps.formats[0] : WGPUTextureFormat_Undefined;
+			surface->config.usage = WGPUTextureUsage_RenderAttachment;
+			surface->config.alphaMode = WGPUCompositeAlphaMode_Auto;
+			surface->config.width = desc.width;
+			surface->config.height = desc.height;
+			surface->config.presentMode = WGPUPresentMode_Fifo;
+
+			wgpuSurfaceConfigure(surface->handle, &surface->config);
+
+			if (surface->depthTextureView)
+			{
+				wgpuTextureViewRelease(surface->depthTextureView);
+				surface->depthTextureView = nullptr;
+			}
+
+			if (surface->depthTexture)
+			{
+				wgpuTextureRelease(surface->depthTexture);
+				surface->depthTexture = nullptr;
+			}
+
+			WGPUTextureDescriptor depthTextureDesc = {};
+			depthTextureDesc.usage = WGPUTextureUsage_RenderAttachment;
+			depthTextureDesc.dimension = WGPUTextureDimension_2D;
+			depthTextureDesc.size.width = desc.width;
+			depthTextureDesc.size.height = desc.height;
+			depthTextureDesc.size.depthOrArrayLayers = 1;
+			depthTextureDesc.format = WGPUTextureFormat_Depth24Plus;
+			depthTextureDesc.mipLevelCount = 1;
+			depthTextureDesc.sampleCount = 1;
+			depthTextureDesc.viewFormatCount = 1;
+			depthTextureDesc.viewFormats = &depthTextureDesc.format;
+
+			surface->depthTexture = wgpuDeviceCreateTexture(gpuContext.device, &depthTextureDesc);
+			surface->depthTextureView = wgpuTextureCreateView(surface->depthTexture, nullptr);
+		}
+	}
+
+	void DestroySurface(uint32 handle)
+	{
+		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
+		if (surface)
+		{
+			if (surface->depthTextureView)
+			{
+				wgpuTextureViewRelease(surface->depthTextureView);
+				surface->depthTextureView = nullptr;
+			}
+
+			if (surface->depthTexture)
+			{
+				wgpuTextureRelease(surface->depthTexture);
+				surface->depthTexture = nullptr;
+			}
+
+			wgpuSurfaceRelease(surface->handle);
+			gpuContext.surfaces.FreeItem(handle);
+		}
+	}
+
 	bool BeginFrame()
 	{
 		if (!gpuContext.device)
@@ -580,11 +606,21 @@ namespace Bk
 		WGPURenderPassDescriptor passDesc = {};
 		passDesc.label = WgpuConvert(desc.name);
 
-		WGPUSurfaceTexture surfaceTexture;
-		wgpuSurfaceGetCurrentTexture(gpuContext.surface, &surfaceTexture);
+		WGPUTextureView colorTextureView = nullptr;
+		WGPUTextureView depthTextureView = nullptr;
+
+		if (GpuSurface* surface = gpuContext.surfaces.GetItem(desc.surface))
+		{
+			WGPUSurfaceTexture surfaceTexture = {};
+			wgpuSurfaceGetCurrentTexture(surface->handle, &surfaceTexture);
+
+			// #TODO: Should probably release surface texture view at end of frame
+			colorTextureView = wgpuTextureCreateView(surfaceTexture.texture, nullptr);
+			depthTextureView = surface->depthTextureView;
+		}
 
 		WGPURenderPassColorAttachment colorAttachment = {};
-		colorAttachment.view = wgpuTextureCreateView(surfaceTexture.texture, nullptr);
+		colorAttachment.view = colorTextureView;
 		colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 		colorAttachment.loadOp = WGPULoadOp_Clear;
 		colorAttachment.storeOp = WGPUStoreOp_Store;
@@ -597,7 +633,7 @@ namespace Bk
 		passDesc.colorAttachmentCount = 1;
 
 		WGPURenderPassDepthStencilAttachment depthAttachment = {};
-		depthAttachment.view = gpuContext.depthTextureView;
+		depthAttachment.view = depthTextureView;
 		depthAttachment.depthClearValue = 1.0f;
 		depthAttachment.depthLoadOp = WGPULoadOp_Clear;
 		depthAttachment.depthStoreOp = WGPUStoreOp_Store;

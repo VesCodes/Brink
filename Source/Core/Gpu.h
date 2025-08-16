@@ -128,9 +128,16 @@ namespace Bk
 		TSpan<GpuBindingGroupEntry> bindings;
 	};
 
+	struct GpuSurfaceDesc
+	{
+		uint32 width;
+		uint32 height;
+	};
+
 	struct GpuPassDesc
 	{
 		String name;
+		uint32 surface;
 		float clearColor[4];
 	};
 
@@ -163,6 +170,10 @@ namespace Bk
 
 	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc);
 	void DestroyBindingGroup(uint32 handle);
+
+	uint32 CreateSurface(void* target, const GpuSurfaceDesc& desc);
+	void ConfigureSurface(uint32 handle, const GpuSurfaceDesc& desc);
+	void DestroySurface(uint32 handle);
 
 	bool BeginFrame();
 	bool EndFrame();

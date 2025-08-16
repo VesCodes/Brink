@@ -112,4 +112,7 @@ namespace Bk
 
 	uint32 CreateWindow(const WindowParams& params);
 	void DestroyWindow(uint32 handle);
+
+	void* GetWindowSurfaceTarget(uint32 handle);
+	bool GetWindowSurfaceSize(uint32 handle, uint32& width, uint32& height);
 }

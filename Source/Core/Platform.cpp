@@ -1243,4 +1243,40 @@ namespace Bk
 			platformContext.windows.FreeItem(handle);
 		}
 	}
+
+	void* GetWindowSurfaceTarget(uint32 handle)
+	{
+		void* result = nullptr;
+
+		Window* window = platformContext.windows.GetItem(handle);
+		if (window)
+		{
+#if BK_PLATFORM_EMSCRIPTEN
+			result = const_cast<char*>(window->target);
+#endif
+		}
+
+		return result;
+	}
+
+	bool GetWindowSurfaceSize(uint32 handle, uint32& width, uint32& height)
+	{
+		bool result = false;
+
+		Window* window = platformContext.windows.GetItem(handle);
+		if (window)
+		{
+#if BK_PLATFORM_EMSCRIPTEN
+			double surfaceWidth, surfaceHeight;
+			emscripten_get_element_css_size(window->target, &surfaceWidth, &surfaceHeight);
+
+			width = static_cast<uint32>(surfaceWidth);
+			height = static_cast<uint32>(surfaceHeight);
+
+			result = true;
+#endif
+		}
+
+		return result;
+	}
 }

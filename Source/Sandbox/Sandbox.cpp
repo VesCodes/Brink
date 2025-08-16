@@ -21,20 +21,20 @@ struct MeshProxy
 
 struct
 {
-	bool initialized;
-
 	Arena arena;
 
+	uint32 window;
+	HMM_Vec2 mousePosition;
+	HMM_Vec2 mouseDelta;
+	uint32* keys;
+
+	bool initialized;
+	uint32 surface;
 	uint32 testPipeline;
 	uint32 testUniformBuffer;
 	uint32 testBindingGroup;
 
 	TSpan<MeshProxy> meshProxies;
-
-	HMM_Vec2 mousePosition;
-	HMM_Vec2 mouseDelta;
-
-	uint32* keys;
 
 	HMM_Vec3 cameraPosition;
 	HMM_Quat cameraOrientation;
@@ -85,6 +85,17 @@ void LoadGlb(uint8* data, size_t length)
 void Initialize()
 {
 	ArenaScope scratch = GetScratchArena();
+
+	uint32 surfaceWidth, surfaceHeight;
+	if (GetWindowSurfaceSize(state.window, surfaceWidth, surfaceHeight))
+	{
+		state.surface = CreateSurface(
+			GetWindowSurfaceTarget(state.window),
+			{
+				.width = surfaceWidth,
+				.height = surfaceHeight,
+			});
+	}
 
 	state.cameraPosition = HMM_V3(0, 1, 4);
 	state.cameraOrientation = HMM_Q(0, 0, 0, 1);
@@ -247,6 +258,7 @@ bool OnAppUpdate()
 
 	BeginPass({
 		.name = "Sandbox Pass",
+		.surface = state.surface,
 		.clearColor = { 0.12f, 0.12f, 0.14f, 1.0f },
 	});
 
@@ -331,7 +343,11 @@ bool OnAppEvent(const AppEvent& appEvent)
 
 int32 AppMain(int32 argc, char** argv)
 {
-	GpuInitialize();
+	state.window = CreateWindow({ .title = "#canvas" });
+	if (!state.window)
+	{
+		return 1;
+	}
 
 	state.keys = state.arena.PushZeroed<uint32>((size_t(KeyCode::Count) + 31) / 32);
 
@@ -340,7 +356,7 @@ int32 AppMain(int32 argc, char** argv)
 		.eventCallback = OnAppEvent,
 	});
 
-	CreateWindow({ .title = "#canvas" });
+	GpuInitialize();
 
 	return 0;
 }
