@@ -1141,6 +1141,27 @@ namespace Bk
 		return result;
 	}
 
+	bool ProcessResizeEvent(int32 type, const EmscriptenUiEvent* event, void* userData)
+	{
+		bool result = false;
+
+		if (type == EMSCRIPTEN_EVENT_RESIZE)
+		{
+			AppEvent appEvent = {};
+			appEvent.type = AppEventType::WindowResize;
+
+			// #TODO: Notify all windows; update usage to check target
+			// appEvent.target = ...;
+
+			appEvent.windowWidth = event->windowInnerWidth;
+			appEvent.windowHeight = event->windowInnerHeight;
+
+			result = ProcessAppEvent(appEvent);
+		}
+
+		return result;
+	}
+
 	extern "C" EMSCRIPTEN_KEEPALIVE void ProcessDropEvent(Window* window, const char* filePath)
 	{
 		AppEvent appEvent = {};
@@ -1158,6 +1179,10 @@ namespace Bk
 		{
 			// #TODO: Move to a platform init routine
 			platformContext.windows.Initialize(platformContext.arena, 128);
+
+#if BK_PLATFORM_EMSCRIPTEN
+			emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, false, ProcessResizeEvent);
+#endif
 		}
 
 		uint32 handle = 0;

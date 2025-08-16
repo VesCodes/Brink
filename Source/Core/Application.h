@@ -29,6 +29,7 @@ namespace Bk
 		MouseMove,
 		MouseWheel,
 		DropFile,
+		WindowResize,
 	};
 
 	struct AppEvent
@@ -36,19 +37,36 @@ namespace Bk
 		AppEventType type;
 		uint32 target;
 
-		// AppEventType::Key
-		KeyCode keyCode;
-		bool keyPressed;
+		union
+		{
+			struct // AppEventType::Key
+			{
+				KeyCode keyCode;
+				bool keyPressed;
+			};
 
-		// AppEventType::MouseMove
-		float mouseX;
-		float mouseY;
+			struct // AppEventType::MouseMove
+			{
+				float mouseX;
+				float mouseY;
+			};
 
-		// AppEventType::MouseWheel
-		float wheelDelta;
+			struct // AppEventType::MouseWheel
+			{
+				float wheelDelta;
+			};
 
-		// AppEventType::DropFile
-		String dropFilePath;
+			struct // AppEventType::DropFile
+			{
+				String dropFilePath;
+			};
+
+			struct // AppEventType::WindowResize
+			{
+				int32 windowWidth;
+				int32 windowHeight;
+			};
+		};
 	};
 
 	bool ProcessAppEvent(const AppEvent& event);

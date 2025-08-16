@@ -335,6 +335,20 @@ bool OnAppEvent(const AppEvent& appEvent)
 			}
 		}
 
+		case AppEventType::WindowResize:
+		{
+			uint32 surfaceWidth, surfaceHeight;
+			if (GetWindowSurfaceSize(state.window, surfaceWidth, surfaceHeight))
+			{
+				ConfigureSurface(
+					state.surface,
+					{
+						.width = surfaceWidth,
+						.height = surfaceHeight,
+					});
+			}
+		}
+
 		default: break;
 	}
 
