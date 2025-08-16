@@ -45,7 +45,7 @@ bool IsKeyDown(KeyCode keyCode)
 	return BitsetIsSet(state.keys, (size_t)keyCode);
 }
 
-extern "C" __attribute__((used)) void LoadGlb(uint8* data, size_t length)
+void LoadGlb(uint8* data, size_t length)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -307,6 +307,22 @@ bool OnAppEvent(const AppEvent& appEvent)
 			break;
 		}
 
+		case AppEventType::DropFile:
+		{
+			if (FileHandle fileHandle = OpenFile(appEvent.dropFilePath, FileAccess::Read))
+			{
+				ArenaScope scratch = GetScratchArena();
+
+				TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+				if (ReadFile(fileHandle, fileData) == fileData.length)
+				{
+					LoadGlb(fileData.data, fileData.length);
+				}
+
+				CloseFile(fileHandle);
+			}
+		}
+
 		default: break;
 	}
 
@@ -323,6 +339,8 @@ int32 AppMain(int32 argc, char** argv)
 		.updateCallback = OnAppUpdate,
 		.eventCallback = OnAppEvent,
 	});
+
+	CreateWindow({ .title = "#canvas" });
 
 	return 0;
 }

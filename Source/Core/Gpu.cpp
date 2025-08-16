@@ -174,10 +174,10 @@ namespace Bk
 
 	void GpuInitialize()
 	{
-		gpuContext.pipelines.Initialize(&gpuContext.arena, 32);
-		gpuContext.buffers.Initialize(&gpuContext.arena, 32);
-		gpuContext.bindingLayouts.Initialize(&gpuContext.arena, 32);
-		gpuContext.bindingGroups.Initialize(&gpuContext.arena, 32);
+		gpuContext.pipelines.Initialize(gpuContext.arena, 32);
+		gpuContext.buffers.Initialize(gpuContext.arena, 32);
+		gpuContext.bindingLayouts.Initialize(gpuContext.arena, 32);
+		gpuContext.bindingGroups.Initialize(gpuContext.arena, 32);
 
 		gpuContext.instance = wgpuCreateInstance(nullptr);
 		BK_ASSERTF(gpuContext.instance, "Failed to create WebGPU instance");

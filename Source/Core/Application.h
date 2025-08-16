@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core.h"
+#include "String.h"
 
 extern int32 AppMain(int32 argc, char** argv);
 
@@ -27,11 +28,13 @@ namespace Bk
 		Key,
 		MouseMove,
 		MouseWheel,
+		DropFile,
 	};
 
 	struct AppEvent
 	{
 		AppEventType type;
+		uint32 target;
 
 		// AppEventType::Key
 		KeyCode keyCode;
@@ -43,7 +46,12 @@ namespace Bk
 
 		// AppEventType::MouseWheel
 		float wheelDelta;
+
+		// AppEventType::DropFile
+		String dropFilePath;
 	};
+
+	bool ProcessAppEvent(const AppEvent& event);
 
 	enum class KeyCode : uint32
 	{

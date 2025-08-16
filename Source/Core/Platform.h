@@ -100,4 +100,16 @@ namespace Bk
 	void DetachProcess(ProcessHandle handle);
 	bool WaitForProcess(ProcessHandle handle, int32* exitCode = nullptr);
 	bool TerminateProcess(ProcessHandle handle);
+
+	// Window
+
+	struct WindowParams
+	{
+		String title;
+		int32 width;
+		int32 height;
+	};
+
+	uint32 CreateWindow(const WindowParams& params);
+	void DestroyWindow(uint32 handle);
 }

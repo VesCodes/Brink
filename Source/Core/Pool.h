@@ -10,7 +10,7 @@ namespace Bk
 	{
 		static_assert(sizeof(Type) >= sizeof(uintptr_t), "Pool type must be at least the size of a pointer");
 
-		void Initialize(Arena* arena, uint16 size);
+		void Initialize(Arena& arena, uint16 size);
 
 		Type* AllocateItem(uint32* handle = nullptr);
 		void FreeItem(uint32 handle);
@@ -30,14 +30,14 @@ namespace Bk
 namespace Bk
 {
 	template<typename Type>
-	void TPool<Type>::Initialize(Arena* arena, uint16 size)
+	void TPool<Type>::Initialize(Arena& arena, uint16 size)
 	{
 		capacity = size;
 		count = 0;
 
-		items = arena->Push<Type>(capacity);
-		generations = arena->PushZeroed<uint16>(capacity);
-		alive = arena->PushZeroed<uint32>((capacity + 31) / 32);
+		items = arena.Push<Type>(capacity);
+		generations = arena.PushZeroed<uint16>(capacity);
+		alive = arena.PushZeroed<uint32>((capacity + 31) / 32);
 		nextFree = 0;
 	}
 

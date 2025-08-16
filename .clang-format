@@ -16,3 +16,5 @@ BraceWrapping:
   BeforeLambdaBody: true
   AfterCaseLabel: true
   AfterUnion: true
+WhitespaceSensitiveMacros:
+  - EM_ASM
