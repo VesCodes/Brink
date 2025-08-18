@@ -273,9 +273,9 @@ bool OnAppUpdate()
 				.bindingGroups = {
 					state.testBindingGroup,
 				},
-				.vertexOffset = meshSection.vertexOffset,
-				.indexOffset = meshSection.indexOffset,
-				.triangleCount = meshSection.triangleCount,
+				.vertexOffset = static_cast<uint32>(meshSection.vertexOffset),
+				.indexOffset = static_cast<uint32>(meshSection.indexOffset),
+				.triangleCount = static_cast<uint32>(meshSection.triangleCount),
 				.instanceCount = 1,
 			});
 		}
@@ -284,6 +284,8 @@ bool OnAppUpdate()
 	EndPass();
 
 	EndFrame();
+
+	PresentSurface(state.surface);
 
 	state.mouseDelta = HMM_V2(0, 0);
 
@@ -357,7 +359,7 @@ bool OnAppEvent(const AppEvent& appEvent)
 
 int32 AppMain(int32 argc, char** argv)
 {
-	state.window = CreateWindow({ .title = "#canvas" });
+	state.window = CreateWindow({ .title = "#canvas", .width = 1280, .height = 720 });
 	if (!state.window)
 	{
 		return 1;

@@ -479,12 +479,18 @@ namespace Bk
 	{
 		WGPUSurfaceDescriptor surfaceDesc = {};
 
-#if BK_PLATFORM_EMSCRIPTEN
-		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvasDesc = {};
-		canvasDesc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
-		canvasDesc.selector = WgpuConvert((const char*)target);
+#if BK_PLATFORM_WINDOWS
+		WGPUSurfaceSourceWindowsHWND surfaceSource = {};
+		surfaceSource.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
+		surfaceSource.hwnd = target;
 
-		surfaceDesc.nextInChain = &canvasDesc.chain;
+		surfaceDesc.nextInChain = &surfaceSource.chain;
+#elif BK_PLATFORM_EMSCRIPTEN
+		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector surfaceSource = {};
+		surfaceSource.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
+		surfaceSource.selector = WgpuConvert((const char*)target);
+
+		surfaceDesc.nextInChain = &surfaceSource.chain;
 #endif
 
 		WGPUSurface surface = wgpuInstanceCreateSurface(gpuContext.instance, &surfaceDesc);
@@ -546,6 +552,17 @@ namespace Bk
 			surface->depthTexture = wgpuDeviceCreateTexture(gpuContext.device, &depthTextureDesc);
 			surface->depthTextureView = wgpuTextureCreateView(surface->depthTexture, nullptr);
 		}
+	}
+
+	void PresentSurface(uint32 handle)
+	{
+#ifndef BK_PLATFORM_EMSCRIPTEN
+		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
+		if (surface)
+		{
+			wgpuSurfacePresent(surface->handle);
+		}
+#endif
 	}
 
 	void DestroySurface(uint32 handle)

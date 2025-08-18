@@ -115,4 +115,6 @@ namespace Bk
 
 	void* GetWindowSurfaceTarget(uint32 handle);
 	bool GetWindowSurfaceSize(uint32 handle, uint32& width, uint32& height);
+
+	void PumpEvents();
 }

@@ -173,6 +173,7 @@ namespace Bk
 
 	uint32 CreateSurface(void* target, const GpuSurfaceDesc& desc);
 	void ConfigureSurface(uint32 handle, const GpuSurfaceDesc& desc);
+	void PresentSurface(uint32 handle);
 	void DestroySurface(uint32 handle);
 
 	bool BeginFrame();

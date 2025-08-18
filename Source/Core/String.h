@@ -66,6 +66,8 @@ namespace Bk
 
 	struct StringBuilder
 	{
+		StringBuilder() = default;
+
 		StringBuilder(char* buffer, size_t bufferSize);
 		StringBuilder(Arena& arena);
 
@@ -118,6 +120,8 @@ namespace Bk
 
 	struct AsciiSet
 	{
+		AsciiSet() = default;
+
 		template<size_t N>
 		constexpr AsciiSet(const char (&chars)[N]);
 

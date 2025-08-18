@@ -1,5 +1,7 @@
 #include "Application.h"
 
+#include "Platform.h"
+
 #if BK_PLATFORM_EMSCRIPTEN
 #include <emscripten/emscripten.h>
 #endif
@@ -36,6 +38,8 @@ namespace Bk
 
 	void AppLoop()
 	{
+		PumpEvents();
+
 		if (appContext.updateCallback)
 		{
 			appContext.running = appContext.updateCallback();
