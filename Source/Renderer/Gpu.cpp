@@ -1,9 +1,12 @@
 #include "Gpu.h"
 
-#if BK_PLATFORM_EMSCRIPTEN
 #include "Core/Pool.h"
 
+#if BK_PLATFORM_EMSCRIPTEN
 #include <webgpu/webgpu.h>
+#else
+#include <dawn/webgpu.h>
+#endif
 
 namespace Bk
 {
@@ -712,4 +715,3 @@ namespace Bk
 		}
 	}
 }
-#endif

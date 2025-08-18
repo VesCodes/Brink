@@ -767,18 +767,32 @@ int32 AppMain(int32 argc, char** argv)
 
 		CopyDirectory("Source/Sandbox/Assets", "Build/Sandbox/Assets");
 
-		String outputFile = "Build/Sandbox/index.html";
+		String outputFile = {};
+		if (context.platform == Platform::Windows)
+		{
+			outputFile = "Build/Sandbox/Sandbox.exe";
 
-		context.extraCompilerArguments = {
-			"--use-port=emdawnwebgpu",
-		};
+			context.extraLinkerArguments = {
+				"-Wl,/subsystem:windows,/entry:mainCRTStartup",
+				"ThirdParty/dawn/webgpu_dawn.lib",
+				"-ldxguid",
+			};
+		}
+		else if (context.platform == Platform::Emscripten)
+		{
+			outputFile = "Build/Sandbox/index.html";
 
-		context.extraLinkerArguments = {
-			"-sALLOW_MEMORY_GROWTH=1",
-			"--use-port=emdawnwebgpu",
-			"--shell-file=Source/Sandbox/Sandbox.html",
-			"--preload-file=Build/Sandbox/Assets@Assets",
-		};
+			context.extraCompilerArguments = {
+				"--use-port=emdawnwebgpu",
+			};
+
+			context.extraLinkerArguments = {
+				"-sALLOW_MEMORY_GROWTH=1",
+				"--use-port=emdawnwebgpu",
+				"--shell-file=Source/Sandbox/Sandbox.html",
+				"--preload-file=Build/Sandbox/Assets@Assets",
+			};
+		}
 
 		PrepareBuildContext(arena, context);
 
