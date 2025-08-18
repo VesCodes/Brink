@@ -30,10 +30,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#if !BK_PLATFORM_EMSCRIPTEN
-#include <sys/sendfile.h>
-#endif
-
 extern char** environ;
 #endif
 
@@ -641,14 +637,6 @@ namespace Bk
 #endif
 	}
 
-#if BK_PLATFORM_EMSCRIPTEN
-	ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t count)
-	{
-		// #TODO: Implement via read/write
-		return -1;
-	}
-#endif
-
 	bool CopyFile(String srcPath, String dstPath)
 	{
 		ArenaScope scratch = GetScratchArena();
@@ -660,27 +648,30 @@ namespace Bk
 		return CopyFileW(srcFilePath, dstFilePath, false);
 #else
 		FileHandle srcFile = OpenFile(srcPath, FileAccess::Read);
-		int srcFileHandle = static_cast<int>(srcFile);
-
 		FileHandle dstFile = OpenFile(dstPath, FileAccess::Write);
-		int dstFileHandle = static_cast<int>(dstFile);
 
-		size_t totalBytesCopied = 0;
 		size_t bytesLeft = GetFileSize(srcFile);
+
+		size_t bufferCapacity = Min(bytesLeft, BK_MEGABYTES(1));
+		TSpan<uint8> buffer = scratch.arena.Push<uint8>(bufferCapacity);
 
 		while (bytesLeft > 0)
 		{
-			off_t offset = totalBytesCopied;
-			ssize_t bytesCopied = sendfile(dstFileHandle, srcFileHandle, &offset, bytesLeft);
-			if (bytesCopied > 0)
-			{
-				totalBytesCopied += static_cast<size_t>(bytesCopied);
-				bytesLeft -= static_cast<size_t>(bytesCopied);
-			}
-			else
+			buffer.length = Min(bufferCapacity, bytesLeft);
+
+			size_t bytesRead = ReadFile(srcFile, buffer);
+			if (bytesRead != buffer.length)
 			{
 				break;
 			}
+
+			size_t bytesWritten = WriteFile(dstFile, buffer);
+			if (bytesWritten != buffer.length)
+			{
+				break;
+			}
+
+			bytesLeft -= bytesWritten;
 		}
 
 		CloseFile(srcFile);
