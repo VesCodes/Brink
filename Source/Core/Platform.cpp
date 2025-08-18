@@ -30,6 +30,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#if !BK_PLATFORM_EMSCRIPTEN
+#include <sys/sendfile.h>
+#endif
+
 extern char** environ;
 #endif
 
@@ -637,6 +641,55 @@ namespace Bk
 #endif
 	}
 
+#if BK_PLATFORM_EMSCRIPTEN
+	ssize_t sendfile(int out_fd, int in_fd, off_t* offset, size_t count)
+	{
+		// #TODO: Implement via read/write
+		return -1;
+	}
+#endif
+
+	bool CopyFile(String srcPath, String dstPath)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+#if BK_PLATFORM_WINDOWS
+		wchar_t* srcFilePath = ConvertString(scratch.arena, srcPath);
+		wchar_t* dstFilePath = ConvertString(scratch.arena, dstPath);
+
+		return CopyFileW(srcFilePath, dstFilePath, false);
+#else
+		FileHandle srcFile = OpenFile(srcPath, FileAccess::Read);
+		int srcFileHandle = static_cast<int>(srcFile);
+
+		FileHandle dstFile = OpenFile(dstPath, FileAccess::Write);
+		int dstFileHandle = static_cast<int>(dstFile);
+
+		size_t totalBytesCopied = 0;
+		size_t bytesLeft = GetFileSize(srcFile);
+
+		while (bytesLeft > 0)
+		{
+			off_t offset = totalBytesCopied;
+			ssize_t bytesCopied = sendfile(dstFileHandle, srcFileHandle, &offset, bytesLeft);
+			if (bytesCopied > 0)
+			{
+				totalBytesCopied += static_cast<size_t>(bytesCopied);
+				bytesLeft -= static_cast<size_t>(bytesCopied);
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		CloseFile(srcFile);
+		CloseFile(dstFile);
+
+		return bytesLeft == 0;
+#endif
+	}
+
 	bool MoveFile(String srcPath, String dstPath)
 	{
 		ArenaScope scratch = GetScratchArena();
@@ -678,6 +731,37 @@ namespace Bk
 		char* filePath = ConvertString(scratch.arena, path);
 		return mkdir(filePath, 0755) == 0 || errno == EEXIST;
 #endif
+	}
+
+	bool CopyDirectory(String srcPath, String dstPath)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+		StringBuilder builder(scratch.arena);
+		builder.AppendPath(dstPath);
+		size_t dstPathLength = builder.length;
+
+		FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, srcPath);
+		for (FileIteratorEntry entry; AdvanceFileIterator(fileIt, entry);)
+		{
+			if (EnumHasAllFlags(entry.properties.attributes, FileAttributes::Directory))
+			{
+				continue;
+			}
+
+			builder.Reset(dstPathLength);
+			builder.AppendPath(GetFileName(entry.path));
+
+			String srcFilePath = entry.path;
+			String dstFilePath = builder.ToString(scratch.arena);
+
+			if (!CopyFile(srcFilePath, dstFilePath))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	struct FileIterator

@@ -69,10 +69,12 @@ namespace Bk
 	FileProperties GetFileProperties(String path);
 
 	bool FileExists(String path);
+	bool CopyFile(String srcPath, String dstPath);
 	bool MoveFile(String srcPath, String dstPath);
 	bool DeleteFile(String path);
 
 	bool CreateDirectory(String path);
+	bool CopyDirectory(String srcPath, String dstPath);
 
 	using FileIteratorHandle = struct FileIterator*;
 
