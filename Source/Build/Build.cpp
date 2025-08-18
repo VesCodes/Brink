@@ -762,6 +762,13 @@ int32 AppMain(int32 argc, char** argv)
 
 		context.platform = Platform::Emscripten;
 
+		CreateDirectory("Build/Sandbox");
+		CreateDirectory("Build/Sandbox/Assets");
+
+		CopyDirectory("Source/Sandbox/Assets", "Build/Sandbox/Assets");
+
+		String outputFile = "Build/Sandbox/index.html";
+
 		context.extraCompilerArguments = {
 			"--use-port=emdawnwebgpu",
 		};
@@ -770,7 +777,7 @@ int32 AppMain(int32 argc, char** argv)
 			"-sALLOW_MEMORY_GROWTH=1",
 			"--use-port=emdawnwebgpu",
 			"--shell-file=Source/Sandbox/Sandbox.html",
-			"--preload-file=Source/Sandbox/Assets@Assets",
+			"--preload-file=Build/Sandbox/Assets@Assets",
 		};
 
 		PrepareBuildContext(arena, context);
@@ -781,6 +788,15 @@ int32 AppMain(int32 argc, char** argv)
 		if (compileResult == ActionResult::Failed)
 		{
 			printf("Failed to compile Core module\n");
+			return 1;
+		}
+
+		compileResult = CompileModule(context, "Renderer");
+		skipLink &= compileResult == ActionResult::Skipped;
+
+		if (compileResult == ActionResult::Failed)
+		{
+			printf("Failed to compile Renderer module\n");
 			return 1;
 		}
 
@@ -798,7 +814,7 @@ int32 AppMain(int32 argc, char** argv)
 			double compileTime = GetTimeSec();
 			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - startTime);
 
-			if (LinkModules(context, { "Core", "Sandbox" }, "Build/index.html") == ActionResult::Failed)
+			if (LinkModules(context, { "Core", "Renderer", "Sandbox" }, outputFile) == ActionResult::Failed)
 			{
 				printf("Failed to link Sandbox target\n");
 				return 1;

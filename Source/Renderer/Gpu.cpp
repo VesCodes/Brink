@@ -1,7 +1,7 @@
 #include "Gpu.h"
 
 #if BK_PLATFORM_EMSCRIPTEN
-#include "Pool.h"
+#include "Core/Pool.h"
 
 #include <webgpu/webgpu.h>
 
@@ -485,6 +485,12 @@ namespace Bk
 		surfaceSource.hwnd = target;
 
 		surfaceDesc.nextInChain = &surfaceSource.chain;
+#elif BK_PLATFORM_MACOS
+		WGPUSurfaceSourceMetalLayer surfaceSource = {};
+		surfaceSource.chain.sType = WGPUSType_SurfaceSourceMetalLayer;
+		surfaceSource.layer = target;
+
+		surfaceDesc.nextInChain = &surfaceSource.chain;
 #elif BK_PLATFORM_EMSCRIPTEN
 		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector surfaceSource = {};
 		surfaceSource.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
@@ -556,7 +562,7 @@ namespace Bk
 
 	void PresentSurface(uint32 handle)
 	{
-#ifndef BK_PLATFORM_EMSCRIPTEN
+#if !BK_PLATFORM_EMSCRIPTEN
 		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
 		if (surface)
 		{

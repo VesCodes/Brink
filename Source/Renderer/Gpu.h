@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Core.h"
-#include "Span.h"
-#include "String.h"
+#include "Core/Core.h"
+#include "Core/Span.h"
+#include "Core/String.h"
 
 namespace Bk
 {

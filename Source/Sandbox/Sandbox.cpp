@@ -1,9 +1,10 @@
 #include "Core/Application.h"
 #include "Core/Core.h"
-#include "Core/Gpu.h"
 #include "Core/Memory.h"
 #include "Core/Platform.h"
 #include "Core/String.h"
+
+#include "Renderer/Gpu.h"
 
 #include "GltfLoader.h"
 
