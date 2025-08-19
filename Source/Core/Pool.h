@@ -6,6 +6,9 @@
 namespace Bk
 {
 	template<typename Type>
+	struct TPoolIterator;
+
+	template<typename Type>
 	struct TPool
 	{
 		static_assert(sizeof(Type) >= sizeof(uintptr_t), "Pool type must be at least the size of a pointer");
@@ -18,12 +21,28 @@ namespace Bk
 		Type* Get(uint32 handle);
 		uint32 GetHandle(Type* slot);
 
+		TPoolIterator<Type> begin() const;
+		TPoolIterator<Type> end() const;
+
 		Type* slots;
 		uint16* generations;
 		uint32* alive;
 		uintptr_t nextFree;
 		size_t capacity;
 		size_t count;
+	};
+
+	template<typename Type>
+	struct TPoolIterator
+	{
+		TPoolIterator(const TPool<Type>& pool, size_t start);
+
+		TPoolIterator& operator++();
+		Type* operator*() const;
+		bool operator!=(const TPoolIterator& other) const;
+
+		const TPool<Type>& pool;
+		size_t index;
 	};
 }
 
@@ -119,5 +138,58 @@ namespace Bk
 		uint16 generation = generations[index];
 
 		return (static_cast<uint32>(generation) << 16) | index;
+	}
+
+	template<typename Type>
+	TPoolIterator<Type> TPool<Type>::begin() const
+	{
+		return TPoolIterator(*this, 0);
+	}
+
+	template<typename Type>
+	TPoolIterator<Type> TPool<Type>::end() const
+	{
+		return TPoolIterator(*this, capacity);
+	}
+
+	template<typename Type>
+	TPoolIterator<Type>::TPoolIterator(const TPool<Type>& pool, size_t start)
+		: pool(pool)
+	{
+		if (start < pool.capacity)
+		{
+			index = BitsetFind(pool.alive, true, start, pool.capacity);
+		}
+		else
+		{
+			index = SIZE_MAX;
+		}
+	}
+
+	template<typename Type>
+	TPoolIterator<Type>& TPoolIterator<Type>::operator++()
+	{
+		if (index + 1 < pool.capacity)
+		{
+			index = BitsetFind(pool.alive, true, index + 1, pool.capacity);
+		}
+		else
+		{
+			index = SIZE_MAX;
+		}
+
+		return *this;
+	}
+
+	template<typename Type>
+	Type* TPoolIterator<Type>::operator*() const
+	{
+		return pool.slots + index;
+	}
+
+	template<typename Type>
+	bool TPoolIterator<Type>::operator!=(const TPoolIterator& other) const
+	{
+		return index != other.index;
 	}
 }
