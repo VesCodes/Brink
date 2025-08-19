@@ -399,11 +399,15 @@ namespace Bk
 
 			mesh.sections = arena.PushZeroed<MeshSection>(primitives->children);
 
-			// #TODO: Could have different typed buffers across sections; MaterializeBuffer should probably do some conforming
-
 			TSpan<TSpan<uint8>> positionBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
 			size_t positionBufferSize = 0;
 			size_t vertexCount = 0;
+
+			TSpan<TSpan<uint8>> boneIndexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
+			size_t boneIndexBufferSize = 0;
+
+			TSpan<TSpan<uint8>> boneWeightBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
+			size_t boneWeightBufferSize = 0;
 
 			TSpan<TSpan<uint8>> indexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
 			size_t indexBufferSize = 0;
@@ -416,9 +420,14 @@ namespace Bk
 				section.vertexOffset = vertexCount;
 				section.indexOffset = indexCount;
 
+				// #TODO: Need to either conform these buffers to the expected layout or bubble up the details
+
 				if (JsonValue* positionAttrib = FindJsonValue(primitive, "attributes.POSITION"))
 				{
 					const GltfAccessor& accessor = asset.accessors[size_t(positionAttrib->asNumber)];
+					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentElements == 3, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
 					positionBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
 					positionBufferSize += positionBuffers[sectionIdx].length;
@@ -427,9 +436,34 @@ namespace Bk
 					section.triangleCount = accessor.count / 3;
 				}
 
+				if (JsonValue* jointsAttrib = FindJsonValue(primitive, "attributes.JOINTS_0"))
+				{
+					const GltfAccessor& accessor = asset.accessors[size_t(jointsAttrib->asNumber)];
+					BK_ASSERTF(accessor.componentType == GltfComponentType::Uint8, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
+
+					boneIndexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
+					boneIndexBufferSize += boneIndexBuffers[sectionIdx].length;
+				}
+
+				if (JsonValue* weightsAttrib = FindJsonValue(primitive, "attributes.WEIGHTS_0"))
+				{
+					const GltfAccessor& accessor = asset.accessors[size_t(weightsAttrib->asNumber)];
+					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
+
+					boneWeightBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
+					boneWeightBufferSize += boneWeightBuffers[sectionIdx].length;
+				}
+
 				if (JsonValue* indicesAttrib = FindJsonValueInObject(primitive, "indices"))
 				{
 					const GltfAccessor& accessor = asset.accessors[size_t(indicesAttrib->asNumber)];
+					BK_ASSERTF(accessor.componentType == GltfComponentType::Uint16, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentElements == 1, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
 					indexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
 					indexBufferSize += indexBuffers[sectionIdx].length;
@@ -446,6 +480,24 @@ namespace Bk
 			{
 				MemoryCopy(positionBuffer, buffer.data, buffer.length);
 				positionBuffer += buffer.length;
+			}
+
+			mesh.boneIndexBuffer = arena.Push<uint8>(boneIndexBufferSize);
+
+			uint8* boneIndexBuffer = mesh.boneIndexBuffer.data;
+			for (TSpan buffer : boneIndexBuffers)
+			{
+				MemoryCopy(boneIndexBuffer, buffer.data, buffer.length);
+				boneIndexBuffer += buffer.length;
+			}
+
+			mesh.boneWeightBuffer = arena.Push<uint8>(boneWeightBufferSize);
+
+			uint8* boneWeightBuffer = mesh.boneWeightBuffer.data;
+			for (TSpan buffer : boneWeightBuffers)
+			{
+				MemoryCopy(boneWeightBuffer, buffer.data, buffer.length);
+				boneWeightBuffer += buffer.length;
 			}
 
 			mesh.indexBuffer = arena.Push<uint8>(indexBufferSize);

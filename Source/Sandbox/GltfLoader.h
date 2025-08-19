@@ -17,6 +17,8 @@ namespace Bk
 	{
 		TSpan<MeshSection> sections;
 		TSpan<uint8> positionBuffer;
+		TSpan<uint8> boneIndexBuffer;
+		TSpan<uint8> boneWeightBuffer;
 		TSpan<uint8> indexBuffer;
 	};
 
