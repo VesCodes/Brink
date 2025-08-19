@@ -104,6 +104,19 @@ namespace Bk
 		deviceDesc.deviceLostCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
 		deviceDesc.deviceLostCallbackInfo.callback = OnDeviceLost;
 
+#if !BK_PLATFORM_EMSCRIPTEN
+		const char* enabledToggles[] = {
+			"use_user_defined_labels_in_backend",
+		};
+
+		WGPUDawnTogglesDescriptor dawnTogglesDesc = {};
+		dawnTogglesDesc.chain.sType = WGPUSType_DawnTogglesDescriptor;
+		dawnTogglesDesc.enabledToggles = enabledToggles;
+		dawnTogglesDesc.enabledToggleCount = BK_ARRAY_COUNT(enabledToggles);
+
+		deviceDesc.nextInChain = &dawnTogglesDesc.chain;
+#endif
+
 		wgpuAdapterRequestDevice(gpuContext.adapter, &deviceDesc, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnDeviceAcquired });
 	}
 
