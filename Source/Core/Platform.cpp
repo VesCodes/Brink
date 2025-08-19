@@ -1513,14 +1513,14 @@ namespace Bk
 		{
 			AppEvent appEvent = {};
 			appEvent.type = AppEventType::WindowResize;
-
-			// #TODO: Notify all windows; update usage to check target
-			// appEvent.target = ...;
-
 			appEvent.windowWidth = event->windowInnerWidth;
 			appEvent.windowHeight = event->windowInnerHeight;
 
-			result = ProcessAppEvent(appEvent);
+			for (Window* window : platformContext.windows)
+			{
+				appEvent.target = platformContext.windows.GetHandle(window);
+				result |= ProcessAppEvent(appEvent);
+			}
 		}
 
 		return result;

@@ -345,11 +345,14 @@ bool OnAppEvent(const AppEvent& appEvent)
 
 		case AppEventType::WindowResize:
 		{
-			uint32 surfaceWidth, surfaceHeight;
-			if (GetWindowSurfaceSize(state.window, surfaceWidth, surfaceHeight))
+			if (appEvent.target == state.window)
 			{
-				ConfigureSurface(state.surface, { .width = surfaceWidth, .height = surfaceHeight });
-				result = true;
+				uint32 surfaceWidth, surfaceHeight;
+				if (GetWindowSurfaceSize(state.window, surfaceWidth, surfaceHeight))
+				{
+					ConfigureSurface(state.surface, { .width = surfaceWidth, .height = surfaceHeight });
+					result = true;
+				}
 			}
 
 			break;
