@@ -17,6 +17,8 @@ struct MeshProxy
 {
 	TSpan<MeshSection> sections;
 	uint32 vertexBuffer;
+	uint32 boneIndexBuffer;
+	uint32 boneWeightBuffer;
 	uint32 indexBuffer;
 };
 
@@ -39,6 +41,7 @@ struct
 
 	HMM_Vec3 cameraPosition;
 	HMM_Quat cameraOrientation;
+	float cameraSpeed;
 } state;
 
 bool IsKeyDown(KeyCode keyCode)
@@ -58,6 +61,8 @@ void LoadGlb(uint8* data, size_t length)
 
 	state.meshProxies = {};
 
+	StringBuilder resourceNameBuilder(scratch.arena);
+
 	TSpan<Mesh> meshes;
 	if (LoadGlbMeshes(scratch.arena, TSpan(data, length), meshes))
 	{
@@ -70,12 +75,38 @@ void LoadGlb(uint8* data, size_t length)
 			meshProxy.sections = state.arena.Push<MeshSection>(mesh.sections.length);
 			MemoryCopy(meshProxy.sections.data, mesh.sections.data, mesh.sections.length * sizeof(MeshSection));
 
+			resourceNameBuilder.Reset();
+			resourceNameBuilder.Appendf("Mesh%02d_VertexBuffer", meshIdx);
+
 			meshProxy.vertexBuffer = CreateBuffer({
+				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
 				.data = mesh.positionBuffer,
 			});
 
+			resourceNameBuilder.Reset();
+			resourceNameBuilder.Appendf("Mesh%02d_BoneIndexBuffer", meshIdx);
+
+			meshProxy.boneIndexBuffer = CreateBuffer({
+				.name = resourceNameBuilder.ToString(scratch.arena),
+				.type = GpuBufferType::Vertex,
+				.data = mesh.boneIndexBuffer,
+			});
+
+			resourceNameBuilder.Reset();
+			resourceNameBuilder.Appendf("Mesh%02d_BoneWeightBuffer", meshIdx);
+
+			meshProxy.boneWeightBuffer = CreateBuffer({
+				.name = resourceNameBuilder.ToString(scratch.arena),
+				.type = GpuBufferType::Vertex,
+				.data = mesh.boneWeightBuffer,
+			});
+
+			resourceNameBuilder.Reset();
+			resourceNameBuilder.Appendf("Mesh%02d_IndexBuffer", meshIdx);
+
 			meshProxy.indexBuffer = CreateBuffer({
+				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Index,
 				.data = mesh.indexBuffer,
 			});
@@ -100,8 +131,9 @@ void Initialize()
 
 	state.cameraPosition = HMM_V3(0, 1, 4);
 	state.cameraOrientation = HMM_Q(0, 0, 0, 1);
+	state.cameraSpeed = 0.025f;
 
-	if (FileHandle fileHandle = OpenFile("Assets/Knight.glb", FileAccess::Read))
+	if (FileHandle fileHandle = OpenFile("Assets/Hiker.glb", FileAccess::Read))
 	{
 		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
 		if (ReadFile(fileHandle, fileData) == fileData.length)
@@ -140,6 +172,18 @@ void Initialize()
 					.stride = 12,
 					.attributes = {
 						{ .offset = 0, .format = GpuVertexFormat::Float32x3 },
+					},
+				},
+				{
+					.stride = 4,
+					.attributes = {
+						{ .offset = 0, .format = GpuVertexFormat::Uint8x4 },
+					},
+				},
+				{
+					.stride = 16,
+					.attributes = {
+						{ .offset = 0, .format = GpuVertexFormat::Float32x4 },
 					},
 				},
 			},
@@ -185,9 +229,6 @@ bool OnAppUpdate()
 
 	if (IsKeyDown(KeyCode::RightMouseButton))
 	{
-		float cameraMoveSpeed = 0.05f;
-		float cameraRotateSpeed = 0.25f;
-
 		HMM_Vec3 cameraMove = HMM_V3(0, 0, 0);
 
 		if (IsKeyDown(KeyCode::W))
@@ -212,12 +253,12 @@ bool OnAppUpdate()
 
 		if (IsKeyDown(KeyCode::Q))
 		{
-			state.cameraPosition.Y -= cameraMoveSpeed;
+			state.cameraPosition.Y -= state.cameraSpeed;
 		}
 
 		if (IsKeyDown(KeyCode::E))
 		{
-			state.cameraPosition.Y += cameraMoveSpeed;
+			state.cameraPosition.Y += state.cameraSpeed;
 		}
 
 		if (state.mouseDelta.X != 0 || state.mouseDelta.Y != 0)
@@ -227,7 +268,7 @@ bool OnAppUpdate()
 				HMM_Vec3 worldUp = HMM_V3(0, 1, 0);
 				HMM_Vec3 cameraUp = HMM_RotateV3Q(worldUp, state.cameraOrientation);
 
-				float yawAngle = -state.mouseDelta.X * cameraRotateSpeed * (HMM_DotV3(worldUp, cameraUp) < 0 ? -1.0f : 1.0f);
+				float yawAngle = -state.mouseDelta.X * 0.25f * (HMM_DotV3(worldUp, cameraUp) < 0 ? -1.0f : 1.0f);
 				HMM_Quat yawRotation = HMM_QFromAxisAngle_RH(HMM_V3(0, 1, 0), yawAngle);
 
 				state.cameraOrientation = yawRotation * state.cameraOrientation;
@@ -235,7 +276,7 @@ bool OnAppUpdate()
 
 			if (state.mouseDelta.Y != 0)
 			{
-				float pitchAngle = -state.mouseDelta.Y * cameraRotateSpeed;
+				float pitchAngle = -state.mouseDelta.Y * 0.25f;
 				HMM_Quat pitchRotation = HMM_QFromAxisAngle_RH(HMM_V3(1, 0, 0), pitchAngle);
 
 				state.cameraOrientation = state.cameraOrientation * pitchRotation;
@@ -247,7 +288,7 @@ bool OnAppUpdate()
 		if (cameraMove.X != 0 || cameraMove.Z != 0)
 		{
 			cameraMove = HMM_NormV3(cameraMove);
-			state.cameraPosition += HMM_RotateV3Q(cameraMove, state.cameraOrientation) * cameraMoveSpeed;
+			state.cameraPosition += HMM_RotateV3Q(cameraMove, state.cameraOrientation) * state.cameraSpeed;
 		}
 	}
 
@@ -271,7 +312,11 @@ bool OnAppUpdate()
 		{
 			Draw({
 				.pipeline = state.testPipeline,
-				.vertexBuffers = { meshProxy.vertexBuffer },
+				.vertexBuffers = {
+					meshProxy.vertexBuffer,
+					meshProxy.boneIndexBuffer,
+					meshProxy.boneWeightBuffer,
+				},
 				.indexBuffer = meshProxy.indexBuffer,
 				.bindingGroups = {
 					state.testBindingGroup,
@@ -320,6 +365,13 @@ bool OnAppEvent(const AppEvent& appEvent)
 			HMM_Vec2 mousePosition = HMM_V2(appEvent.mouseX, appEvent.mouseY);
 			state.mouseDelta += (mousePosition - state.mousePosition);
 			state.mousePosition = mousePosition;
+
+			break;
+		}
+
+		case AppEventType::MouseWheel:
+		{
+			state.cameraSpeed = Clamp(state.cameraSpeed + appEvent.wheelDelta * 0.0025f, 0.0001f, 2.0f);
 
 			break;
 		}
