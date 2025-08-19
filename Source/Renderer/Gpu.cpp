@@ -109,10 +109,10 @@ namespace Bk
 
 	void GpuInitialize()
 	{
-		gpuContext.pipelines.Initialize(gpuContext.arena, 32);
-		gpuContext.buffers.Initialize(gpuContext.arena, 32);
-		gpuContext.bindingLayouts.Initialize(gpuContext.arena, 32);
-		gpuContext.bindingGroups.Initialize(gpuContext.arena, 32);
+		gpuContext.pipelines.Initialize(gpuContext.arena, 512);
+		gpuContext.buffers.Initialize(gpuContext.arena, 512);
+		gpuContext.bindingLayouts.Initialize(gpuContext.arena, 512);
+		gpuContext.bindingGroups.Initialize(gpuContext.arena, 512);
 		gpuContext.surfaces.Initialize(gpuContext.arena, 32);
 
 		gpuContext.instance = wgpuCreateInstance(nullptr);
@@ -217,6 +217,7 @@ namespace Bk
 			pipelineDesc.vertex.buffers = vertexBuffers;
 			pipelineDesc.vertex.bufferCount = vertexBuffers.length;
 
+			uint32 attributeLocation = 0;
 			for (size_t bufferIdx = 0; bufferIdx < vertexBuffers.length; ++bufferIdx)
 			{
 				WGPUVertexBufferLayout& buffer = vertexBuffers[bufferIdx];
@@ -235,7 +236,7 @@ namespace Bk
 
 					attribute.format = WgpuConvert(attributeDesc.format);
 					attribute.offset = attributeDesc.offset;
-					attribute.shaderLocation = attributeIdx;
+					attribute.shaderLocation = attributeLocation++;
 				}
 			}
 		}
@@ -692,10 +693,10 @@ namespace Bk
 			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
 		}
 
-		if (desc.vertexBuffer)
+		for (size_t bufferIdx = 0; bufferIdx < desc.vertexBuffers.length; ++bufferIdx)
 		{
-			GpuBuffer* buffer = gpuContext.buffers.Get(desc.vertexBuffer);
-			wgpuRenderPassEncoderSetVertexBuffer(gpuContext.renderPassEncoder, 0, buffer->handle, 0, buffer->size);
+			GpuBuffer* buffer = gpuContext.buffers.Get(desc.vertexBuffers[bufferIdx]);
+			wgpuRenderPassEncoderSetVertexBuffer(gpuContext.renderPassEncoder, bufferIdx, buffer->handle, 0, buffer->size);
 		}
 
 		if (desc.indexBuffer)

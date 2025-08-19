@@ -144,7 +144,7 @@ namespace Bk
 	struct GpuDrawDesc
 	{
 		uint32 pipeline;
-		uint32 vertexBuffer;
+		TSpan<uint32> vertexBuffers;
 		uint32 indexBuffer;
 		TSpan<uint32> bindingGroups;
 

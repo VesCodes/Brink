@@ -271,7 +271,7 @@ bool OnAppUpdate()
 		{
 			Draw({
 				.pipeline = state.testPipeline,
-				.vertexBuffer = meshProxy.vertexBuffer,
+				.vertexBuffers = { meshProxy.vertexBuffer },
 				.indexBuffer = meshProxy.indexBuffer,
 				.bindingGroups = {
 					state.testBindingGroup,
