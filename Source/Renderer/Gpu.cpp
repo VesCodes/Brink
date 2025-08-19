@@ -138,6 +138,12 @@ namespace Bk
 	{
 		switch (value)
 		{
+			case GpuVertexFormat::Uint8: return WGPUVertexFormat_Uint8;
+			case GpuVertexFormat::Uint8x2: return WGPUVertexFormat_Uint8x2;
+			case GpuVertexFormat::Uint8x4: return WGPUVertexFormat_Uint8x4;
+			case GpuVertexFormat::Uint16: return WGPUVertexFormat_Uint16;
+			case GpuVertexFormat::Uint16x2: return WGPUVertexFormat_Uint16x2;
+			case GpuVertexFormat::Uint16x4: return WGPUVertexFormat_Uint16x4;
 			case GpuVertexFormat::Float32: return WGPUVertexFormat_Float32;
 			case GpuVertexFormat::Float32x2: return WGPUVertexFormat_Float32x2;
 			case GpuVertexFormat::Float32x3: return WGPUVertexFormat_Float32x3;

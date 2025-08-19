@@ -9,6 +9,12 @@ namespace Bk
 	enum class GpuVertexFormat : uint8
 	{
 		// #TODO: WGPUVertexFormat
+		Uint8,
+		Uint8x2,
+		Uint8x4,
+		Uint16,
+		Uint16x2,
+		Uint16x4,
 		Float32,
 		Float32x2,
 		Float32x3,
