@@ -30,6 +30,7 @@ namespace Bk
 		MouseWheel,
 		DropFile,
 		WindowResize,
+		WindowClose,
 	};
 
 	struct AppEvent

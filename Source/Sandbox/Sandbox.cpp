@@ -170,9 +170,11 @@ void Initialize()
 
 bool OnAppUpdate()
 {
+	bool result = state.window != 0;
+
 	if (!BeginFrame())
 	{
-		return true;
+		return result;
 	}
 
 	if (!state.initialized)
@@ -290,7 +292,7 @@ bool OnAppUpdate()
 
 	state.mouseDelta = HMM_V2(0, 0);
 
-	return true;
+	return result;
 }
 
 bool OnAppEvent(const AppEvent& appEvent)
@@ -335,7 +337,10 @@ bool OnAppEvent(const AppEvent& appEvent)
 				}
 
 				CloseFile(fileHandle);
+				result = true;
 			}
+
+			break;
 		}
 
 		case AppEventType::WindowResize:
@@ -343,13 +348,22 @@ bool OnAppEvent(const AppEvent& appEvent)
 			uint32 surfaceWidth, surfaceHeight;
 			if (GetWindowSurfaceSize(state.window, surfaceWidth, surfaceHeight))
 			{
-				ConfigureSurface(
-					state.surface,
-					{
-						.width = surfaceWidth,
-						.height = surfaceHeight,
-					});
+				ConfigureSurface(state.surface, { .width = surfaceWidth, .height = surfaceHeight });
+				result = true;
 			}
+
+			break;
+		}
+
+		case AppEventType::WindowClose:
+		{
+			if (appEvent.target == state.window)
+			{
+				state.window = 0;
+				result = true;
+			}
+
+			break;
 		}
 
 		default: break;

@@ -534,11 +534,12 @@ namespace Bk
 			result.createdTime = ConvertFileTime(fileInfo.ftCreationTime);
 			result.modifiedTime = ConvertFileTime(fileInfo.ftLastWriteTime);
 
-			if (fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			if ((fileInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
 			{
 				result.attributes |= FileAttributes::Directory;
 			}
-			if (fileInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
+
+			if ((fileInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0)
 			{
 				result.attributes |= FileAttributes::ReadOnly;
 			}
@@ -586,11 +587,12 @@ namespace Bk
 			result.createdTime = ConvertFileTime(findInfo.ftCreationTime);
 			result.modifiedTime = ConvertFileTime(findInfo.ftLastWriteTime);
 
-			if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+			if ((findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
 			{
 				result.attributes |= FileAttributes::Directory;
 			}
-			if (findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
+
+			if ((findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0)
 			{
 				result.attributes |= FileAttributes::ReadOnly;
 			}
@@ -819,12 +821,12 @@ namespace Bk
 				entry.properties.createdTime = ConvertFileTime(iterator->findInfo.ftCreationTime);
 				entry.properties.modifiedTime = ConvertFileTime(iterator->findInfo.ftLastWriteTime);
 
-				if (iterator->findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+				if ((iterator->findInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
 				{
 					entry.properties.attributes |= FileAttributes::Directory;
 				}
 
-				if (iterator->findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY)
+				if ((iterator->findInfo.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0)
 				{
 					entry.properties.attributes |= FileAttributes::ReadOnly;
 				}
@@ -1157,6 +1159,17 @@ namespace Bk
 				return 0;
 			}
 
+			case WM_CLOSE:
+			{
+				AppEvent appEvent = {};
+				appEvent.type = AppEventType::WindowClose;
+				appEvent.target = platformContext.windows.GetHandle(window);
+
+				ProcessAppEvent(appEvent);
+
+				break;
+			}
+
 			case WM_KEYDOWN:
 			case WM_SYSKEYDOWN:
 			case WM_KEYUP:
@@ -1165,7 +1178,7 @@ namespace Bk
 				uint16 flags = HIWORD(lParam);
 
 				uint32 scanCode = LOBYTE(flags);
-				if ((flags & KF_EXTENDED) == KF_EXTENDED)
+				if ((flags & KF_EXTENDED) != 0)
 				{
 					// NumLock/Clear comes through as 0xE045, keep as 0x45
 					if (scanCode != 0x45)
@@ -1545,7 +1558,7 @@ namespace Bk
 		}
 
 		uint32 handle = 0;
-		Window* window = platformContext.windows.AllocateItem(&handle);
+		Window* window = platformContext.windows.Acquire(&handle);
 
 		if (window)
 		{
@@ -1616,7 +1629,7 @@ namespace Bk
 
 	void DestroyWindow(uint32 handle)
 	{
-		Window* window = platformContext.windows.GetItem(handle);
+		Window* window = platformContext.windows.Get(handle);
 		if (window)
 		{
 #if BK_PLATFORM_WINDOWS
@@ -1638,7 +1651,7 @@ namespace Bk
 			}, window->target);
 #endif
 
-			platformContext.windows.FreeItem(handle);
+			platformContext.windows.Release(handle);
 		}
 	}
 
@@ -1646,7 +1659,7 @@ namespace Bk
 	{
 		void* result = nullptr;
 
-		Window* window = platformContext.windows.GetItem(handle);
+		Window* window = platformContext.windows.Get(handle);
 		if (window)
 		{
 #if BK_PLATFORM_WINDOWS
@@ -1663,7 +1676,7 @@ namespace Bk
 	{
 		bool result = false;
 
-		Window* window = platformContext.windows.GetItem(handle);
+		Window* window = platformContext.windows.Get(handle);
 		if (window)
 		{
 #if BK_PLATFORM_WINDOWS

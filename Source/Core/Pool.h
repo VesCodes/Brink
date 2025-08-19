@@ -12,13 +12,13 @@ namespace Bk
 
 		void Initialize(Arena& arena, uint16 size);
 
-		Type* AllocateItem(uint32* handle = nullptr);
-		void FreeItem(uint32 handle);
+		Type* Acquire(uint32* handle = nullptr);
+		void Release(uint32 handle);
 
-		uint32 GetHandle(Type* item);
-		Type* GetItem(uint32 handle);
+		Type* Get(uint32 handle);
+		uint32 GetHandle(Type* slot);
 
-		Type* items;
+		Type* slots;
 		uint16* generations;
 		uint32* alive;
 		uintptr_t nextFree;
@@ -35,34 +35,34 @@ namespace Bk
 		capacity = size;
 		count = 0;
 
-		items = arena.Push<Type>(capacity);
+		slots = arena.Push<Type>(capacity);
 		generations = arena.PushZeroed<uint16>(capacity);
 		alive = arena.PushZeroed<uint32>((capacity + 31) / 32);
 		nextFree = 0;
 	}
 
 	template<typename Type>
-	Type* TPool<Type>::AllocateItem(uint32* handle)
+	Type* TPool<Type>::Acquire(uint32* handle)
 	{
-		Type* item = nullptr;
+		Type* slot = nullptr;
 		size_t index;
 
 		if (nextFree)
 		{
-			item = reinterpret_cast<Type*>(nextFree);
-			index = static_cast<size_t>(item - items);
+			slot = reinterpret_cast<Type*>(nextFree);
+			index = static_cast<size_t>(slot - slots);
 
 			nextFree = *reinterpret_cast<uintptr_t*>(nextFree);
 		}
 		else if (count < capacity)
 		{
-			item = items + count;
+			slot = slots + count;
 			index = count;
 
 			count += 1;
 		}
 
-		if (item)
+		if (slot)
 		{
 			uint16& generation = generations[index];
 			if (generation == 0)
@@ -78,11 +78,11 @@ namespace Bk
 			}
 		}
 
-		return item;
+		return slot;
 	}
 
 	template<typename Type>
-	void TPool<Type>::FreeItem(uint32 handle)
+	void TPool<Type>::Release(uint32 handle)
 	{
 		size_t index = handle & 0xFFFF;
 		BK_ASSERT(index < count);
@@ -93,24 +93,13 @@ namespace Bk
 		generations[index] += 1;
 		BitsetUnset(alive, index);
 
-		Type* item = items + index;
-		*reinterpret_cast<uintptr_t*>(item) = nextFree;
-		nextFree = reinterpret_cast<uintptr_t>(item);
+		Type* slot = slots + index;
+		*reinterpret_cast<uintptr_t*>(slot) = nextFree;
+		nextFree = reinterpret_cast<uintptr_t>(slot);
 	}
 
 	template<typename Type>
-	uint32 TPool<Type>::GetHandle(Type* item)
-	{
-		size_t index = item - items;
-		BK_ASSERT(index < count);
-
-		uint16 generation = generations[index];
-
-		return (static_cast<uint32>(generation) << 16) | index;
-	}
-
-	template<typename Type>
-	Type* TPool<Type>::GetItem(uint32 handle)
+	Type* TPool<Type>::Get(uint32 handle)
 	{
 		size_t index = handle & 0xFFFF;
 		BK_ASSERT(index < count);
@@ -118,6 +107,17 @@ namespace Bk
 		uint16 generation = handle >> 16;
 		BK_ASSERT(generation == generations[index]);
 
-		return items + index;
+		return slots + index;
+	}
+
+	template<typename Type>
+	uint32 TPool<Type>::GetHandle(Type* slot)
+	{
+		size_t index = slot - slots;
+		BK_ASSERT(index < count);
+
+		uint16 generation = generations[index];
+
+		return (static_cast<uint32>(generation) << 16) | index;
 	}
 }

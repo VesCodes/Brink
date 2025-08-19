@@ -272,7 +272,7 @@ namespace Bk
 
 			for (size_t layoutIdx = 0; layoutIdx < bindingLayouts.length; ++layoutIdx)
 			{
-				bindingLayouts[layoutIdx] = gpuContext.bindingLayouts.GetItem(desc.bindingLayouts[layoutIdx])->handle;
+				bindingLayouts[layoutIdx] = gpuContext.bindingLayouts.Get(desc.bindingLayouts[layoutIdx])->handle;
 			}
 
 			pipelineDesc.layout = wgpuDeviceCreatePipelineLayout(gpuContext.device, &pipelineLayoutDesc);
@@ -298,7 +298,7 @@ namespace Bk
 		uint32 pipelineHandle = 0;
 		if (pipeline)
 		{
-			GpuPipeline* pipelineWrapper = gpuContext.pipelines.AllocateItem(&pipelineHandle);
+			GpuPipeline* pipelineWrapper = gpuContext.pipelines.Acquire(&pipelineHandle);
 			pipelineWrapper->handle = pipeline;
 			pipelineWrapper->indexFormat = WgpuConvert(desc.indexFormat);
 		}
@@ -308,11 +308,11 @@ namespace Bk
 
 	void DestroyPipeline(uint32 handle)
 	{
-		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(handle);
+		GpuPipeline* pipeline = gpuContext.pipelines.Get(handle);
 		if (pipeline)
 		{
 			wgpuRenderPipelineRelease(pipeline->handle);
-			gpuContext.pipelines.FreeItem(handle);
+			gpuContext.pipelines.Release(handle);
 		}
 	}
 
@@ -355,7 +355,7 @@ namespace Bk
 		uint32 bufferHandle = 0;
 		if (buffer)
 		{
-			GpuBuffer* bufferWrapper = gpuContext.buffers.AllocateItem(&bufferHandle);
+			GpuBuffer* bufferWrapper = gpuContext.buffers.Acquire(&bufferHandle);
 			bufferWrapper->handle = buffer;
 			bufferWrapper->size = bufferSize;
 		}
@@ -365,7 +365,7 @@ namespace Bk
 
 	void WriteBuffer(uint32 handle, TSpan<uint8> data, uint64 offset)
 	{
-		GpuBuffer* buffer = gpuContext.buffers.GetItem(handle);
+		GpuBuffer* buffer = gpuContext.buffers.Get(handle);
 		if (buffer)
 		{
 			wgpuQueueWriteBuffer(gpuContext.queue, buffer->handle, offset, data.data, data.length);
@@ -374,11 +374,11 @@ namespace Bk
 
 	void DestroyBuffer(uint32 handle)
 	{
-		GpuBuffer* buffer = gpuContext.buffers.GetItem(handle);
+		GpuBuffer* buffer = gpuContext.buffers.Get(handle);
 		if (buffer)
 		{
 			wgpuBufferRelease(buffer->handle);
-			gpuContext.buffers.FreeItem(handle);
+			gpuContext.buffers.Release(handle);
 		}
 	}
 
@@ -411,7 +411,7 @@ namespace Bk
 		uint32 bindingLayoutHandle = 0;
 		if (bindingLayout)
 		{
-			GpuBindingLayout* bindingLayoutWrapper = gpuContext.bindingLayouts.AllocateItem(&bindingLayoutHandle);
+			GpuBindingLayout* bindingLayoutWrapper = gpuContext.bindingLayouts.Acquire(&bindingLayoutHandle);
 			bindingLayoutWrapper->handle = bindingLayout;
 		}
 
@@ -420,11 +420,11 @@ namespace Bk
 
 	void DestroyBindingLayout(uint32 handle)
 	{
-		GpuBindingLayout* bindingLayout = gpuContext.bindingLayouts.GetItem(handle);
+		GpuBindingLayout* bindingLayout = gpuContext.bindingLayouts.Get(handle);
 		if (bindingLayout)
 		{
 			wgpuBindGroupLayoutRelease(bindingLayout->handle);
-			gpuContext.bindingLayouts.FreeItem(handle);
+			gpuContext.bindingLayouts.Release(handle);
 		}
 	}
 
@@ -434,7 +434,7 @@ namespace Bk
 
 		WGPUBindGroupDescriptor bindingGroupDesc = {};
 		bindingGroupDesc.label = WgpuConvert(desc.name);
-		bindingGroupDesc.layout = gpuContext.bindingLayouts.GetItem(desc.bindingLayout)->handle;
+		bindingGroupDesc.layout = gpuContext.bindingLayouts.Get(desc.bindingLayout)->handle;
 
 		TSpan<WGPUBindGroupEntry> bindings = scratch.arena.PushZeroed<WGPUBindGroupEntry>(desc.bindings.length);
 
@@ -447,7 +447,7 @@ namespace Bk
 			const GpuBindingGroupEntry& bindingDesc = desc.bindings[bindingIdx];
 
 			binding.binding = bindingIdx;
-			if (const GpuBuffer* buffer = gpuContext.buffers.GetItem(bindingDesc.buffer))
+			if (const GpuBuffer* buffer = gpuContext.buffers.Get(bindingDesc.buffer))
 			{
 				BK_ASSERT(bindingDesc.bufferOffset < buffer->size);
 				binding.buffer = buffer->handle;
@@ -461,7 +461,7 @@ namespace Bk
 		uint32 bindingGroupHandle = 0;
 		if (bindingGroup)
 		{
-			GpuBindingGroup* bindingGroupWrapper = gpuContext.bindingGroups.AllocateItem(&bindingGroupHandle);
+			GpuBindingGroup* bindingGroupWrapper = gpuContext.bindingGroups.Acquire(&bindingGroupHandle);
 			bindingGroupWrapper->handle = bindingGroup;
 		}
 
@@ -470,11 +470,11 @@ namespace Bk
 
 	void DestroyBindingGroup(uint32 handle)
 	{
-		GpuBindingGroup* bindingGroup = gpuContext.bindingGroups.GetItem(handle);
+		GpuBindingGroup* bindingGroup = gpuContext.bindingGroups.Get(handle);
 		if (bindingGroup)
 		{
 			wgpuBindGroupRelease(bindingGroup->handle);
-			gpuContext.bindingGroups.FreeItem(handle);
+			gpuContext.bindingGroups.Release(handle);
 		}
 	}
 
@@ -507,7 +507,7 @@ namespace Bk
 		uint32 surfaceHandle = 0;
 		if (surface)
 		{
-			GpuSurface* surfaceWrapper = gpuContext.surfaces.AllocateItem(&surfaceHandle);
+			GpuSurface* surfaceWrapper = gpuContext.surfaces.Acquire(&surfaceHandle);
 			surfaceWrapper->handle = surface;
 
 			ConfigureSurface(surfaceHandle, desc);
@@ -518,7 +518,7 @@ namespace Bk
 
 	void ConfigureSurface(uint32 handle, const GpuSurfaceDesc& desc)
 	{
-		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
+		GpuSurface* surface = gpuContext.surfaces.Get(handle);
 		if (surface)
 		{
 			WGPUSurfaceCapabilities surfaceCaps = {};
@@ -566,7 +566,7 @@ namespace Bk
 	void PresentSurface(uint32 handle)
 	{
 #if !BK_PLATFORM_EMSCRIPTEN
-		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
+		GpuSurface* surface = gpuContext.surfaces.Get(handle);
 		if (surface)
 		{
 			wgpuSurfacePresent(surface->handle);
@@ -576,7 +576,7 @@ namespace Bk
 
 	void DestroySurface(uint32 handle)
 	{
-		GpuSurface* surface = gpuContext.surfaces.GetItem(handle);
+		GpuSurface* surface = gpuContext.surfaces.Get(handle);
 		if (surface)
 		{
 			if (surface->depthTextureView)
@@ -592,7 +592,7 @@ namespace Bk
 			}
 
 			wgpuSurfaceRelease(surface->handle);
-			gpuContext.surfaces.FreeItem(handle);
+			gpuContext.surfaces.Release(handle);
 		}
 	}
 
@@ -635,7 +635,7 @@ namespace Bk
 		WGPUTextureView colorTextureView = nullptr;
 		WGPUTextureView depthTextureView = nullptr;
 
-		if (GpuSurface* surface = gpuContext.surfaces.GetItem(desc.surface))
+		if (GpuSurface* surface = gpuContext.surfaces.Get(desc.surface))
 		{
 			WGPUSurfaceTexture surfaceTexture = {};
 			wgpuSurfaceGetCurrentTexture(surface->handle, &surfaceTexture);
@@ -683,24 +683,24 @@ namespace Bk
 		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
 		BK_ASSERT(desc.pipeline);
 
-		GpuPipeline* pipeline = gpuContext.pipelines.GetItem(desc.pipeline);
+		GpuPipeline* pipeline = gpuContext.pipelines.Get(desc.pipeline);
 		wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
 
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
-			GpuBindingGroup* group = gpuContext.bindingGroups.GetItem(desc.bindingGroups[groupIdx]);
+			GpuBindingGroup* group = gpuContext.bindingGroups.Get(desc.bindingGroups[groupIdx]);
 			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
 		}
 
 		if (desc.vertexBuffer)
 		{
-			GpuBuffer* buffer = gpuContext.buffers.GetItem(desc.vertexBuffer);
+			GpuBuffer* buffer = gpuContext.buffers.Get(desc.vertexBuffer);
 			wgpuRenderPassEncoderSetVertexBuffer(gpuContext.renderPassEncoder, 0, buffer->handle, 0, buffer->size);
 		}
 
 		if (desc.indexBuffer)
 		{
-			GpuBuffer* buffer = gpuContext.buffers.GetItem(desc.indexBuffer);
+			GpuBuffer* buffer = gpuContext.buffers.Get(desc.indexBuffer);
 			wgpuRenderPassEncoderSetIndexBuffer(gpuContext.renderPassEncoder, buffer->handle, pipeline->indexFormat, 0, buffer->size);
 
 			wgpuRenderPassEncoderDrawIndexed(
