@@ -8,7 +8,8 @@
 #include "Core/Application.cpp"
 #include "Core/Core.cpp"
 #include "Core/Memory.cpp"
-#include "Core/Platform.cpp"
+#include "Core/PlatformMacOS.cpp"
+#include "Core/PlatformWindows.cpp"
 #include "Core/String.cpp"
 #endif
 
