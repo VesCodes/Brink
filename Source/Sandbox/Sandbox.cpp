@@ -33,9 +33,9 @@ struct
 
 	bool initialized;
 	uint32 surface;
-	uint32 testPipeline;
-	uint32 testUniformBuffer;
-	uint32 testBindingGroup;
+	uint32 meshPipeline;
+	uint32 globalUniformBuffer;
+	uint32 globalBindingGroup;
 
 	TSpan<MeshProxy> meshProxies;
 
@@ -156,15 +156,15 @@ void Initialize()
 		CloseFile(fileHandle);
 	}
 
-	uint32 testBindingLayout = CreateBindingLayout({
-		.name = "Test Binding Layout",
+	uint32 globalBindingLayout = CreateBindingLayout({
+		.name = "Global Binding Layout",
 		.bindings = {
 			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex },
 		},
 	});
 
-	state.testPipeline = CreatePipeline({
-		.name = "Test Pipeline",
+	state.meshPipeline = CreatePipeline({
+		.name = "Mesh Pipeline",
 		.vertexShader = {
 			.code = shaderCode,
 			.buffers = {
@@ -192,22 +192,22 @@ void Initialize()
 			.code = shaderCode,
 		},
 		.bindingLayouts = {
-			testBindingLayout,
+			globalBindingLayout,
 		},
 	});
 
-	state.testUniformBuffer = CreateBuffer({
-		.name = "Test Uniform Buffer",
+	state.globalUniformBuffer = CreateBuffer({
+		.name = "Global Uniform Buffer",
 		.type = GpuBufferType::Uniform,
 		.access = GpuBufferAccess::GpuOnly,
 		.size = sizeof(HMM_Mat4),
 	});
 
-	state.testBindingGroup = CreateBindingGroup({
-		.name = "Test Binding Group",
-		.bindingLayout = testBindingLayout,
+	state.globalBindingGroup = CreateBindingGroup({
+		.name = "Global Binding Group",
+		.bindingLayout = globalBindingLayout,
 		.bindings = {
-			{ .buffer = state.testUniformBuffer },
+			{ .buffer = state.globalUniformBuffer },
 		},
 	});
 }
@@ -298,7 +298,7 @@ bool OnAppUpdate()
 
 	HMM_Mat4 mvp = proj * view * model;
 
-	WriteBuffer(state.testUniformBuffer, TSpan((uint8*)mvp.Elements, sizeof(mvp)));
+	WriteBuffer(state.globalUniformBuffer, TSpan((uint8*)mvp.Elements, sizeof(mvp)));
 
 	BeginPass({
 		.name = "Sandbox Pass",
@@ -311,7 +311,7 @@ bool OnAppUpdate()
 		for (const MeshSection& meshSection : meshProxy.sections)
 		{
 			Draw({
-				.pipeline = state.testPipeline,
+				.pipeline = state.meshPipeline,
 				.vertexBuffers = {
 					meshProxy.vertexBuffer,
 					meshProxy.boneIndexBuffer,
@@ -319,7 +319,7 @@ bool OnAppUpdate()
 				},
 				.indexBuffer = meshProxy.indexBuffer,
 				.bindingGroups = {
-					state.testBindingGroup,
+					state.globalBindingGroup,
 				},
 				.vertexOffset = static_cast<uint32>(meshSection.vertexOffset),
 				.indexOffset = static_cast<uint32>(meshSection.indexOffset),
