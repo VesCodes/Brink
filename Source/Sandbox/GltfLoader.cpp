@@ -53,11 +53,59 @@ namespace Bk
 		int32 byteLength;
 	};
 
+	struct GltfNode
+	{
+		String name;
+		TSpan<int32> children;
+		int32 mesh;
+		int32 skin;
+		HMM_Vec3 translation;
+		HMM_Quat rotation;
+		HMM_Vec3 scale;
+	};
+
 	struct GltfSkin
 	{
+		String name;
 		int32 inverseBindMatrices;
 		int32 skeleton;
 		TSpan<int32> joints;
+	};
+
+	enum class GltfAnimationTarget : uint8
+	{
+		Translation,
+		Rotation,
+		Scale,
+		Weights,
+	};
+
+	struct GltfAnimationChannel
+	{
+		int32 sampler;
+		int32 node;
+		GltfAnimationTarget target;
+	};
+
+	enum class GltfAnimationInterpolation : uint8
+	{
+		Linear,
+		Step,
+		CubicSpline,
+	};
+
+	struct GltfAnimationSampler
+	{
+		int32 input;
+		int32 output;
+		GltfAnimationInterpolation interpolation;
+	};
+
+	struct GltfAnimation
+	{
+		String name;
+		TSpan<GltfAnimationChannel> channels;
+		TSpan<GltfAnimationSampler> samplers;
 	};
 
 	struct GltfAsset
@@ -68,7 +116,9 @@ namespace Bk
 		TSpan<GltfAccessor> accessors;
 		TSpan<GltfBufferView> bufferViews;
 		TSpan<GltfBuffer> buffers;
+		TSpan<GltfNode> nodes;
 		TSpan<GltfSkin> skins;
+		TSpan<GltfAnimation> animations;
 	};
 
 	int32 GetComponentTypeSize(GltfComponentType componentType)
@@ -199,9 +249,94 @@ namespace Bk
 		return result;
 	}
 
+	GltfNode ParseNode(Arena& arena, JsonValue* node)
+	{
+		GltfNode result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(node, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* children = FindJsonValueInObject(node, "children"))
+		{
+			result.children = arena.Push<int32>(children->children);
+
+			size_t childIdx = 0;
+			for (JsonValue* child = FindJsonValueInArray(children, 0); child; child = child->sibling, ++childIdx)
+			{
+				result.children[childIdx] = static_cast<int32>(child->asNumber);
+			}
+		}
+
+		if (JsonValue* mesh = FindJsonValueInObject(node, "mesh"))
+		{
+			result.mesh = static_cast<int32>(mesh->asNumber);
+		}
+		else
+		{
+			result.mesh = -1;
+		}
+
+		if (JsonValue* skin = FindJsonValueInObject(node, "skin"))
+		{
+			result.skin = static_cast<int32>(skin->asNumber);
+		}
+		else
+		{
+			result.skin = -1;
+		}
+
+		if (JsonValue* translation = FindJsonValueInObject(node, "translation"))
+		{
+			size_t elementIdx = 0;
+			for (JsonValue* element = FindJsonValueInArray(translation, 0); element; element = element->sibling, ++elementIdx)
+			{
+				result.translation.Elements[elementIdx] = static_cast<float>(element->asNumber);
+			}
+		}
+		else
+		{
+			result.translation = HMM_V3(0, 0, 0);
+		}
+
+		if (JsonValue* rotation = FindJsonValueInObject(node, "rotation"))
+		{
+			size_t elementIdx = 0;
+			for (JsonValue* element = FindJsonValueInArray(rotation, 0); element; element = element->sibling, ++elementIdx)
+			{
+				result.rotation.Elements[elementIdx] = static_cast<float>(element->asNumber);
+			}
+		}
+		else
+		{
+			result.rotation = HMM_Q(0, 0, 0, 1);
+		}
+
+		if (JsonValue* scale = FindJsonValueInObject(node, "scale"))
+		{
+			size_t elementIdx = 0;
+			for (JsonValue* element = FindJsonValueInArray(scale, 0); element; element = element->sibling, ++elementIdx)
+			{
+				result.scale.Elements[elementIdx] = static_cast<float>(element->asNumber);
+			}
+		}
+		else
+		{
+			result.scale = HMM_V3(1, 1, 1);
+		}
+
+		return result;
+	}
+
 	GltfSkin ParseSkin(Arena& arena, JsonValue* skin)
 	{
 		GltfSkin result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(skin, "name"))
+		{
+			result.name = name->value;
+		}
 
 		if (JsonValue* inverseBindMatrices = FindJsonValueInObject(skin, "inverseBindMatrices"))
 		{
@@ -229,6 +364,103 @@ namespace Bk
 			for (JsonValue* joint = FindJsonValueInArray(joints, 0); joint; joint = joint->sibling, ++jointIdx)
 			{
 				result.joints[jointIdx] = static_cast<int32>(joint->asNumber);
+			}
+		}
+
+		return result;
+	}
+
+	GltfAnimation ParseAnimation(Arena& arena, JsonValue* animation)
+	{
+		GltfAnimation result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(animation, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* channels = FindJsonValueInObject(animation, "channels"))
+		{
+			result.channels = arena.Push<GltfAnimationChannel>(channels->children);
+
+			size_t channelIdx = 0;
+			for (JsonValue* channel = FindJsonValueInArray(channels, 0); channel; channel = channel->sibling, ++channelIdx)
+			{
+				if (JsonValue* sampler = FindJsonValueInObject(channel, "sampler"))
+				{
+					result.channels[channelIdx].sampler = static_cast<int32>(sampler->asNumber);
+				}
+
+				if (JsonValue* target = FindJsonValueInObject(channel, "target"))
+				{
+					if (JsonValue* node = FindJsonValueInObject(target, "node"))
+					{
+						result.channels[channelIdx].node = static_cast<int32>(node->asNumber);
+					}
+					else
+					{
+						result.channels[channelIdx].node = -1;
+					}
+
+					if (JsonValue* path = FindJsonValueInObject(target, "path"))
+					{
+						if (path->value == "translation")
+						{
+							result.channels[channelIdx].target = GltfAnimationTarget::Translation;
+						}
+						else if (path->value == "rotation")
+						{
+							result.channels[channelIdx].target = GltfAnimationTarget::Rotation;
+						}
+						else if (path->value == "scale")
+						{
+							result.channels[channelIdx].target = GltfAnimationTarget::Scale;
+						}
+						else if (path->value == "weights")
+						{
+							result.channels[channelIdx].target = GltfAnimationTarget::Weights;
+						}
+					}
+				}
+			}
+		}
+
+		if (JsonValue* samplers = FindJsonValueInObject(animation, "samplers"))
+		{
+			result.samplers = arena.Push<GltfAnimationSampler>(samplers->children);
+
+			size_t samplerIdx = 0;
+			for (JsonValue* sampler = FindJsonValueInArray(samplers, 0); sampler; sampler = sampler->sibling, ++samplerIdx)
+			{
+				if (JsonValue* input = FindJsonValueInObject(sampler, "input"))
+				{
+					result.samplers[samplerIdx].input = static_cast<int32>(input->asNumber);
+				}
+
+				if (JsonValue* output = FindJsonValueInObject(sampler, "output"))
+				{
+					result.samplers[samplerIdx].output = static_cast<int32>(output->asNumber);
+				}
+
+				if (JsonValue* interpolation = FindJsonValueInObject(sampler, "interpolation"))
+				{
+					if (interpolation->value == "LINEAR")
+					{
+						result.samplers[samplerIdx].interpolation = GltfAnimationInterpolation::Linear;
+					}
+					else if (interpolation->value == "STEP")
+					{
+						result.samplers[samplerIdx].interpolation = GltfAnimationInterpolation::Step;
+					}
+					else if (interpolation->value == "CUBICSPLINE")
+					{
+						result.samplers[samplerIdx].interpolation = GltfAnimationInterpolation::CubicSpline;
+					}
+				}
+				else
+				{
+					result.samplers[samplerIdx].interpolation = GltfAnimationInterpolation::Linear;
+				}
 			}
 		}
 
@@ -275,6 +507,18 @@ namespace Bk
 			}
 		}
 
+		JsonValue* gltfNodes = FindJsonValueInObject(gltf, "nodes");
+		if (gltfNodes && gltfNodes->children > 0)
+		{
+			result.nodes = arena.Push<GltfNode>(gltfNodes->children);
+
+			size_t nodeIdx = 0;
+			for (JsonValue* gltfNode = FindJsonValueInArray(gltfNodes, 0); gltfNode; gltfNode = gltfNode->sibling, ++nodeIdx)
+			{
+				result.nodes[nodeIdx] = ParseNode(arena, gltfNode);
+			}
+		}
+
 		JsonValue* gltfSkins = FindJsonValueInObject(gltf, "skins");
 		if (gltfSkins && gltfSkins->children > 0)
 		{
@@ -284,6 +528,18 @@ namespace Bk
 			for (JsonValue* gltfSkin = FindJsonValueInArray(gltfSkins, 0); gltfSkin; gltfSkin = gltfSkin->sibling, ++skinIdx)
 			{
 				result.skins[skinIdx] = ParseSkin(arena, gltfSkin);
+			}
+		}
+
+		JsonValue* gltfAnimations = FindJsonValueInObject(gltf, "animations");
+		if (gltfAnimations && gltfAnimations->children > 0)
+		{
+			result.animations = arena.Push<GltfAnimation>(gltfAnimations->children);
+
+			size_t animationIdx = 0;
+			for (JsonValue* gltfAnimation = FindJsonValueInArray(gltfAnimations, 0); gltfAnimation; gltfAnimation = gltfAnimation->sibling, ++animationIdx)
+			{
+				result.animations[animationIdx] = ParseAnimation(arena, gltfAnimation);
 			}
 		}
 
@@ -383,6 +639,24 @@ namespace Bk
 		GltfAsset asset = ParseGltf(scratch.arena, gltf);
 		asset.filePath = String::Empty;
 		asset.buffer = TSpan(binaryChunkData, binaryChunk->length);
+
+		// #TODO: Apply mesh <-> skin mapping via nodes
+		TSpan<HMM_Mat4> invBindPose = {};
+		if (asset.skins.length > 0)
+		{
+			const GltfSkin& skin = asset.skins[0];
+			if (skin.inverseBindMatrices != -1)
+			{
+				const GltfAccessor& accessor = asset.accessors[skin.inverseBindMatrices];
+				BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
+				BK_ASSERTF(accessor.componentElements == 16, "Unexpected buffer layout");
+				BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
+
+				TSpan<uint8> invBindBuffer = MaterializeBuffer(arena, asset, accessor);
+				invBindPose.data = (HMM_Mat4*)invBindBuffer.data;
+				invBindPose.length = invBindBuffer.length / sizeof(HMM_Mat4);
+			}
+		}
 
 		meshes = arena.PushZeroed<Mesh>(gltfMeshes->children);
 
@@ -508,6 +782,8 @@ namespace Bk
 				MemoryCopy(indexBuffer, buffer.data, buffer.length);
 				indexBuffer += buffer.length;
 			}
+
+			mesh.invBindPose = invBindPose;
 		}
 
 		return true;

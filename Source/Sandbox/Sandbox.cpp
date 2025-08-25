@@ -8,9 +8,6 @@
 
 #include "GltfLoader.h"
 
-#define HANDMADE_MATH_USE_DEGREES
-#include <HandmadeMath.h>
-
 using namespace Bk;
 
 struct MeshProxy
@@ -63,7 +60,7 @@ void LoadGlb(uint8* data, size_t length)
 
 	StringBuilder resourceNameBuilder(scratch.arena);
 
-	TSpan<Mesh> meshes;
+	TSpan<Mesh> meshes = {};
 	if (LoadGlbMeshes(scratch.arena, TSpan(data, length), meshes))
 	{
 		state.meshProxies = state.arena.Push<MeshProxy>(meshes.length);

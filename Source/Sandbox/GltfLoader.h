@@ -4,6 +4,9 @@
 #include "Core/Span.h"
 #include "Core/String.h"
 
+#define HANDMADE_MATH_USE_DEGREES
+#include <HandmadeMath.h>
+
 namespace Bk
 {
 	struct MeshSection
@@ -20,6 +23,7 @@ namespace Bk
 		TSpan<uint8> boneIndexBuffer;
 		TSpan<uint8> boneWeightBuffer;
 		TSpan<uint8> indexBuffer;
+		TSpan<HMM_Mat4> invBindPose;
 	};
 
 	bool LoadGlbMeshes(Arena& arena, String filePath, TSpan<Mesh>& meshes);
