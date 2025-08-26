@@ -196,6 +196,10 @@ namespace Bk
 			case GpuBindingType::StorageBuffer:
 			case GpuBindingType::DynamicStorageBuffer:
 				return WGPUBufferBindingType_Storage;
+
+			case GpuBindingType::ReadOnlyStorageBuffer:
+			case GpuBindingType::DynamicReadOnlyStorageBuffer:
+				return WGPUBufferBindingType_ReadOnlyStorage;
 		}
 	}
 
@@ -423,7 +427,7 @@ namespace Bk
 			binding.visibility = WgpuConvert(bindingDesc.stage);
 			binding.bindingArraySize = 1; // #TODO: https://github.com/gpuweb/gpuweb/blob/main/proposals/sized-binding-arrays.md
 			binding.buffer.type = WgpuConvert(bindingDesc.type);
-			binding.buffer.hasDynamicOffset = (bindingDesc.type == GpuBindingType::DynamicStorageBuffer || bindingDesc.type == GpuBindingType::DynamicUniformBuffer);
+			binding.buffer.hasDynamicOffset = (bindingDesc.type == GpuBindingType::DynamicUniformBuffer || bindingDesc.type == GpuBindingType::DynamicStorageBuffer || bindingDesc.type == GpuBindingType::DynamicReadOnlyStorageBuffer);
 		}
 
 		WGPUBindGroupLayout bindingLayout = wgpuDeviceCreateBindGroupLayout(gpuContext.device, &bindingLayoutDesc);

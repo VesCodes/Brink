@@ -91,8 +91,10 @@ namespace Bk
 		None,
 		UniformBuffer,
 		StorageBuffer,
+		ReadOnlyStorageBuffer,
 		DynamicUniformBuffer,
 		DynamicStorageBuffer,
+		DynamicReadOnlyStorageBuffer,
 		// Texture,
 		// Sampler,
 	};
