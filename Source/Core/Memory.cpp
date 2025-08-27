@@ -184,6 +184,19 @@ namespace Bk
 		}
 	}
 
+	String Arena::Copy(String source, bool nullTerminate)
+	{
+		TSpan<char> buffer = Push<char>(nullTerminate ? source.length + 1 : source.length);
+		MemoryCopy(buffer.data, source.data, source.length);
+
+		if (nullTerminate)
+		{
+			buffer.data[source.length] = '\0';
+		}
+
+		return String(buffer.data, source.length);
+	}
+
 	ArenaScope::ArenaScope(Arena& arena)
 		: arena(arena), marker(arena.PushMarker())
 	{

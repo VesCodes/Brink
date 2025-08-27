@@ -2,6 +2,7 @@
 
 #include "Core.h"
 #include "Span.h"
+#include "String.h"
 
 #define BK_KILOBYTES(x) ((x) << 10)
 #define BK_MEGABYTES(x) ((x) << 20)
@@ -67,6 +68,11 @@ namespace Bk
 		ArenaMarker PushMarker() const;
 		void PopMarker(ArenaMarker marker);
 
+		template<typename Type>
+		TSpan<Type> Copy(TSpan<Type> source);
+
+		String Copy(String source, bool nullTerminate = false);
+
 		ArenaBlock* currentBlock;
 		size_t blockAlignment;
 		ArenaFlags flags;
@@ -112,6 +118,15 @@ namespace Bk
 		TSpan<Type> result = {};
 		result.data = reinterpret_cast<Type*>(data);
 		result.length = count;
+
+		return result;
+	}
+
+	template<typename Type>
+	TSpan<Type> Arena::Copy(TSpan<Type> source)
+	{
+		TSpan<Type> result = Push<Type>(source.length);
+		MemoryCopy((void*)result.data, source.data, source.length * sizeof(Type));
 
 		return result;
 	}
