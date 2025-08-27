@@ -354,7 +354,11 @@ bool OnAppUpdate()
 			const Skeleton::Joint& joint = state.testSkeleton.joints[trackIdx];
 			const AnimationTrack& track = state.testAnimation.tracks[trackIdx];
 
-			jointTransforms[trackIdx] = HMM_Translate(track.translations[0]) * HMM_QToM4(track.rotations[0]) * HMM_Scale(track.scales[0]);
+			HMM_Vec3 t = track.translations.length > 0 ? track.translations[0] : HMM_V3(0, 0, 0);
+			HMM_Quat r = track.rotations.length > 0 ? track.rotations[0] : HMM_Q(0, 0, 0, 1);
+			HMM_Vec3 s = track.scales.length > 0 ? track.scales[0] : HMM_V3(1, 1, 1);
+
+			jointTransforms[trackIdx] = HMM_Translate(t) * HMM_QToM4(r) * HMM_Scale(s);
 
 			if (joint.parentIdx != -1)
 			{

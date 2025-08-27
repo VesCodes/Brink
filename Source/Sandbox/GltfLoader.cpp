@@ -63,6 +63,24 @@ namespace Bk
 		HMM_Vec3 scale;
 	};
 
+	struct GltfMeshPrimitive
+	{
+		struct
+		{
+			int32 position;
+			int32 joints_0;
+			int32 weights_0;
+		} attributes;
+
+		int32 indices;
+	};
+
+	struct GltfMesh
+	{
+		String name;
+		TSpan<GltfMeshPrimitive> primitives;
+	};
+
 	struct GltfSkin
 	{
 		String name;
@@ -71,7 +89,7 @@ namespace Bk
 		TSpan<int32> joints;
 	};
 
-	enum class GltfAnimationTarget : uint8
+	enum class GltfAnimationTargetPath : uint8
 	{
 		Translation,
 		Rotation,
@@ -79,18 +97,18 @@ namespace Bk
 		Weights,
 	};
 
-	struct GltfAnimationChannel
-	{
-		int32 sampler;
-		int32 node;
-		GltfAnimationTarget target;
-	};
-
 	enum class GltfAnimationInterpolation : uint8
 	{
 		Linear,
 		Step,
 		CubicSpline,
+	};
+
+	struct GltfAnimationChannel
+	{
+		int32 sampler;
+		int32 targetNode;
+		GltfAnimationTargetPath targetPath;
 	};
 
 	struct GltfAnimationSampler
@@ -116,6 +134,7 @@ namespace Bk
 		TSpan<GltfBufferView> bufferViews;
 		TSpan<GltfBuffer> buffers;
 		TSpan<GltfNode> nodes;
+		TSpan<GltfMesh> meshes;
 		TSpan<GltfSkin> skins;
 		TSpan<GltfAnimation> animations;
 	};
@@ -328,6 +347,65 @@ namespace Bk
 		return result;
 	}
 
+	GltfMesh ParseMesh(Arena& arena, JsonValue* mesh)
+	{
+		GltfMesh result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(mesh, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* primitives = FindJsonValueInObject(mesh, "primitives"))
+		{
+			result.primitives = arena.Push<GltfMeshPrimitive>(primitives->children);
+
+			size_t primitiveIdx = 0;
+			for (JsonValue* primitive = FindJsonValueInArray(primitives, 0); primitive; primitive = primitive->sibling, ++primitiveIdx)
+			{
+				JsonValue* attribs = FindJsonValueInObject(primitive, "attributes");
+
+				if (JsonValue* positionAttrib = FindJsonValueInObject(attribs, "POSITION"))
+				{
+					result.primitives[primitiveIdx].attributes.position = static_cast<int32>(positionAttrib->asNumber);
+				}
+				else
+				{
+					result.primitives[primitiveIdx].attributes.position = -1;
+				}
+
+				if (JsonValue* joints0Attrib = FindJsonValueInObject(attribs, "JOINTS_0"))
+				{
+					result.primitives[primitiveIdx].attributes.joints_0 = static_cast<int32>(joints0Attrib->asNumber);
+				}
+				else
+				{
+					result.primitives[primitiveIdx].attributes.joints_0 = -1;
+				}
+
+				if (JsonValue* weights0Attrib = FindJsonValueInObject(attribs, "WEIGHTS_0"))
+				{
+					result.primitives[primitiveIdx].attributes.weights_0 = static_cast<int32>(weights0Attrib->asNumber);
+				}
+				else
+				{
+					result.primitives[primitiveIdx].attributes.weights_0 = -1;
+				}
+
+				if (JsonValue* indices = FindJsonValueInObject(primitive, "indices"))
+				{
+					result.primitives[primitiveIdx].indices = static_cast<int32>(indices->asNumber);
+				}
+				else
+				{
+					result.primitives[primitiveIdx].indices = -1;
+				}
+			}
+		}
+
+		return result;
+	}
+
 	GltfSkin ParseSkin(Arena& arena, JsonValue* skin)
 	{
 		GltfSkin result = {};
@@ -394,30 +472,30 @@ namespace Bk
 				{
 					if (JsonValue* node = FindJsonValueInObject(target, "node"))
 					{
-						result.channels[channelIdx].node = static_cast<int32>(node->asNumber);
+						result.channels[channelIdx].targetNode = static_cast<int32>(node->asNumber);
 					}
 					else
 					{
-						result.channels[channelIdx].node = -1;
+						result.channels[channelIdx].targetNode = -1;
 					}
 
 					if (JsonValue* path = FindJsonValueInObject(target, "path"))
 					{
 						if (path->value == "translation")
 						{
-							result.channels[channelIdx].target = GltfAnimationTarget::Translation;
+							result.channels[channelIdx].targetPath = GltfAnimationTargetPath::Translation;
 						}
 						else if (path->value == "rotation")
 						{
-							result.channels[channelIdx].target = GltfAnimationTarget::Rotation;
+							result.channels[channelIdx].targetPath = GltfAnimationTargetPath::Rotation;
 						}
 						else if (path->value == "scale")
 						{
-							result.channels[channelIdx].target = GltfAnimationTarget::Scale;
+							result.channels[channelIdx].targetPath = GltfAnimationTargetPath::Scale;
 						}
 						else if (path->value == "weights")
 						{
-							result.channels[channelIdx].target = GltfAnimationTarget::Weights;
+							result.channels[channelIdx].targetPath = GltfAnimationTargetPath::Weights;
 						}
 					}
 				}
@@ -518,6 +596,18 @@ namespace Bk
 			}
 		}
 
+		JsonValue* gltfMeshes = FindJsonValueInObject(gltf, "meshes");
+		if (gltfMeshes && gltfMeshes->children > 0)
+		{
+			result.meshes = arena.Push<GltfMesh>(gltfMeshes->children);
+
+			size_t meshIdx = 0;
+			for (JsonValue* gltfMesh = FindJsonValueInArray(gltfMeshes, 0); gltfMesh; gltfMesh = gltfMesh->sibling, ++meshIdx)
+			{
+				result.meshes[meshIdx] = ParseMesh(arena, gltfMesh);
+			}
+		}
+
 		JsonValue* gltfSkins = FindJsonValueInObject(gltf, "skins");
 		if (gltfSkins && gltfSkins->children > 0)
 		{
@@ -613,98 +703,87 @@ namespace Bk
 
 		JsonValue* gltf = ParseJson(scratch.arena, String((char*)jsonChunkData, jsonChunk->length));
 
-		GltfAsset asset = ParseGltf(scratch.arena, gltf);
-		asset.filePath = String::Empty;
-		asset.buffer = TSpan(binaryChunkData, binaryChunk->length);
+		GltfAsset gltfAsset = ParseGltf(scratch.arena, gltf);
+		gltfAsset.filePath = String::Empty;
+		gltfAsset.buffer = TSpan(binaryChunkData, binaryChunk->length);
 
-		JsonValue* gltfMeshes = FindJsonValueInObject(gltf, "meshes");
-		if (!gltfMeshes || gltfMeshes->children == 0)
+		meshes = arena.PushZeroed<Mesh>(gltfAsset.meshes.length);
+
+		for (size_t meshIdx = 0; meshIdx < meshes.length; ++meshIdx)
 		{
-			return false;
-		}
+			const GltfMesh& gltfMesh = gltfAsset.meshes[meshIdx];
 
-		meshes = arena.PushZeroed<Mesh>(gltfMeshes->children);
-
-		size_t meshIdx = 0;
-		for (JsonValue* gltfMesh = FindJsonValueInArray(gltfMeshes, 0); gltfMesh; gltfMesh = gltfMesh->sibling, ++meshIdx)
-		{
 			Mesh& mesh = meshes[meshIdx];
+			mesh.sections = arena.PushZeroed<MeshSection>(gltfMesh.primitives.length);
 
-			JsonValue* primitives = FindJsonValueInObject(gltfMesh, "primitives");
-			if (!primitives || primitives->children == 0)
-			{
-				continue;
-			}
-
-			mesh.sections = arena.PushZeroed<MeshSection>(primitives->children);
-
-			TSpan<TSpan<uint8>> positionBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
+			TSpan<TSpan<uint8>> positionBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
 			size_t positionBufferSize = 0;
 			size_t vertexCount = 0;
 
-			TSpan<TSpan<uint8>> jointIndexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
+			TSpan<TSpan<uint8>> jointIndexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
 			size_t jointIndexBufferSize = 0;
 
-			TSpan<TSpan<uint8>> jointWeightBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
+			TSpan<TSpan<uint8>> jointWeightBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
 			size_t jointWeightBufferSize = 0;
 
-			TSpan<TSpan<uint8>> indexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(primitives->children);
+			TSpan<TSpan<uint8>> indexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
 			size_t indexBufferSize = 0;
 			size_t indexCount = 0;
 
-			size_t sectionIdx = 0;
-			for (JsonValue* primitive = FindJsonValueInArray(primitives, 0); primitive; primitive = primitive->sibling, ++sectionIdx)
+			for (size_t sectionIdx = 0; sectionIdx < mesh.sections.length; ++sectionIdx)
 			{
+				const GltfMeshPrimitive& gltfPrimitive = gltfMesh.primitives[sectionIdx];
+
 				MeshSection& section = mesh.sections[sectionIdx];
 				section.vertexOffset = vertexCount;
 				section.indexOffset = indexCount;
 
 				// #TODO: Need to either conform these buffers to the expected layout or bubble up the details
 
-				if (JsonValue* positionAttrib = FindJsonValue(primitive, "attributes.POSITION"))
+				if (gltfPrimitive.attributes.position != -1)
 				{
-					const GltfAccessor& accessor = asset.accessors[size_t(positionAttrib->asNumber)];
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.position];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.componentElements == 3, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					positionBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
+					positionBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, gltfAsset, accessor);
 					positionBufferSize += positionBuffers[sectionIdx].length;
 					vertexCount += accessor.count;
 
 					section.triangleCount = accessor.count / 3;
 				}
 
-				if (JsonValue* jointsAttrib = FindJsonValue(primitive, "attributes.JOINTS_0"))
+				if (gltfPrimitive.attributes.joints_0 != -1)
 				{
-					const GltfAccessor& accessor = asset.accessors[size_t(jointsAttrib->asNumber)];
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.joints_0];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Uint8, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					jointIndexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
+					jointIndexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, gltfAsset, accessor);
 					jointIndexBufferSize += jointIndexBuffers[sectionIdx].length;
 				}
 
-				if (JsonValue* weightsAttrib = FindJsonValue(primitive, "attributes.WEIGHTS_0"))
+				if (gltfPrimitive.attributes.weights_0 != -1)
 				{
-					const GltfAccessor& accessor = asset.accessors[size_t(weightsAttrib->asNumber)];
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.weights_0];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					jointWeightBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
+					jointWeightBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, gltfAsset, accessor);
 					jointWeightBufferSize += jointWeightBuffers[sectionIdx].length;
 				}
 
-				if (JsonValue* indicesAttrib = FindJsonValueInObject(primitive, "indices"))
+				if (gltfPrimitive.indices != -1)
 				{
-					const GltfAccessor& accessor = asset.accessors[size_t(indicesAttrib->asNumber)];
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.indices];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Uint16, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.componentElements == 1, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					indexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, asset, accessor);
+					indexBuffers[sectionIdx] = MaterializeBuffer(scratch.arena, gltfAsset, accessor);
 					indexBufferSize += indexBuffers[sectionIdx].length;
 					indexCount += accessor.count;
 
@@ -862,7 +941,6 @@ namespace Bk
 			const GltfNode& gltfNode = gltfAsset.nodes[nodeIdx];
 
 			nodeToJointIdx[nodeIdx] = -1;
-
 			for (int32 jointIdx = 0; jointIdx < skeleton.joints.length; ++jointIdx)
 			{
 				const Skeleton::Joint& joint = skeleton.joints[jointIdx];
@@ -885,7 +963,7 @@ namespace Bk
 
 			for (const GltfAnimationChannel& channel : gltfAnimation.channels)
 			{
-				int32 trackIdx = channel.node >= 0 ? nodeToJointIdx[channel.node] : -1;
+				int32 trackIdx = channel.targetNode >= 0 ? nodeToJointIdx[channel.targetNode] : -1;
 				if (trackIdx == -1)
 				{
 					continue;
@@ -900,9 +978,9 @@ namespace Bk
 				BK_ASSERTF(inputAccessor.componentElements == 1, "Unexpected buffer layout");
 				BK_ASSERTF(inputAccessor.normalized == false, "Unexpected buffer layout");
 
-				switch (channel.target)
+				switch (channel.targetPath)
 				{
-					case GltfAnimationTarget::Translation:
+					case GltfAnimationTargetPath::Translation:
 					{
 						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
 						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
@@ -915,7 +993,7 @@ namespace Bk
 						break;
 					}
 
-					case GltfAnimationTarget::Scale:
+					case GltfAnimationTargetPath::Scale:
 					{
 						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
 						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
@@ -928,7 +1006,7 @@ namespace Bk
 						break;
 					}
 
-					case GltfAnimationTarget::Rotation:
+					case GltfAnimationTargetPath::Rotation:
 					{
 						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
 						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
