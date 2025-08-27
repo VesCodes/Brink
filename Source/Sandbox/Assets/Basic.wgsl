@@ -1,4 +1,5 @@
 @group(0) @binding(0) var<uniform> mvp: mat4x4f;
+@group(0) @binding(1) var<storage> jointTransforms: array<mat4x4f>;
 
 struct VsInput
 {
@@ -24,7 +25,13 @@ fn GetJointColor(i: u32) -> vec3f
 {
 	var output: VsOutput;
 
-	output.position = mvp * vec4f(input.position, 1);
+	let jointTransform =
+		jointTransforms[input.jointIndex[0]] * input.jointWeight[0] +
+		jointTransforms[input.jointIndex[1]] * input.jointWeight[1] +
+		jointTransforms[input.jointIndex[2]] * input.jointWeight[2] +
+		jointTransforms[input.jointIndex[3]] * input.jointWeight[3];
+
+	output.position = mvp * jointTransform * vec4f(input.position, 1);
 	output.worldPosition = input.position;
 
 	output.jointColor =

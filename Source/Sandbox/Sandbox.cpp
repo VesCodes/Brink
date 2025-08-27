@@ -31,10 +31,13 @@ struct
 	bool initialized;
 	uint32 surface;
 	uint32 meshPipeline;
-	uint32 globalUniformBuffer;
+	uint32 globalsBuffer;
+	uint32 jointTransformsBuffer;
 	uint32 globalBindingGroup;
 
 	TSpan<MeshProxy> meshProxies;
+	Skeleton testSkeleton;
+	Animation testAnimation;
 
 	HMM_Vec3 cameraPosition;
 	HMM_Quat cameraOrientation;
@@ -57,6 +60,8 @@ void LoadGlb(uint8* data, size_t length)
 	}
 
 	state.meshProxies = {};
+	state.testSkeleton = {};
+	state.testAnimation = {};
 
 	StringBuilder resourceNameBuilder(scratch.arena);
 
@@ -69,8 +74,7 @@ void LoadGlb(uint8* data, size_t length)
 			const Mesh& mesh = meshes[meshIdx];
 			MeshProxy& meshProxy = state.meshProxies[meshIdx];
 
-			meshProxy.sections = state.arena.Push<MeshSection>(mesh.sections.length);
-			MemoryCopy(meshProxy.sections.data, mesh.sections.data, mesh.sections.length * sizeof(MeshSection));
+			meshProxy.sections = state.arena.Copy(mesh.sections);
 
 			resourceNameBuilder.Reset();
 			resourceNameBuilder.Appendf("Mesh%02d_VertexBuffer", meshIdx);
@@ -107,6 +111,39 @@ void LoadGlb(uint8* data, size_t length)
 				.type = GpuBufferType::Index,
 				.data = mesh.indexBuffer,
 			});
+		}
+	}
+
+	TSpan<Skeleton> skeletons = {};
+	if (LoadGlbSkeletons(scratch.arena, TSpan(data, length), skeletons) && skeletons.length > 0)
+	{
+		state.testSkeleton.joints = state.arena.Copy(skeletons[0].joints);
+		for (size_t jointIdx = 0; jointIdx < state.testSkeleton.joints.length; ++jointIdx)
+		{
+			const Skeleton::Joint& srcJoint = skeletons[0].joints[jointIdx];
+			Skeleton::Joint& dstJoint = state.testSkeleton.joints[jointIdx];
+
+			dstJoint.name = state.arena.Copy(srcJoint.name);
+		}
+
+		state.testSkeleton.invBindPose = state.arena.Copy(skeletons[0].invBindPose);
+
+		TSpan<Animation> animations = {};
+		if (LoadGlbAnimations(scratch.arena, TSpan(data, length), state.testSkeleton, animations) && animations.length > 0)
+		{
+			state.testAnimation.tracks = state.arena.Copy(animations[0].tracks);
+			for (size_t trackIdx = 0; trackIdx < state.testAnimation.tracks.length; ++trackIdx)
+			{
+				const AnimationTrack& srcTrack = animations[0].tracks[trackIdx];
+				AnimationTrack& dstTrack = state.testAnimation.tracks[trackIdx];
+
+				dstTrack.translationTimes = state.arena.Copy(srcTrack.translationTimes);
+				dstTrack.translations = state.arena.Copy(srcTrack.translations);
+				dstTrack.rotationTimes = state.arena.Copy(srcTrack.rotationTimes);
+				dstTrack.rotations = state.arena.Copy(srcTrack.rotations);
+				dstTrack.scaleTimes = state.arena.Copy(srcTrack.scaleTimes);
+				dstTrack.scales = state.arena.Copy(srcTrack.scales);
+			}
 		}
 	}
 }
@@ -157,6 +194,7 @@ void Initialize()
 		.name = "Global Binding Layout",
 		.bindings = {
 			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex },
+			{ .type = GpuBindingType::ReadOnlyStorageBuffer, .stage = GpuBindingStage::Vertex },
 		},
 	});
 
@@ -193,24 +231,34 @@ void Initialize()
 		},
 	});
 
-	state.globalUniformBuffer = CreateBuffer({
-		.name = "Global Uniform Buffer",
+	state.globalsBuffer = CreateBuffer({
+		.name = "Globals Buffer",
 		.type = GpuBufferType::Uniform,
 		.access = GpuBufferAccess::GpuOnly,
 		.size = sizeof(HMM_Mat4),
+	});
+
+	state.jointTransformsBuffer = CreateBuffer({
+		.name = "Joint Transforms Buffer",
+		.type = GpuBufferType::Storage,
+		.access = GpuBufferAccess::GpuOnly,
+		.size = sizeof(HMM_Mat4) * 512,
 	});
 
 	state.globalBindingGroup = CreateBindingGroup({
 		.name = "Global Binding Group",
 		.bindingLayout = globalBindingLayout,
 		.bindings = {
-			{ .buffer = state.globalUniformBuffer },
+			{ .buffer = state.globalsBuffer },
+			{ .buffer = state.jointTransformsBuffer },
 		},
 	});
 }
 
 bool OnAppUpdate()
 {
+	ArenaScope scratch = GetScratchArena();
+
 	bool result = state.window != 0;
 
 	if (!BeginFrame())
@@ -295,7 +343,32 @@ bool OnAppUpdate()
 
 	HMM_Mat4 mvp = proj * view * model;
 
-	WriteBuffer(state.globalUniformBuffer, TSpan((uint8*)mvp.Elements, sizeof(mvp)));
+	WriteBuffer(state.globalsBuffer, TSpan((uint8*)mvp.Elements, sizeof(HMM_Mat4)));
+
+	if (state.testAnimation.tracks.length > 0)
+	{
+		TSpan<HMM_Mat4> jointTransforms = scratch.arena.Push<HMM_Mat4>(state.testAnimation.tracks.length);
+
+		for (size_t trackIdx = 0; trackIdx < state.testAnimation.tracks.length; ++trackIdx)
+		{
+			const Skeleton::Joint& joint = state.testSkeleton.joints[trackIdx];
+			const AnimationTrack& track = state.testAnimation.tracks[trackIdx];
+
+			jointTransforms[trackIdx] = HMM_Translate(track.translations[0]) * HMM_QToM4(track.rotations[0]) * HMM_Scale(track.scales[0]);
+
+			if (joint.parentIdx != -1)
+			{
+				jointTransforms[trackIdx] = jointTransforms[joint.parentIdx] * jointTransforms[trackIdx];
+			}
+		}
+
+		for (size_t trackIdx = 0; trackIdx < state.testAnimation.tracks.length; ++trackIdx)
+		{
+			jointTransforms[trackIdx] = jointTransforms[trackIdx] * state.testSkeleton.invBindPose[trackIdx];
+		}
+
+		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)jointTransforms.data, sizeof(HMM_Mat4) * jointTransforms.length));
+	}
 
 	BeginPass({
 		.name = "Sandbox Pass",
