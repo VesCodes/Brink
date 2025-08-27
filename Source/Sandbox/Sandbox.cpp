@@ -14,8 +14,8 @@ struct MeshProxy
 {
 	TSpan<MeshSection> sections;
 	uint32 vertexBuffer;
-	uint32 boneIndexBuffer;
-	uint32 boneWeightBuffer;
+	uint32 jointIndexBuffer;
+	uint32 jointWeightBuffer;
 	uint32 indexBuffer;
 };
 
@@ -82,21 +82,21 @@ void LoadGlb(uint8* data, size_t length)
 			});
 
 			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_BoneIndexBuffer", meshIdx);
+			resourceNameBuilder.Appendf("Mesh%02d_JointIndexBuffer", meshIdx);
 
-			meshProxy.boneIndexBuffer = CreateBuffer({
+			meshProxy.jointIndexBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = mesh.boneIndexBuffer,
+				.data = mesh.jointIndexBuffer,
 			});
 
 			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_BoneWeightBuffer", meshIdx);
+			resourceNameBuilder.Appendf("Mesh%02d_JointWeightBuffer", meshIdx);
 
-			meshProxy.boneWeightBuffer = CreateBuffer({
+			meshProxy.jointWeightBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = mesh.boneWeightBuffer,
+				.data = mesh.jointWeightBuffer,
 			});
 
 			resourceNameBuilder.Reset();
@@ -311,8 +311,8 @@ bool OnAppUpdate()
 				.pipeline = state.meshPipeline,
 				.vertexBuffers = {
 					meshProxy.vertexBuffer,
-					meshProxy.boneIndexBuffer,
-					meshProxy.boneWeightBuffer,
+					meshProxy.jointIndexBuffer,
+					meshProxy.jointWeightBuffer,
 				},
 				.indexBuffer = meshProxy.indexBuffer,
 				.bindingGroups = {
