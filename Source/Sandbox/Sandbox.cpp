@@ -19,6 +19,15 @@ struct MeshProxy
 	uint32 indexBuffer;
 };
 
+struct AnimationPlayer
+{
+	Skeleton skeleton;
+	Animation animation;
+
+	float currentTime;
+	TSpan<HMM_Mat4> transforms;
+};
+
 struct
 {
 	Arena arena;
@@ -27,6 +36,7 @@ struct
 	HMM_Vec2 mousePosition;
 	HMM_Vec2 mouseDelta;
 	uint32* keys;
+	double lastTime;
 
 	bool initialized;
 	uint32 surface;
@@ -36,8 +46,9 @@ struct
 	uint32 globalBindingGroup;
 
 	TSpan<MeshProxy> meshProxies;
-	Skeleton testSkeleton;
-	Animation testAnimation;
+	TSpan<Animation> animations;
+	AnimationPlayer animPlayer;
+	size_t activeAnimation;
 
 	HMM_Vec3 cameraPosition;
 	HMM_Quat cameraOrientation;
@@ -60,8 +71,8 @@ void LoadGlb(uint8* data, size_t length)
 	}
 
 	state.meshProxies = {};
-	state.testSkeleton = {};
-	state.testAnimation = {};
+	state.animations = {};
+	state.animPlayer = {};
 
 	StringBuilder resourceNameBuilder(scratch.arena);
 
@@ -117,34 +128,132 @@ void LoadGlb(uint8* data, size_t length)
 	TSpan<Skeleton> skeletons = {};
 	if (LoadGlbSkeletons(scratch.arena, TSpan(data, length), skeletons) && skeletons.length > 0)
 	{
-		state.testSkeleton.joints = state.arena.Copy(skeletons[0].joints);
-		for (size_t jointIdx = 0; jointIdx < state.testSkeleton.joints.length; ++jointIdx)
-		{
-			const Skeleton::Joint& srcJoint = skeletons[0].joints[jointIdx];
-			Skeleton::Joint& dstJoint = state.testSkeleton.joints[jointIdx];
+		state.animPlayer.skeleton = skeletons[0];
 
-			dstJoint.name = state.arena.Copy(srcJoint.name);
+		state.animPlayer.skeleton.joints = state.arena.Copy(state.animPlayer.skeleton.joints);
+		for (Skeleton::Joint& joint : state.animPlayer.skeleton.joints)
+		{
+			joint.name = state.arena.Copy(joint.name);
 		}
 
-		state.testSkeleton.invBindPose = state.arena.Copy(skeletons[0].invBindPose);
+		state.animPlayer.skeleton.invBindPose = state.arena.Copy(state.animPlayer.skeleton.invBindPose);
+		state.animPlayer.transforms = state.arena.Push<HMM_Mat4>(state.animPlayer.skeleton.joints.length);
 
-		TSpan<Animation> animations = {};
-		if (LoadGlbAnimations(scratch.arena, TSpan(data, length), state.testSkeleton, animations) && animations.length > 0)
+		LoadGlbAnimations(state.arena, TSpan(data, length), state.animPlayer.skeleton, state.animations);
+		if (state.animations.length > 0)
 		{
-			state.testAnimation.tracks = state.arena.Copy(animations[0].tracks);
-			for (size_t trackIdx = 0; trackIdx < state.testAnimation.tracks.length; ++trackIdx)
+			state.activeAnimation = 0;
+			state.animPlayer.animation = state.animations[state.activeAnimation];
+			state.animPlayer.currentTime = 0;
+		}
+	}
+}
+
+size_t GetKeyframe(TSpan<float> times, float t)
+{
+	size_t lowerBound = 0;
+	size_t upperBound = times.length - 1;
+
+	while (lowerBound < upperBound)
+	{
+		size_t mid = (lowerBound + upperBound) / 2;
+		if (times[mid] < t)
+		{
+			lowerBound = mid + 1;
+		}
+		else
+		{
+			upperBound = mid;
+		}
+	}
+
+	return lowerBound;
+}
+
+void UpdateAnimation(AnimationPlayer& player, float deltaTime)
+{
+	player.currentTime += deltaTime;
+	if (player.currentTime > player.animation.duration)
+	{
+		player.currentTime -= player.animation.duration;
+	}
+
+	for (size_t i = 0; i < player.transforms.length; ++i)
+	{
+		const Skeleton::Joint& joint = player.skeleton.joints[i];
+		const AnimationTrack& track = player.animation.tracks[i];
+		HMM_Mat4& transform = player.transforms[i];
+
+		transform = HMM_M4D(1);
+
+		if (track.scaleTimes.length > 0)
+		{
+			size_t keyframe = GetKeyframe(track.scaleTimes, player.currentTime);
+			HMM_Vec3 scale = track.scales[keyframe];
+
+			if (keyframe > 0)
 			{
-				const AnimationTrack& srcTrack = animations[0].tracks[trackIdx];
-				AnimationTrack& dstTrack = state.testAnimation.tracks[trackIdx];
+				float t0 = track.scaleTimes[keyframe - 1];
+				float t1 = track.scaleTimes[keyframe];
+				float alpha = (player.currentTime - t0) / (t1 - t0);
 
-				dstTrack.translationTimes = state.arena.Copy(srcTrack.translationTimes);
-				dstTrack.translations = state.arena.Copy(srcTrack.translations);
-				dstTrack.rotationTimes = state.arena.Copy(srcTrack.rotationTimes);
-				dstTrack.rotations = state.arena.Copy(srcTrack.rotations);
-				dstTrack.scaleTimes = state.arena.Copy(srcTrack.scaleTimes);
-				dstTrack.scales = state.arena.Copy(srcTrack.scales);
+				scale = HMM_Lerp(track.scales[keyframe - 1], alpha, scale);
 			}
+
+			transform = HMM_Scale(scale);
 		}
+
+		if (track.rotationTimes.length > 0)
+		{
+			size_t keyframe = GetKeyframe(track.rotationTimes, player.currentTime);
+			HMM_Quat rotation = track.rotations[keyframe];
+
+			if (keyframe > 0)
+			{
+				float t0 = track.rotationTimes[keyframe - 1];
+				float t1 = track.rotationTimes[keyframe];
+				float alpha = (player.currentTime - t0) / (t1 - t0);
+
+				if (HMM_DotQ(track.rotations[keyframe - 1], rotation) < 0)
+				{
+					rotation.X = -rotation.X;
+					rotation.Y = -rotation.Y;
+					rotation.Z = -rotation.Z;
+					rotation.W = -rotation.W;
+				}
+
+				rotation = HMM_NLerp(track.rotations[keyframe - 1], alpha, rotation);
+			}
+
+			transform = HMM_QToM4(rotation) * transform;
+		}
+
+		if (track.translationTimes.length > 0)
+		{
+			size_t keyframe = GetKeyframe(track.translationTimes, player.currentTime);
+			HMM_Vec3 translation = track.translations[keyframe];
+
+			if (keyframe > 0)
+			{
+				float t0 = track.translationTimes[keyframe - 1];
+				float t1 = track.translationTimes[keyframe];
+				float alpha = (player.currentTime - t0) / (t1 - t0);
+
+				translation = HMM_Lerp(track.translations[keyframe - 1], alpha, translation);
+			}
+
+			transform = HMM_Translate(translation) * transform;
+		}
+
+		if (joint.parentIdx != -1)
+		{
+			transform = player.transforms[joint.parentIdx] * transform;
+		}
+	}
+
+	for (size_t i = 0; i < player.transforms.length; ++i)
+	{
+		player.transforms[i] = player.transforms[i] * player.skeleton.invBindPose[i];
 	}
 }
 
@@ -270,7 +379,11 @@ bool OnAppUpdate()
 	{
 		Initialize();
 		state.initialized = true;
+		state.lastTime = GetTimeSec();
 	}
+
+	double currentTime = GetTimeSec();
+	double deltaTime = currentTime - state.lastTime;
 
 	if (IsKeyDown(KeyCode::RightMouseButton))
 	{
@@ -345,33 +458,10 @@ bool OnAppUpdate()
 
 	WriteBuffer(state.globalsBuffer, TSpan((uint8*)mvp.Elements, sizeof(HMM_Mat4)));
 
-	if (state.testAnimation.tracks.length > 0)
+	if (state.animPlayer.transforms.length != 0)
 	{
-		TSpan<HMM_Mat4> jointTransforms = scratch.arena.Push<HMM_Mat4>(state.testAnimation.tracks.length);
-
-		for (size_t trackIdx = 0; trackIdx < state.testAnimation.tracks.length; ++trackIdx)
-		{
-			const Skeleton::Joint& joint = state.testSkeleton.joints[trackIdx];
-			const AnimationTrack& track = state.testAnimation.tracks[trackIdx];
-
-			HMM_Vec3 t = track.translations.length > 0 ? track.translations[0] : HMM_V3(0, 0, 0);
-			HMM_Quat r = track.rotations.length > 0 ? track.rotations[0] : HMM_Q(0, 0, 0, 1);
-			HMM_Vec3 s = track.scales.length > 0 ? track.scales[0] : HMM_V3(1, 1, 1);
-
-			jointTransforms[trackIdx] = HMM_Translate(t) * HMM_QToM4(r) * HMM_Scale(s);
-
-			if (joint.parentIdx != -1)
-			{
-				jointTransforms[trackIdx] = jointTransforms[joint.parentIdx] * jointTransforms[trackIdx];
-			}
-		}
-
-		for (size_t trackIdx = 0; trackIdx < state.testAnimation.tracks.length; ++trackIdx)
-		{
-			jointTransforms[trackIdx] = jointTransforms[trackIdx] * state.testSkeleton.invBindPose[trackIdx];
-		}
-
-		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)jointTransforms.data, sizeof(HMM_Mat4) * jointTransforms.length));
+		UpdateAnimation(state.animPlayer, static_cast<float>(deltaTime));
+		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)state.animPlayer.transforms.data, sizeof(HMM_Mat4) * state.animPlayer.transforms.length));
 	}
 
 	BeginPass({
@@ -406,10 +496,10 @@ bool OnAppUpdate()
 	EndPass();
 
 	EndFrame();
-
 	PresentSurface(state.surface);
 
 	state.mouseDelta = HMM_V2(0, 0);
+	state.lastTime = currentTime;
 
 	return result;
 }
@@ -429,6 +519,13 @@ bool OnAppEvent(const AppEvent& appEvent)
 			else
 			{
 				BitsetUnset(state.keys, size_t(appEvent.keyCode));
+
+				if (appEvent.keyCode == KeyCode::X)
+				{
+					state.activeAnimation = (state.activeAnimation + 1) % state.animations.length;
+					state.animPlayer.animation = state.animations[state.activeAnimation];
+					state.animPlayer.currentTime = 0;
+				}
 			}
 
 			break;
