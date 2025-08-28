@@ -18,6 +18,7 @@ namespace Bk
 
 	struct Mesh
 	{
+		String name;
 		TSpan<MeshSection> sections;
 		TSpan<uint8> positionBuffer;
 		TSpan<uint8> jointIndexBuffer;
@@ -29,8 +30,8 @@ namespace Bk
 	{
 		struct Joint
 		{
-			int32 parentIdx;
 			String name;
+			int32 parentIdx;
 		};
 
 		TSpan<Joint> joints;
@@ -51,6 +52,8 @@ namespace Bk
 
 	struct Animation
 	{
+		String name;
+		float duration;
 		TSpan<AnimationTrack> tracks;
 	};
 

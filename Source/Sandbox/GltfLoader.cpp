@@ -714,6 +714,8 @@ namespace Bk
 			const GltfMesh& gltfMesh = gltfAsset.meshes[meshIdx];
 
 			Mesh& mesh = meshes[meshIdx];
+
+			mesh.name = arena.Copy(gltfMesh.name);
 			mesh.sections = arena.PushZeroed<MeshSection>(gltfMesh.primitives.length);
 
 			TSpan<TSpan<uint8>> positionBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
@@ -878,10 +880,12 @@ namespace Bk
 			{
 				const int32 gltfJointNodeIdx = gltfSkin.joints[jointIdx];
 				const int32 gltfJointParentNodeIdx = nodeToParentIdx[gltfJointNodeIdx];
-
 				const GltfNode& gltfJointNode = gltfAsset.nodes[gltfJointNodeIdx];
 
 				Skeleton::Joint& joint = skeleton.joints[jointIdx];
+
+				// #TODO: Fallback joint name
+				joint.name = arena.Copy(gltfJointNode.name);
 
 				joint.parentIdx = -1;
 				for (int32 parentJointIdx = 0; parentJointIdx < jointIdx; ++parentJointIdx)
@@ -892,9 +896,6 @@ namespace Bk
 						break;
 					}
 				}
-
-				// #TODO: Fallback joint name
-				joint.name = arena.Copy(gltfJointNode.name);
 			}
 
 			if (gltfSkin.inverseBindMatrices != -1)
@@ -959,6 +960,9 @@ namespace Bk
 			const GltfAnimation& gltfAnimation = gltfAsset.animations[animationIdx];
 
 			Animation& animation = animations[animationIdx];
+
+			animation.name = arena.Copy(gltfAnimation.name);
+			animation.duration = 0.0f;
 			animation.tracks = arena.PushZeroed<AnimationTrack>(skeleton.joints.length);
 
 			for (const GltfAnimationChannel& channel : gltfAnimation.channels)
@@ -970,13 +974,19 @@ namespace Bk
 				}
 
 				const GltfAnimationSampler& sampler = gltfAnimation.samplers[channel.sampler];
-
 				AnimationTrack& track = animation.tracks[trackIdx];
 
 				const GltfAccessor& inputAccessor = gltfAsset.accessors[sampler.input];
 				BK_ASSERTF(inputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-				BK_ASSERTF(inputAccessor.componentElements == 1, "Unexpected buffer layout");
 				BK_ASSERTF(inputAccessor.normalized == false, "Unexpected buffer layout");
+
+				TSpan<float> keyframeTimes = MaterializeBuffer<float>(arena, gltfAsset, inputAccessor);
+				if (keyframeTimes.length == 0)
+				{
+					continue;
+				}
+
+				animation.duration = Max(animation.duration, keyframeTimes[keyframeTimes.length - 1]);
 
 				switch (channel.targetPath)
 				{
@@ -987,7 +997,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.componentElements == 3, "Unexpected buffer layout");
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
-						track.translationTimes = MaterializeBuffer<float>(arena, gltfAsset, inputAccessor);
+						track.translationTimes = keyframeTimes;
 						track.translations = MaterializeBuffer<HMM_Vec3>(arena, gltfAsset, outputAccessor);
 
 						break;
@@ -1000,7 +1010,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.componentElements == 3, "Unexpected buffer layout");
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
-						track.scaleTimes = MaterializeBuffer<float>(arena, gltfAsset, inputAccessor);
+						track.scaleTimes = keyframeTimes;
 						track.scales = MaterializeBuffer<HMM_Vec3>(arena, gltfAsset, outputAccessor);
 
 						break;
@@ -1013,7 +1023,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.componentElements == 4, "Unexpected buffer layout");
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
-						track.rotationTimes = MaterializeBuffer<float>(arena, gltfAsset, inputAccessor);
+						track.rotationTimes = keyframeTimes;
 						track.rotations = MaterializeBuffer<HMM_Quat>(arena, gltfAsset, outputAccessor);
 
 						break;
