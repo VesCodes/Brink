@@ -1,5 +1,6 @@
 ---
 BasedOnStyle: Microsoft
+Standard: c++20
 ColumnLimit: 0
 UseTab: AlignWithSpaces
 InsertNewlineAtEOF: true
