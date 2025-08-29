@@ -275,7 +275,7 @@ void Initialize()
 
 	state.cameraPosition = Vec3f(0, 1, 4);
 	state.cameraOrientation = Quat4f::Identity;
-	state.cameraSpeed = 0.025f;
+	state.cameraSpeed = 5.0f;
 
 	if (FileHandle fileHandle = OpenFile("Assets/Hiker.glb", FileAccess::Read))
 	{
@@ -384,7 +384,7 @@ bool OnAppUpdate()
 	}
 
 	double currentTime = GetTimeSec();
-	double deltaTime = currentTime - state.lastTime;
+	float deltaTime = static_cast<float>(currentTime - state.lastTime);
 
 	if (IsKeyDown(KeyCode::RightMouseButton))
 	{
@@ -412,12 +412,12 @@ bool OnAppUpdate()
 
 		if (IsKeyDown(KeyCode::Q))
 		{
-			state.cameraPosition.y -= state.cameraSpeed;
+			state.cameraPosition.y -= state.cameraSpeed * deltaTime;
 		}
 
 		if (IsKeyDown(KeyCode::E))
 		{
-			state.cameraPosition.y += state.cameraSpeed;
+			state.cameraPosition.y += state.cameraSpeed * deltaTime;
 		}
 
 		if (state.mouseDelta.x != 0 || state.mouseDelta.y != 0)
@@ -447,7 +447,7 @@ bool OnAppUpdate()
 		if (cameraMove.x != 0 || cameraMove.z != 0)
 		{
 			cameraMove = Normalize(cameraMove);
-			state.cameraPosition += RotateVector(state.cameraOrientation, cameraMove) * state.cameraSpeed;
+			state.cameraPosition += RotateVector(state.cameraOrientation, cameraMove) * state.cameraSpeed * deltaTime;
 		}
 	}
 
@@ -461,7 +461,7 @@ bool OnAppUpdate()
 
 	if (state.animPlayer.transforms.length != 0)
 	{
-		UpdateAnimation(state.animPlayer, static_cast<float>(deltaTime));
+		UpdateAnimation(state.animPlayer, deltaTime);
 		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)state.animPlayer.transforms.data, sizeof(Mat4f) * state.animPlayer.transforms.length));
 	}
 
@@ -543,7 +543,7 @@ bool OnAppEvent(const AppEvent& appEvent)
 
 		case AppEventType::MouseWheel:
 		{
-			state.cameraSpeed = Clamp(state.cameraSpeed + appEvent.wheelDelta * 0.0025f, 0.0001f, 2.0f);
+			state.cameraSpeed = Clamp(state.cameraSpeed + appEvent.wheelDelta, 1.0f, 42.0f);
 
 			break;
 		}

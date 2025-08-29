@@ -208,7 +208,7 @@ namespace Bk
 			AppEvent appEvent = {};
 			appEvent.type = AppEventType::MouseWheel;
 			appEvent.target = platformContext.windows.GetHandle(static_cast<Window*>(userData));
-			appEvent.wheelDelta = static_cast<float>(event->deltaY);
+			appEvent.wheelDelta = static_cast<float>(-event->deltaY);
 
 			switch (event->deltaMode)
 			{
