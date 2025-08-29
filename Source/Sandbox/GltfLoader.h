@@ -1,11 +1,9 @@
 #pragma once
 
 #include "Core/Core.h"
+#include "Core/Math.h"
 #include "Core/Span.h"
 #include "Core/String.h"
-
-#define HANDMADE_MATH_USE_DEGREES
-#include <HandmadeMath.h>
 
 namespace Bk
 {
@@ -35,19 +33,19 @@ namespace Bk
 		};
 
 		TSpan<Joint> joints;
-		TSpan<HMM_Mat4> invBindPose;
+		TSpan<Mat4f> invBindPose;
 	};
 
 	struct AnimationTrack
 	{
 		TSpan<float> translationTimes;
-		TSpan<HMM_Vec3> translations;
+		TSpan<Vec3f> translations;
 
 		TSpan<float> rotationTimes;
-		TSpan<HMM_Quat> rotations;
+		TSpan<Quat4f> rotations;
 
 		TSpan<float> scaleTimes;
-		TSpan<HMM_Vec3> scales;
+		TSpan<Vec3f> scales;
 	};
 
 	struct Animation

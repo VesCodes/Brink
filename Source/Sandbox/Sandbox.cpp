@@ -1,5 +1,6 @@
 #include "Core/Application.h"
 #include "Core/Core.h"
+#include "Core/Math.h"
 #include "Core/Memory.h"
 #include "Core/Platform.h"
 #include "Core/String.h"
@@ -25,7 +26,7 @@ struct AnimationPlayer
 	Animation animation;
 
 	float currentTime;
-	TSpan<HMM_Mat4> transforms;
+	TSpan<Mat4f> transforms;
 };
 
 struct
@@ -33,8 +34,8 @@ struct
 	Arena arena;
 
 	uint32 window;
-	HMM_Vec2 mousePosition;
-	HMM_Vec2 mouseDelta;
+	Vec2f mousePosition;
+	Vec2f mouseDelta;
 	uint32* keys;
 	double lastTime;
 
@@ -50,8 +51,8 @@ struct
 	AnimationPlayer animPlayer;
 	size_t activeAnimation;
 
-	HMM_Vec3 cameraPosition;
-	HMM_Quat cameraOrientation;
+	Vec3f cameraPosition;
+	Quat4f cameraOrientation;
 	float cameraSpeed;
 } state;
 
@@ -137,7 +138,7 @@ void LoadGlb(uint8* data, size_t length)
 		}
 
 		state.animPlayer.skeleton.invBindPose = state.arena.Copy(state.animPlayer.skeleton.invBindPose);
-		state.animPlayer.transforms = state.arena.Push<HMM_Mat4>(state.animPlayer.skeleton.joints.length);
+		state.animPlayer.transforms = state.arena.Push<Mat4f>(state.animPlayer.skeleton.joints.length);
 
 		LoadGlbAnimations(state.arena, TSpan(data, length), state.animPlayer.skeleton, state.animations);
 		if (state.animations.length > 0)
@@ -182,14 +183,14 @@ void UpdateAnimation(AnimationPlayer& player, float deltaTime)
 	{
 		const Skeleton::Joint& joint = player.skeleton.joints[i];
 		const AnimationTrack& track = player.animation.tracks[i];
-		HMM_Mat4& transform = player.transforms[i];
+		Mat4f& transform = player.transforms[i];
 
-		transform = HMM_M4D(1);
+		transform = Mat4f::Identity;
 
 		if (track.scaleTimes.length > 0)
 		{
 			size_t keyframe = GetKeyframe(track.scaleTimes, player.currentTime);
-			HMM_Vec3 scale = track.scales[keyframe];
+			Vec3f scale = track.scales[keyframe];
 
 			if (keyframe > 0)
 			{
@@ -197,16 +198,16 @@ void UpdateAnimation(AnimationPlayer& player, float deltaTime)
 				float t1 = track.scaleTimes[keyframe];
 				float alpha = (player.currentTime - t0) / (t1 - t0);
 
-				scale = HMM_Lerp(track.scales[keyframe - 1], alpha, scale);
+				scale = Lerp(track.scales[keyframe - 1], scale, alpha);
 			}
 
-			transform = HMM_Scale(scale);
+			transform = ScaleMatrix(scale);
 		}
 
 		if (track.rotationTimes.length > 0)
 		{
 			size_t keyframe = GetKeyframe(track.rotationTimes, player.currentTime);
-			HMM_Quat rotation = track.rotations[keyframe];
+			Quat4f rotation = track.rotations[keyframe];
 
 			if (keyframe > 0)
 			{
@@ -214,24 +215,24 @@ void UpdateAnimation(AnimationPlayer& player, float deltaTime)
 				float t1 = track.rotationTimes[keyframe];
 				float alpha = (player.currentTime - t0) / (t1 - t0);
 
-				if (HMM_DotQ(track.rotations[keyframe - 1], rotation) < 0)
+				if (Dot(track.rotations[keyframe - 1], rotation) < 0)
 				{
-					rotation.X = -rotation.X;
-					rotation.Y = -rotation.Y;
-					rotation.Z = -rotation.Z;
-					rotation.W = -rotation.W;
+					rotation.x = -rotation.x;
+					rotation.y = -rotation.y;
+					rotation.z = -rotation.z;
+					rotation.w = -rotation.w;
 				}
 
-				rotation = HMM_NLerp(track.rotations[keyframe - 1], alpha, rotation);
+				rotation = Lerp(track.rotations[keyframe - 1], rotation, alpha);
 			}
 
-			transform = HMM_QToM4(rotation) * transform;
+			transform = RotationMatrix(rotation) * transform;
 		}
 
 		if (track.translationTimes.length > 0)
 		{
 			size_t keyframe = GetKeyframe(track.translationTimes, player.currentTime);
-			HMM_Vec3 translation = track.translations[keyframe];
+			Vec3f translation = track.translations[keyframe];
 
 			if (keyframe > 0)
 			{
@@ -239,10 +240,10 @@ void UpdateAnimation(AnimationPlayer& player, float deltaTime)
 				float t1 = track.translationTimes[keyframe];
 				float alpha = (player.currentTime - t0) / (t1 - t0);
 
-				translation = HMM_Lerp(track.translations[keyframe - 1], alpha, translation);
+				translation = Lerp(track.translations[keyframe - 1], translation, alpha);
 			}
 
-			transform = HMM_Translate(translation) * transform;
+			transform = TranslationMatrix(translation) * transform;
 		}
 
 		if (joint.parentIdx != -1)
@@ -272,8 +273,8 @@ void Initialize()
 			});
 	}
 
-	state.cameraPosition = HMM_V3(0, 1, 4);
-	state.cameraOrientation = HMM_Q(0, 0, 0, 1);
+	state.cameraPosition = Vec3f(0, 1, 4);
+	state.cameraOrientation = Quat4f::Identity;
 	state.cameraSpeed = 0.025f;
 
 	if (FileHandle fileHandle = OpenFile("Assets/Hiker.glb", FileAccess::Read))
@@ -344,14 +345,14 @@ void Initialize()
 		.name = "Globals Buffer",
 		.type = GpuBufferType::Uniform,
 		.access = GpuBufferAccess::GpuOnly,
-		.size = sizeof(HMM_Mat4),
+		.size = sizeof(Mat4f),
 	});
 
 	state.jointTransformsBuffer = CreateBuffer({
 		.name = "Joint Transforms Buffer",
 		.type = GpuBufferType::Storage,
 		.access = GpuBufferAccess::GpuOnly,
-		.size = sizeof(HMM_Mat4) * 512,
+		.size = sizeof(Mat4f) * 512,
 	});
 
 	state.globalBindingGroup = CreateBindingGroup({
@@ -387,81 +388,81 @@ bool OnAppUpdate()
 
 	if (IsKeyDown(KeyCode::RightMouseButton))
 	{
-		HMM_Vec3 cameraMove = HMM_V3(0, 0, 0);
+		Vec3f cameraMove = Vec3f::Zero;
 
 		if (IsKeyDown(KeyCode::W))
 		{
-			cameraMove.Z -= 1;
+			cameraMove.z -= 1;
 		}
 
 		if (IsKeyDown(KeyCode::S))
 		{
-			cameraMove.Z += 1;
+			cameraMove.z += 1;
 		}
 
 		if (IsKeyDown(KeyCode::A))
 		{
-			cameraMove.X -= 1;
+			cameraMove.x -= 1;
 		}
 
 		if (IsKeyDown(KeyCode::D))
 		{
-			cameraMove.X += 1;
+			cameraMove.x += 1;
 		}
 
 		if (IsKeyDown(KeyCode::Q))
 		{
-			state.cameraPosition.Y -= state.cameraSpeed;
+			state.cameraPosition.y -= state.cameraSpeed;
 		}
 
 		if (IsKeyDown(KeyCode::E))
 		{
-			state.cameraPosition.Y += state.cameraSpeed;
+			state.cameraPosition.y += state.cameraSpeed;
 		}
 
-		if (state.mouseDelta.X != 0 || state.mouseDelta.Y != 0)
+		if (state.mouseDelta.x != 0 || state.mouseDelta.y != 0)
 		{
-			if (state.mouseDelta.X != 0)
+			if (state.mouseDelta.x != 0)
 			{
-				HMM_Vec3 worldUp = HMM_V3(0, 1, 0);
-				HMM_Vec3 cameraUp = HMM_RotateV3Q(worldUp, state.cameraOrientation);
+				Vec3f worldUp = Vec3f(0, 1, 0);
+				Vec3f cameraUp = RotateVector(state.cameraOrientation, worldUp);
 
-				float yawAngle = -state.mouseDelta.X * 0.25f * (HMM_DotV3(worldUp, cameraUp) < 0 ? -1.0f : 1.0f);
-				HMM_Quat yawRotation = HMM_QFromAxisAngle_RH(HMM_V3(0, 1, 0), yawAngle);
+				float yawAngle = -state.mouseDelta.x * 0.005f * (Dot(worldUp, cameraUp) < 0 ? -1.0f : 1.0f);
+				Quat4f yawRotation = AxisAngleRotation(worldUp, yawAngle);
 
 				state.cameraOrientation = yawRotation * state.cameraOrientation;
 			}
 
-			if (state.mouseDelta.Y != 0)
+			if (state.mouseDelta.y != 0)
 			{
-				float pitchAngle = -state.mouseDelta.Y * 0.25f;
-				HMM_Quat pitchRotation = HMM_QFromAxisAngle_RH(HMM_V3(1, 0, 0), pitchAngle);
+				float pitchAngle = -state.mouseDelta.y * 0.005f;
+				Quat4f pitchRotation = AxisAngleRotation(Vec3f(1, 0, 0), pitchAngle);
 
 				state.cameraOrientation = state.cameraOrientation * pitchRotation;
 			}
 
-			state.cameraOrientation = HMM_NormQ(state.cameraOrientation);
+			state.cameraOrientation = Normalize(state.cameraOrientation);
 		}
 
-		if (cameraMove.X != 0 || cameraMove.Z != 0)
+		if (cameraMove.x != 0 || cameraMove.z != 0)
 		{
-			cameraMove = HMM_NormV3(cameraMove);
-			state.cameraPosition += HMM_RotateV3Q(cameraMove, state.cameraOrientation) * state.cameraSpeed;
+			cameraMove = Normalize(cameraMove);
+			state.cameraPosition += RotateVector(state.cameraOrientation, cameraMove) * state.cameraSpeed;
 		}
 	}
 
-	HMM_Mat4 proj = HMM_Perspective_RH_ZO(60, 16.0f / 9.0f, 0.01f, 100);
-	HMM_Mat4 view = HMM_QToM4(HMM_InvQ(state.cameraOrientation)) * HMM_Translate(state.cameraPosition * -1.0f);
-	HMM_Mat4 model = HMM_M4D(1);
+	Mat4f proj = PerspectiveMatrix(30.0f * (3.14f / 180.0f), 16.0f / 9.0f, 0.01f, 100.0f);
+	Mat4f view = RotationMatrix(Conjugate(state.cameraOrientation)) * TranslationMatrix(-state.cameraPosition);
+	Mat4f model = Mat4f::Identity;
 
-	HMM_Mat4 mvp = proj * view * model;
+	Mat4f mvp = proj * view * model;
 
-	WriteBuffer(state.globalsBuffer, TSpan((uint8*)mvp.Elements, sizeof(HMM_Mat4)));
+	WriteBuffer(state.globalsBuffer, TSpan((uint8*)mvp.elements, sizeof(Mat4f)));
 
 	if (state.animPlayer.transforms.length != 0)
 	{
 		UpdateAnimation(state.animPlayer, static_cast<float>(deltaTime));
-		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)state.animPlayer.transforms.data, sizeof(HMM_Mat4) * state.animPlayer.transforms.length));
+		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)state.animPlayer.transforms.data, sizeof(Mat4f) * state.animPlayer.transforms.length));
 	}
 
 	BeginPass({
@@ -498,7 +499,7 @@ bool OnAppUpdate()
 	EndFrame();
 	PresentSurface(state.surface);
 
-	state.mouseDelta = HMM_V2(0, 0);
+	state.mouseDelta = Vec2f::Zero;
 	state.lastTime = currentTime;
 
 	return result;
@@ -533,7 +534,7 @@ bool OnAppEvent(const AppEvent& appEvent)
 
 		case AppEventType::MouseMove:
 		{
-			HMM_Vec2 mousePosition = HMM_V2(appEvent.mouseX, appEvent.mouseY);
+			Vec2f mousePosition(appEvent.mouseX, appEvent.mouseY);
 			state.mouseDelta += (mousePosition - state.mousePosition);
 			state.mousePosition = mousePosition;
 

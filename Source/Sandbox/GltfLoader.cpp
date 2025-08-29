@@ -58,9 +58,9 @@ namespace Bk
 		TSpan<int32> children;
 		int32 mesh;
 		int32 skin;
-		HMM_Vec3 translation;
-		HMM_Quat rotation;
-		HMM_Vec3 scale;
+		Vec3f translation;
+		Quat4f rotation;
+		Vec3f scale;
 	};
 
 	struct GltfMeshPrimitive
@@ -310,12 +310,12 @@ namespace Bk
 			size_t elementIdx = 0;
 			for (JsonValue* element = FindJsonValueInArray(translation, 0); element; element = element->sibling, ++elementIdx)
 			{
-				result.translation.Elements[elementIdx] = static_cast<float>(element->asNumber);
+				result.translation.elements[elementIdx] = static_cast<float>(element->asNumber);
 			}
 		}
 		else
 		{
-			result.translation = HMM_V3(0, 0, 0);
+			result.translation = Vec3f::Zero;
 		}
 
 		if (JsonValue* rotation = FindJsonValueInObject(node, "rotation"))
@@ -323,12 +323,12 @@ namespace Bk
 			size_t elementIdx = 0;
 			for (JsonValue* element = FindJsonValueInArray(rotation, 0); element; element = element->sibling, ++elementIdx)
 			{
-				result.rotation.Elements[elementIdx] = static_cast<float>(element->asNumber);
+				result.rotation.elements[elementIdx] = static_cast<float>(element->asNumber);
 			}
 		}
 		else
 		{
-			result.rotation = HMM_Q(0, 0, 0, 1);
+			result.rotation = Quat4f::Identity;
 		}
 
 		if (JsonValue* scale = FindJsonValueInObject(node, "scale"))
@@ -336,12 +336,12 @@ namespace Bk
 			size_t elementIdx = 0;
 			for (JsonValue* element = FindJsonValueInArray(scale, 0); element; element = element->sibling, ++elementIdx)
 			{
-				result.scale.Elements[elementIdx] = static_cast<float>(element->asNumber);
+				result.scale.elements[elementIdx] = static_cast<float>(element->asNumber);
 			}
 		}
 		else
 		{
-			result.scale = HMM_V3(1, 1, 1);
+			result.scale = Vec3f::One;
 		}
 
 		return result;
@@ -905,7 +905,7 @@ namespace Bk
 				BK_ASSERTF(accessor.componentElements == 16, "Unexpected buffer layout");
 				BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-				skeleton.invBindPose = MaterializeBuffer<HMM_Mat4>(arena, gltfAsset, accessor);
+				skeleton.invBindPose = MaterializeBuffer<Mat4f>(arena, gltfAsset, accessor);
 			}
 		}
 
@@ -998,20 +998,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.translationTimes = keyframeTimes;
-						track.translations = MaterializeBuffer<HMM_Vec3>(arena, gltfAsset, outputAccessor);
-
-						break;
-					}
-
-					case GltfAnimationTargetPath::Scale:
-					{
-						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
-						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-						BK_ASSERTF(outputAccessor.componentElements == 3, "Unexpected buffer layout");
-						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
-
-						track.scaleTimes = keyframeTimes;
-						track.scales = MaterializeBuffer<HMM_Vec3>(arena, gltfAsset, outputAccessor);
+						track.translations = MaterializeBuffer<Vec3f>(arena, gltfAsset, outputAccessor);
 
 						break;
 					}
@@ -1024,7 +1011,20 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.rotationTimes = keyframeTimes;
-						track.rotations = MaterializeBuffer<HMM_Quat>(arena, gltfAsset, outputAccessor);
+						track.rotations = MaterializeBuffer<Quat4f>(arena, gltfAsset, outputAccessor);
+
+						break;
+					}
+
+					case GltfAnimationTargetPath::Scale:
+					{
+						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
+						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
+						BK_ASSERTF(outputAccessor.componentElements == 3, "Unexpected buffer layout");
+						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
+
+						track.scaleTimes = keyframeTimes;
+						track.scales = MaterializeBuffer<Vec3f>(arena, gltfAsset, outputAccessor);
 
 						break;
 					}
