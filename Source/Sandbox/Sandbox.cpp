@@ -61,7 +61,7 @@ bool IsKeyDown(KeyCode keyCode)
 	return BitsetIsSet(state.keys, (size_t)keyCode);
 }
 
-void LoadGlb(uint8* data, size_t length)
+void LoadGlb(TSpan<uint8> data)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -78,7 +78,7 @@ void LoadGlb(uint8* data, size_t length)
 	StringBuilder resourceNameBuilder(scratch.arena);
 
 	TSpan<Mesh> meshes = {};
-	if (LoadGlbMeshes(scratch.arena, TSpan(data, length), meshes))
+	if (LoadGlbMeshes(scratch.arena, data, meshes))
 	{
 		state.meshProxies = state.arena.Push<MeshProxy>(meshes.length);
 		for (size_t meshIdx = 0; meshIdx < state.meshProxies.length; ++meshIdx)
@@ -127,7 +127,7 @@ void LoadGlb(uint8* data, size_t length)
 	}
 
 	TSpan<Skeleton> skeletons = {};
-	if (LoadGlbSkeletons(scratch.arena, TSpan(data, length), skeletons) && skeletons.length > 0)
+	if (LoadGlbSkeletons(scratch.arena, data, skeletons) && skeletons.length > 0)
 	{
 		state.animPlayer.skeleton = skeletons[0];
 
@@ -140,7 +140,7 @@ void LoadGlb(uint8* data, size_t length)
 		state.animPlayer.skeleton.invBindPose = state.arena.Copy(state.animPlayer.skeleton.invBindPose);
 		state.animPlayer.transforms = state.arena.Push<Mat4f>(state.animPlayer.skeleton.joints.length);
 
-		LoadGlbAnimations(state.arena, TSpan(data, length), state.animPlayer.skeleton, state.animations);
+		LoadGlbAnimations(state.arena, data, state.animPlayer.skeleton, state.animations);
 		if (state.animations.length > 0)
 		{
 			state.activeAnimation = 0;
@@ -282,7 +282,7 @@ void Initialize()
 		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
 		if (ReadFile(fileHandle, fileData) == fileData.length)
 		{
-			LoadGlb(fileData.data, fileData.length);
+			LoadGlb(fileData);
 		}
 
 		CloseFile(fileHandle);
@@ -557,7 +557,7 @@ bool OnAppEvent(const AppEvent& appEvent)
 				TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
 				if (ReadFile(fileHandle, fileData) == fileData.length)
 				{
-					LoadGlb(fileData.data, fileData.length);
+					LoadGlb(fileData);
 				}
 
 				CloseFile(fileHandle);
