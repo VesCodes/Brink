@@ -1,3 +1,4 @@
+#include "Core/Application.h"
 #include "Core/Core.h"
 #include "Core/Memory.h"
 #include "Core/Platform.h"
@@ -365,7 +366,30 @@ ActionResult CompileModule(const BuildContext& context, String moduleName)
 	return processExitCode == 0 ? ActionResult::Succeeded : ActionResult::Failed;
 }
 
-ActionResult LinkModules(const BuildContext& context, TSpan<String> moduleNames, String executableName)
+ActionResult CompileModules(const BuildContext& context, TSpan<String> moduleNames)
+{
+	ActionResult result = ActionResult::Skipped;
+
+	for (String moduleName : moduleNames)
+	{
+		ActionResult moduleResult = CompileModule(context, moduleName);
+
+		if (moduleResult == ActionResult::Failed)
+		{
+			result = ActionResult::Failed;
+			break;
+		}
+
+		if (moduleResult == ActionResult::Succeeded)
+		{
+			result = ActionResult::Succeeded;
+		}
+	}
+
+	return result;
+}
+
+bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String executableName)
 {
 	ArenaScope scratch = GetScratchArena();
 
@@ -389,10 +413,10 @@ ActionResult LinkModules(const BuildContext& context, TSpan<String> moduleNames,
 	int32 processExitCode = -1;
 	if (!process || !WaitForProcess(process, &processExitCode))
 	{
-		return ActionResult::Failed;
+		return false;
 	}
 
-	return processExitCode == 0 ? ActionResult::Succeeded : ActionResult::Failed;
+	return processExitCode == 0;
 }
 
 String GenerateGuid(Arena& arena)
@@ -651,8 +675,87 @@ void PrepareBuildContext(Arena& arena, BuildContext& context)
 	}
 }
 
+void SelfUpdate(int32 argc, char** argv)
+{
+	ArenaScope scratch = GetScratchArena();
+
+	BuildContext context = {
+		.platform = GetPlatform(),
+		.config = BuildConfig::Debug,
+		.includes = { "Source", "ThirdParty" },
+		.definitions = { "BK_BUILD" },
+	};
+
+	PrepareBuildContext(scratch.arena, context);
+
+	ActionResult result = CompileModules(context, { "Core", "Build" });
+
+	if (result == ActionResult::Skipped)
+	{
+		return;
+	}
+
+	if (result == ActionResult::Failed)
+	{
+		printf("Failed to compile during self-update\n");
+		ExitApp(1);
+	}
+
+	StringBuilder builder(scratch.arena);
+	builder.AppendPath(argv[0]);
+	builder.NormalizePath();
+	builder.Append(".bak");
+
+	String backupFile = builder.ToString(scratch.arena);
+	String targetFile = backupFile.Slice(0, backupFile.length - 4);
+
+	DeleteFile(backupFile);
+	MoveFile(targetFile, backupFile);
+
+	if (!LinkModules(context, { "Core", "Build" }, targetFile))
+	{
+		MoveFile(backupFile, targetFile);
+
+		printf("Failed to link during self-update\n");
+		ExitApp(1);
+	}
+
+	builder.Reset();
+	for (int32 i = 1; i < argc; ++i)
+	{
+		String argValue = argv[i];
+
+		if (argValue.Contains(' '))
+		{
+			builder.Append('\"');
+			builder.Append(argValue);
+			builder.Append("\"");
+		}
+		else
+		{
+			builder.Append(argValue);
+		}
+
+		builder.Append(' ');
+	}
+
+	ProcessHandle process = CreateProcess({
+		.executable = argv[0],
+		.arguments = builder.ToString(scratch.arena),
+	});
+
+	printf("-----\n");
+
+	int32 exitCode = 1;
+	WaitForProcess(process, &exitCode);
+
+	ExitApp(exitCode);
+}
+
 int32 AppMain(int32 argc, char** argv)
 {
+	SelfUpdate(argc, argv);
+
 	Arena arena = {};
 
 	BuildContext context = {
@@ -664,91 +767,45 @@ int32 AppMain(int32 argc, char** argv)
 
 	for (int32 i = 1; i < argc; ++i)
 	{
-		String argument = argv[i];
-		if (argument == "-GenerateProject")
+		String argName = argv[i];
+		String argValue = String::Empty;
+
+		size_t equalsIdx = argName.Find('=');
+		if (equalsIdx != SIZE_MAX)
+		{
+			argValue = argName.Slice(equalsIdx + 1);
+			argName = argName.Slice(0, equalsIdx);
+		}
+
+		if (argName.Equals("-GenerateProject", true))
 		{
 			GenerateProject();
 		}
-	}
-
-	// Build
-	{
-		double startTime = GetTimeSec();
-
-		PrepareBuildContext(arena, context);
-
-		ActionResult compileResult = CompileModule(context, "Core");
-		bool skipLink = compileResult == ActionResult::Skipped;
-
-		if (compileResult == ActionResult::Failed)
+		else if (argName.Equals("-Platform", true))
 		{
-			printf("Failed to compile Core module\n");
-			return 1;
-		}
-
-		compileResult = CompileModule(context, "Build");
-		skipLink &= compileResult == ActionResult::Skipped;
-
-		if (compileResult == ActionResult::Failed)
-		{
-			printf("Failed to compile Build module\n");
-			return 1;
-		}
-
-		if (!skipLink)
-		{
-			double compileTime = GetTimeSec();
-			printf("Compiled modules for Build in %0.4fs\n", compileTime - startTime);
-
-			StringBuilder builder(arena);
-			builder.AppendPath(argv[0]);
-			builder.NormalizePath();
-			builder.Append(".bak");
-
-			String backupFile = builder.ToString(arena);
-			String targetFile = backupFile.Slice(0, backupFile.length - 4);
-
-			DeleteFile(backupFile);
-			MoveFile(targetFile, backupFile);
-
-			if (LinkModules(context, { "Core", "Build" }, targetFile) == ActionResult::Failed)
+			if (argValue.Equals("Windows", true))
 			{
-				MoveFile(backupFile, targetFile);
-
-				printf("Failed to link Build target\n");
-				return 1;
+				context.platform = Platform::Windows;
 			}
-
-			double linkTime = GetTimeSec();
-			printf("Linked modules for Build in %0.4fs\n", linkTime - compileTime);
-
-			printf("-----\n");
-
-			builder.Reset();
-			for (int32 i = 1; i < argc; ++i)
+			else if (argValue.Equals("MacOS", true))
 			{
-				String argValue = argv[i];
-
-				if (argValue.Contains(' '))
-				{
-					builder.Append('\"');
-					builder.Append(argValue);
-					builder.Append("\"");
-				}
-				else
-				{
-					builder.Append(argValue);
-				}
-
-				builder.Append(' ');
+				context.platform = Platform::MacOS;
 			}
-
-			ProcessHandle buildProcess = CreateProcess({
-				.executable = argv[0],
-				.arguments = builder.ToString(arena),
-			});
-
-			return WaitForProcess(buildProcess);
+			else if (argValue.Equals("Emscripten", true))
+			{
+				context.platform = Platform::Emscripten;
+			}
+		}
+		else if (argName.Equals("-Config", true))
+		{
+			if (argValue.Equals("Debug", true))
+			{
+				context.config = BuildConfig::Debug;
+			}
+			else if (argValue.Equals("Release", true))
+			{
+				context.config = BuildConfig::Release;
+			}
 		}
 	}
 
@@ -757,18 +814,12 @@ int32 AppMain(int32 argc, char** argv)
 
 	printf("Build started at %02d:%02d:%02d\n", buildTime.hour, buildTime.minute, buildTime.second);
 
-	// Sandbox
 	{
-		double startTime = GetTimeSec();
-
-		context.platform = Platform::Emscripten;
-
 		CreateDirectory("Build/Sandbox");
 		CreateDirectory("Build/Sandbox/Assets");
-
 		CopyDirectory("Source/Sandbox/Assets", "Build/Sandbox/Assets");
 
-		String outputFile = {};
+		String outputFile = String::Empty;
 		if (context.platform == Platform::Windows)
 		{
 			outputFile = "Build/Sandbox/Sandbox.exe";
@@ -797,41 +848,22 @@ int32 AppMain(int32 argc, char** argv)
 
 		PrepareBuildContext(arena, context);
 
-		ActionResult compileResult = CompileModule(context, "Core");
-		bool skipLink = compileResult == ActionResult::Skipped;
+		ActionResult result = CompileModules(context, { "Core", "Renderer", "Sandbox" });
 
-		if (compileResult == ActionResult::Failed)
+		if (result == ActionResult::Failed)
 		{
-			printf("Failed to compile Core module\n");
+			printf("Failed to compile Sandbox modules\n");
 			return 1;
 		}
 
-		compileResult = CompileModule(context, "Renderer");
-		skipLink &= compileResult == ActionResult::Skipped;
-
-		if (compileResult == ActionResult::Failed)
-		{
-			printf("Failed to compile Renderer module\n");
-			return 1;
-		}
-
-		compileResult = CompileModule(context, "Sandbox");
-		skipLink &= compileResult == ActionResult::Skipped;
-
-		if (compileResult == ActionResult::Failed)
-		{
-			printf("Failed to compile Sandbox module\n");
-			return 1;
-		}
-
-		if (!skipLink)
+		if (result == ActionResult::Succeeded)
 		{
 			double compileTime = GetTimeSec();
-			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - startTime);
+			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - buildStartTime);
 
-			if (LinkModules(context, { "Core", "Renderer", "Sandbox" }, outputFile) == ActionResult::Failed)
+			if (!LinkModules(context, { "Core", "Renderer", "Sandbox" }, outputFile))
 			{
-				printf("Failed to link Sandbox target\n");
+				printf("Failed to link Sandbox modules\n");
 				return 1;
 			}
 

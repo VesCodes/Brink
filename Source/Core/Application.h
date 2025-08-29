@@ -22,6 +22,7 @@ namespace Bk
 	};
 
 	void ConfigureApp(const AppConfig& config);
+	[[noreturn]] void ExitApp(int32 exitCode);
 
 	enum class AppEventType : uint8
 	{
