@@ -13,6 +13,7 @@ SkipMacroDefinitionBody: true
 Cpp11BracedListStyle: false
 IndentCaseLabels: true
 AllowShortCaseLabelsOnASingleLine: true
+RequiresClausePosition: WithPreceding
 BraceWrapping:
   BeforeLambdaBody: true
   AfterCaseLabel: true

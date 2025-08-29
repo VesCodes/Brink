@@ -18,6 +18,9 @@ namespace Bk
 		template<size_t N>
 		TSpan(Type (&data)[N]);
 
+		template<typename OtherType>
+		TSpan(TSpan<OtherType> other) requires(__is_convertible(OtherType*, Type*));
+
 		TSpan Slice(size_t start, size_t count = SIZE_MAX) const;
 
 		operator Type*() const;
@@ -55,6 +58,13 @@ namespace Bk
 	template<size_t N>
 	TSpan<Type>::TSpan(Type (&data)[N])
 		: data(data), length(N)
+	{
+	}
+
+	template<typename Type>
+	template<typename OtherType>
+	TSpan<Type>::TSpan(TSpan<OtherType> other) requires(__is_convertible(OtherType*, Type*))
+		: data(other.data), length(other.length)
 	{
 	}
 
