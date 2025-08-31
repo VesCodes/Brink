@@ -1,7 +1,12 @@
 #include "GltfLoader.h"
 
 #include "Core/Json.h"
+#include "Core/Math.h"
 #include "Core/Memory.h"
+
+#include "Engine/AnimSequence.h"
+#include "Engine/Mesh.h"
+#include "Engine/Skeleton.h"
 
 namespace Bk
 {
@@ -680,40 +685,40 @@ namespace Bk
 	TSpan<Type> MaterializeBuffer(Arena& arena, const GltfAsset& asset, const GltfAccessor& accessor)
 	{
 		TSpan<uint8> buffer = MaterializeBuffer(arena, asset, accessor);
-		return TSpan((Type*)buffer.data, buffer.length / sizeof(Type));
+		return TSpan(reinterpret_cast<Type*>(buffer.data), buffer.length / sizeof(Type));
 	}
 
-	bool LoadGlbMeshes(Arena& arena, TSpan<uint8> fileData, TSpan<Mesh>& meshes)
+	bool LoadGlbMeshes(Arena& arena, TSpan<uint8> fileData, TSpan<MeshDesc>& meshes)
 	{
 		ArenaScope scratch = GetScratchArena(&arena);
 
-		GlbHeader* header = (GlbHeader*)fileData.data;
+		GlbHeader* header = reinterpret_cast<GlbHeader*>(fileData.data);
 		BK_ASSERT(header->magic == 0x46546C67);
 		BK_ASSERT(header->version == 2);
 		BK_ASSERT(header->length == fileData.length);
 
-		GlbChunk* jsonChunk = (GlbChunk*)(header + 1);
+		GlbChunk* jsonChunk = reinterpret_cast<GlbChunk*>(header + 1);
 		BK_ASSERT(jsonChunk->type == 0x4E4F534A);
-		uint8* jsonChunkData = (uint8*)(jsonChunk + 1);
+		uint8* jsonChunkData = reinterpret_cast<uint8*>(jsonChunk + 1);
 
 		// #TODO: Binary chunk could be omitted
-		GlbChunk* binaryChunk = (GlbChunk*)(jsonChunkData + jsonChunk->length);
+		GlbChunk* binaryChunk = reinterpret_cast<GlbChunk*>(jsonChunkData + jsonChunk->length);
 		BK_ASSERT(binaryChunk->type == 0x004E4942);
-		uint8* binaryChunkData = (uint8*)(binaryChunk + 1);
+		uint8* binaryChunkData = reinterpret_cast<uint8*>(binaryChunk + 1);
 
-		JsonValue* gltf = ParseJson(scratch.arena, String((char*)jsonChunkData, jsonChunk->length));
+		JsonValue* gltf = ParseJson(scratch.arena, String(reinterpret_cast<const char*>(jsonChunkData), jsonChunk->length));
 
 		GltfAsset gltfAsset = ParseGltf(scratch.arena, gltf);
 		gltfAsset.filePath = String::Empty;
 		gltfAsset.buffer = TSpan(binaryChunkData, binaryChunk->length);
 
-		meshes = arena.PushZeroed<Mesh>(gltfAsset.meshes.length);
+		meshes = arena.PushZeroed<MeshDesc>(gltfAsset.meshes.length);
 
 		for (size_t meshIdx = 0; meshIdx < meshes.length; ++meshIdx)
 		{
 			const GltfMesh& gltfMesh = gltfAsset.meshes[meshIdx];
 
-			Mesh& mesh = meshes[meshIdx];
+			MeshDesc& mesh = meshes[meshIdx];
 
 			mesh.name = arena.Copy(gltfMesh.name);
 			mesh.sections = arena.PushZeroed<MeshSection>(gltfMesh.primitives.length);
@@ -837,21 +842,21 @@ namespace Bk
 	{
 		ArenaScope scratch = GetScratchArena(&arena);
 
-		GlbHeader* header = (GlbHeader*)fileData.data;
+		GlbHeader* header = reinterpret_cast<GlbHeader*>(fileData.data);
 		BK_ASSERT(header->magic == 0x46546C67);
 		BK_ASSERT(header->version == 2);
 		BK_ASSERT(header->length == fileData.length);
 
-		GlbChunk* jsonChunk = (GlbChunk*)(header + 1);
+		GlbChunk* jsonChunk = reinterpret_cast<GlbChunk*>(header + 1);
 		BK_ASSERT(jsonChunk->type == 0x4E4F534A);
-		uint8* jsonChunkData = (uint8*)(jsonChunk + 1);
+		uint8* jsonChunkData = reinterpret_cast<uint8*>(jsonChunk + 1);
 
 		// #TODO: Binary chunk could be omitted
-		GlbChunk* binaryChunk = (GlbChunk*)(jsonChunkData + jsonChunk->length);
+		GlbChunk* binaryChunk = reinterpret_cast<GlbChunk*>(jsonChunkData + jsonChunk->length);
 		BK_ASSERT(binaryChunk->type == 0x004E4942);
-		uint8* binaryChunkData = (uint8*)(binaryChunk + 1);
+		uint8* binaryChunkData = reinterpret_cast<uint8*>(binaryChunk + 1);
 
-		JsonValue* gltf = ParseJson(scratch.arena, String((char*)jsonChunkData, jsonChunk->length));
+		JsonValue* gltf = ParseJson(scratch.arena, String(reinterpret_cast<const char*>(jsonChunkData), jsonChunk->length));
 
 		GltfAsset gltfAsset = ParseGltf(scratch.arena, gltf);
 		gltfAsset.filePath = String::Empty;
@@ -874,25 +879,25 @@ namespace Bk
 			const GltfSkin& gltfSkin = gltfAsset.skins[skeletonIdx];
 
 			Skeleton& skeleton = skeletons[skeletonIdx];
-			skeleton.joints = arena.Push<Skeleton::Joint>(gltfSkin.joints.length);
+			skeleton.bones = arena.Push<Bone>(gltfSkin.joints.length);
 
-			for (int32 jointIdx = 0; jointIdx < skeleton.joints.length; ++jointIdx)
+			for (int32 boneIdx = 0; boneIdx < skeleton.bones.length; ++boneIdx)
 			{
-				const int32 gltfJointNodeIdx = gltfSkin.joints[jointIdx];
+				const int32 gltfJointNodeIdx = gltfSkin.joints[boneIdx];
 				const int32 gltfJointParentNodeIdx = nodeToParentIdx[gltfJointNodeIdx];
 				const GltfNode& gltfJointNode = gltfAsset.nodes[gltfJointNodeIdx];
 
-				Skeleton::Joint& joint = skeleton.joints[jointIdx];
+				Bone& bone = skeleton.bones[boneIdx];
 
 				// #TODO: Fallback joint name
-				joint.name = arena.Copy(gltfJointNode.name);
+				bone.name = arena.Copy(gltfJointNode.name);
 
-				joint.parentIdx = -1;
-				for (int32 parentJointIdx = 0; parentJointIdx < jointIdx; ++parentJointIdx)
+				bone.parentIdx = -1;
+				for (int32 parentBoneIdx = 0; parentBoneIdx < boneIdx; ++parentBoneIdx)
 				{
-					if (gltfSkin.joints[parentJointIdx] == gltfJointParentNodeIdx)
+					if (gltfSkin.joints[parentBoneIdx] == gltfJointParentNodeIdx)
 					{
-						joint.parentIdx = parentJointIdx;
+						bone.parentIdx = parentBoneIdx;
 						break;
 					}
 				}
@@ -912,69 +917,69 @@ namespace Bk
 		return true;
 	}
 
-	bool LoadGlbAnimations(Arena& arena, TSpan<uint8> fileData, const Skeleton& skeleton, TSpan<Animation>& animations)
+	bool LoadGlbAnimations(Arena& arena, TSpan<uint8> fileData, const Skeleton& skeleton, TSpan<AnimSequence>& animations)
 	{
 		ArenaScope scratch = GetScratchArena(&arena);
 
-		GlbHeader* header = (GlbHeader*)fileData.data;
+		GlbHeader* header = reinterpret_cast<GlbHeader*>(fileData.data);
 		BK_ASSERT(header->magic == 0x46546C67);
 		BK_ASSERT(header->version == 2);
 		BK_ASSERT(header->length == fileData.length);
 
-		GlbChunk* jsonChunk = (GlbChunk*)(header + 1);
+		GlbChunk* jsonChunk = reinterpret_cast<GlbChunk*>(header + 1);
 		BK_ASSERT(jsonChunk->type == 0x4E4F534A);
-		uint8* jsonChunkData = (uint8*)(jsonChunk + 1);
+		uint8* jsonChunkData = reinterpret_cast<uint8*>(jsonChunk + 1);
 
 		// #TODO: Binary chunk could be omitted
-		GlbChunk* binaryChunk = (GlbChunk*)(jsonChunkData + jsonChunk->length);
+		GlbChunk* binaryChunk = reinterpret_cast<GlbChunk*>(jsonChunkData + jsonChunk->length);
 		BK_ASSERT(binaryChunk->type == 0x004E4942);
-		uint8* binaryChunkData = (uint8*)(binaryChunk + 1);
+		uint8* binaryChunkData = reinterpret_cast<uint8*>(binaryChunk + 1);
 
-		JsonValue* gltf = ParseJson(scratch.arena, String((char*)jsonChunkData, jsonChunk->length));
+		JsonValue* gltf = ParseJson(scratch.arena, String(reinterpret_cast<const char*>(jsonChunkData), jsonChunk->length));
 
 		GltfAsset gltfAsset = ParseGltf(scratch.arena, gltf);
 		gltfAsset.filePath = String::Empty;
 		gltfAsset.buffer = TSpan(binaryChunkData, binaryChunk->length);
 
-		TSpan<int32> nodeToJointIdx = scratch.arena.Push<int32>(gltfAsset.nodes.length);
-		for (int32 nodeIdx = 0; nodeIdx < nodeToJointIdx.length; ++nodeIdx)
+		TSpan<int32> nodeToBoneIdx = scratch.arena.Push<int32>(gltfAsset.nodes.length);
+		for (int32 nodeIdx = 0; nodeIdx < nodeToBoneIdx.length; ++nodeIdx)
 		{
 			const GltfNode& gltfNode = gltfAsset.nodes[nodeIdx];
 
-			nodeToJointIdx[nodeIdx] = -1;
-			for (int32 jointIdx = 0; jointIdx < skeleton.joints.length; ++jointIdx)
+			nodeToBoneIdx[nodeIdx] = -1;
+			for (int32 boneIdx = 0; boneIdx < skeleton.bones.length; ++boneIdx)
 			{
-				const Skeleton::Joint& joint = skeleton.joints[jointIdx];
-				if (joint.name == gltfNode.name)
+				const Bone& bone = skeleton.bones[boneIdx];
+				if (bone.name == gltfNode.name)
 				{
-					nodeToJointIdx[nodeIdx] = jointIdx;
+					nodeToBoneIdx[nodeIdx] = boneIdx;
 					break;
 				}
 			}
 		}
 
-		animations = arena.Push<Animation>(gltfAsset.animations.length);
+		animations = arena.Push<AnimSequence>(gltfAsset.animations.length);
 
 		for (size_t animationIdx = 0; animationIdx < animations.length; ++animationIdx)
 		{
 			const GltfAnimation& gltfAnimation = gltfAsset.animations[animationIdx];
 
-			Animation& animation = animations[animationIdx];
+			AnimSequence& animation = animations[animationIdx];
 
 			animation.name = arena.Copy(gltfAnimation.name);
 			animation.duration = 0.0f;
-			animation.tracks = arena.PushZeroed<AnimationTrack>(skeleton.joints.length);
+			animation.tracks = arena.PushZeroed<AnimTrack>(skeleton.bones.length);
 
 			for (const GltfAnimationChannel& channel : gltfAnimation.channels)
 			{
-				int32 trackIdx = channel.targetNode >= 0 ? nodeToJointIdx[channel.targetNode] : -1;
+				int32 trackIdx = channel.targetNode >= 0 ? nodeToBoneIdx[channel.targetNode] : -1;
 				if (trackIdx == -1)
 				{
 					continue;
 				}
 
 				const GltfAnimationSampler& sampler = gltfAnimation.samplers[channel.sampler];
-				AnimationTrack& track = animation.tracks[trackIdx];
+				AnimTrack& track = animation.tracks[trackIdx];
 
 				const GltfAccessor& inputAccessor = gltfAsset.accessors[sampler.input];
 				BK_ASSERTF(inputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");

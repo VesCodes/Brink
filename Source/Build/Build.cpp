@@ -848,7 +848,7 @@ int32 AppMain(int32 argc, char** argv)
 
 		PrepareBuildContext(arena, context);
 
-		ActionResult result = CompileModules(context, { "Core", "Renderer", "Sandbox" });
+		ActionResult result = CompileModules(context, { "Core", "Engine", "Renderer", "Sandbox" });
 
 		if (result == ActionResult::Failed)
 		{
@@ -861,7 +861,7 @@ int32 AppMain(int32 argc, char** argv)
 			double compileTime = GetTimeSec();
 			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - buildStartTime);
 
-			if (!LinkModules(context, { "Core", "Renderer", "Sandbox" }, outputFile))
+			if (!LinkModules(context, { "Core", "Engine", "Renderer", "Sandbox" }, outputFile))
 			{
 				printf("Failed to link Sandbox modules\n");
 				return 1;

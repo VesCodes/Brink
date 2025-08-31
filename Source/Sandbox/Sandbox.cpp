@@ -5,29 +5,16 @@
 #include "Core/Platform.h"
 #include "Core/String.h"
 
+#include "Engine/AnimPlayer.h"
+#include "Engine/AnimSequence.h"
+#include "Engine/Mesh.h"
+#include "Engine/Skeleton.h"
+
 #include "Renderer/Gpu.h"
 
 #include "GltfLoader.h"
 
 using namespace Bk;
-
-struct MeshProxy
-{
-	TSpan<MeshSection> sections;
-	uint32 vertexBuffer;
-	uint32 jointIndexBuffer;
-	uint32 jointWeightBuffer;
-	uint32 indexBuffer;
-};
-
-struct AnimationPlayer
-{
-	Skeleton skeleton;
-	Animation animation;
-
-	float currentTime;
-	TSpan<Mat4f> transforms;
-};
 
 struct
 {
@@ -46,9 +33,9 @@ struct
 	uint32 jointTransformsBuffer;
 	uint32 globalBindingGroup;
 
-	TSpan<MeshProxy> meshProxies;
-	TSpan<Animation> animations;
-	AnimationPlayer animPlayer;
+	TSpan<Mesh> meshes;
+	TSpan<AnimSequence> animations;
+	AnimPlayer animPlayer;
 	size_t activeAnimation;
 
 	Vec3f cameraPosition;
@@ -58,70 +45,70 @@ struct
 
 bool IsKeyDown(KeyCode keyCode)
 {
-	return BitsetIsSet(state.keys, (size_t)keyCode);
+	return BitsetIsSet(state.keys, static_cast<size_t>(keyCode));
 }
 
 void LoadGlb(TSpan<uint8> data)
 {
 	ArenaScope scratch = GetScratchArena();
 
-	for (MeshProxy& meshProxy : state.meshProxies)
+	for (Mesh& mesh : state.meshes)
 	{
-		DestroyBuffer(meshProxy.vertexBuffer);
-		DestroyBuffer(meshProxy.indexBuffer);
+		DestroyBuffer(mesh.vertexBuffer);
+		DestroyBuffer(mesh.indexBuffer);
 	}
 
-	state.meshProxies = {};
+	state.meshes = {};
 	state.animations = {};
 	state.animPlayer = {};
 
 	StringBuilder resourceNameBuilder(scratch.arena);
 
-	TSpan<Mesh> meshes = {};
+	TSpan<MeshDesc> meshes = {};
 	if (LoadGlbMeshes(scratch.arena, data, meshes))
 	{
-		state.meshProxies = state.arena.Push<MeshProxy>(meshes.length);
-		for (size_t meshIdx = 0; meshIdx < state.meshProxies.length; ++meshIdx)
+		state.meshes = state.arena.Push<Mesh>(meshes.length);
+		for (size_t meshIdx = 0; meshIdx < state.meshes.length; ++meshIdx)
 		{
-			const Mesh& mesh = meshes[meshIdx];
-			MeshProxy& meshProxy = state.meshProxies[meshIdx];
+			const MeshDesc& meshDesc = meshes[meshIdx];
+			Mesh& mesh = state.meshes[meshIdx];
 
-			meshProxy.sections = state.arena.Copy(mesh.sections);
+			mesh.sections = state.arena.Copy(meshDesc.sections);
 
 			resourceNameBuilder.Reset();
 			resourceNameBuilder.Appendf("Mesh%02d_VertexBuffer", meshIdx);
 
-			meshProxy.vertexBuffer = CreateBuffer({
+			mesh.vertexBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = mesh.positionBuffer,
+				.data = meshDesc.positionBuffer,
 			});
 
 			resourceNameBuilder.Reset();
 			resourceNameBuilder.Appendf("Mesh%02d_JointIndexBuffer", meshIdx);
 
-			meshProxy.jointIndexBuffer = CreateBuffer({
+			mesh.jointIndexBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = mesh.jointIndexBuffer,
+				.data = meshDesc.jointIndexBuffer,
 			});
 
 			resourceNameBuilder.Reset();
 			resourceNameBuilder.Appendf("Mesh%02d_JointWeightBuffer", meshIdx);
 
-			meshProxy.jointWeightBuffer = CreateBuffer({
+			mesh.jointWeightBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = mesh.jointWeightBuffer,
+				.data = meshDesc.jointWeightBuffer,
 			});
 
 			resourceNameBuilder.Reset();
 			resourceNameBuilder.Appendf("Mesh%02d_IndexBuffer", meshIdx);
 
-			meshProxy.indexBuffer = CreateBuffer({
+			mesh.indexBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Index,
-				.data = mesh.indexBuffer,
+				.data = meshDesc.indexBuffer,
 			});
 		}
 	}
@@ -131,14 +118,14 @@ void LoadGlb(TSpan<uint8> data)
 	{
 		state.animPlayer.skeleton = skeletons[0];
 
-		state.animPlayer.skeleton.joints = state.arena.Copy(state.animPlayer.skeleton.joints);
-		for (Skeleton::Joint& joint : state.animPlayer.skeleton.joints)
+		state.animPlayer.skeleton.bones = state.arena.Copy(state.animPlayer.skeleton.bones);
+		for (Bone& bone : state.animPlayer.skeleton.bones)
 		{
-			joint.name = state.arena.Copy(joint.name);
+			bone.name = state.arena.Copy(bone.name);
 		}
 
 		state.animPlayer.skeleton.invBindPose = state.arena.Copy(state.animPlayer.skeleton.invBindPose);
-		state.animPlayer.transforms = state.arena.Push<Mat4f>(state.animPlayer.skeleton.joints.length);
+		state.animPlayer.transforms = state.arena.Push<Mat4f>(state.animPlayer.skeleton.bones.length);
 
 		LoadGlbAnimations(state.arena, data, state.animPlayer.skeleton, state.animations);
 		if (state.animations.length > 0)
@@ -147,114 +134,6 @@ void LoadGlb(TSpan<uint8> data)
 			state.animPlayer.animation = state.animations[state.activeAnimation];
 			state.animPlayer.currentTime = 0;
 		}
-	}
-}
-
-size_t GetKeyframe(TSpan<float> times, float t)
-{
-	size_t lowerBound = 0;
-	size_t upperBound = times.length - 1;
-
-	while (lowerBound < upperBound)
-	{
-		size_t mid = (lowerBound + upperBound) / 2;
-		if (times[mid] < t)
-		{
-			lowerBound = mid + 1;
-		}
-		else
-		{
-			upperBound = mid;
-		}
-	}
-
-	return lowerBound;
-}
-
-void UpdateAnimation(AnimationPlayer& player, float deltaTime)
-{
-	player.currentTime += deltaTime;
-	if (player.currentTime > player.animation.duration)
-	{
-		player.currentTime -= player.animation.duration;
-	}
-
-	for (size_t i = 0; i < player.transforms.length; ++i)
-	{
-		const Skeleton::Joint& joint = player.skeleton.joints[i];
-		const AnimationTrack& track = player.animation.tracks[i];
-		Mat4f& transform = player.transforms[i];
-
-		transform = Mat4f::Identity;
-
-		if (track.scaleTimes.length > 0)
-		{
-			size_t keyframe = GetKeyframe(track.scaleTimes, player.currentTime);
-			Vec3f scale = track.scales[keyframe];
-
-			if (keyframe > 0)
-			{
-				float t0 = track.scaleTimes[keyframe - 1];
-				float t1 = track.scaleTimes[keyframe];
-				float alpha = (player.currentTime - t0) / (t1 - t0);
-
-				scale = Lerp(track.scales[keyframe - 1], scale, alpha);
-			}
-
-			transform = ScaleMatrix(scale);
-		}
-
-		if (track.rotationTimes.length > 0)
-		{
-			size_t keyframe = GetKeyframe(track.rotationTimes, player.currentTime);
-			Quat4f rotation = track.rotations[keyframe];
-
-			if (keyframe > 0)
-			{
-				float t0 = track.rotationTimes[keyframe - 1];
-				float t1 = track.rotationTimes[keyframe];
-				float alpha = (player.currentTime - t0) / (t1 - t0);
-
-				if (Dot(track.rotations[keyframe - 1], rotation) < 0)
-				{
-					rotation.x = -rotation.x;
-					rotation.y = -rotation.y;
-					rotation.z = -rotation.z;
-					rotation.w = -rotation.w;
-				}
-
-				rotation = Lerp(track.rotations[keyframe - 1], rotation, alpha);
-			}
-
-			transform = RotationMatrix(rotation) * transform;
-		}
-
-		if (track.translationTimes.length > 0)
-		{
-			size_t keyframe = GetKeyframe(track.translationTimes, player.currentTime);
-			Vec3f translation = track.translations[keyframe];
-
-			if (keyframe > 0)
-			{
-				float t0 = track.translationTimes[keyframe - 1];
-				float t1 = track.translationTimes[keyframe];
-				float alpha = (player.currentTime - t0) / (t1 - t0);
-
-				translation = Lerp(track.translations[keyframe - 1], translation, alpha);
-			}
-
-			transform = TranslationMatrix(translation) * transform;
-		}
-
-		if (joint.parentIdx != -1)
-		{
-			transform = player.transforms[joint.parentIdx] * transform;
-		}
-	}
-
-	for (size_t i = 0; i < player.transforms.length; ++i)
-	{
-		player.transforms[i] = player.transforms[i] * player.skeleton.invBindPose[i];
 	}
 }
 
@@ -294,7 +173,7 @@ void Initialize()
 		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
 		if (ReadFile(fileHandle, fileData) == fileData.length)
 		{
-			shaderCode = String((char*)fileData.data, fileData.length);
+			shaderCode = String(reinterpret_cast<char*>(fileData.data), fileData.length);
 		}
 
 		CloseFile(fileHandle);
@@ -457,12 +336,12 @@ bool OnAppUpdate()
 
 	Mat4f mvp = proj * view * model;
 
-	WriteBuffer(state.globalsBuffer, TSpan((uint8*)mvp.elements, sizeof(Mat4f)));
+	WriteBuffer(state.globalsBuffer, TSpan(reinterpret_cast<uint8*>(mvp.elements), sizeof(Mat4f)));
 
 	if (state.animPlayer.transforms.length != 0)
 	{
-		UpdateAnimation(state.animPlayer, deltaTime);
-		WriteBuffer(state.jointTransformsBuffer, TSpan((uint8*)state.animPlayer.transforms.data, sizeof(Mat4f) * state.animPlayer.transforms.length));
+		state.animPlayer.Update(deltaTime);
+		WriteBuffer(state.jointTransformsBuffer, TSpan(reinterpret_cast<uint8*>(state.animPlayer.transforms.data), sizeof(Mat4f) * state.animPlayer.transforms.length));
 	}
 
 	BeginPass({
@@ -471,24 +350,24 @@ bool OnAppUpdate()
 		.clearColor = { 0.12f, 0.12f, 0.14f, 1.0f },
 	});
 
-	for (const MeshProxy& meshProxy : state.meshProxies)
+	for (const Mesh& mesh : state.meshes)
 	{
-		for (const MeshSection& meshSection : meshProxy.sections)
+		for (const MeshSection& section : mesh.sections)
 		{
 			Draw({
 				.pipeline = state.meshPipeline,
 				.vertexBuffers = {
-					meshProxy.vertexBuffer,
-					meshProxy.jointIndexBuffer,
-					meshProxy.jointWeightBuffer,
+					mesh.vertexBuffer,
+					mesh.jointIndexBuffer,
+					mesh.jointWeightBuffer,
 				},
-				.indexBuffer = meshProxy.indexBuffer,
+				.indexBuffer = mesh.indexBuffer,
 				.bindingGroups = {
 					state.globalBindingGroup,
 				},
-				.vertexOffset = static_cast<uint32>(meshSection.vertexOffset),
-				.indexOffset = static_cast<uint32>(meshSection.indexOffset),
-				.triangleCount = static_cast<uint32>(meshSection.triangleCount),
+				.vertexOffset = static_cast<uint32>(section.vertexOffset),
+				.indexOffset = static_cast<uint32>(section.indexOffset),
+				.triangleCount = static_cast<uint32>(section.triangleCount),
 				.instanceCount = 1,
 			});
 		}
@@ -515,11 +394,11 @@ bool OnAppEvent(const AppEvent& appEvent)
 		{
 			if (appEvent.keyPressed)
 			{
-				BitsetSet(state.keys, size_t(appEvent.keyCode));
+				BitsetSet(state.keys, static_cast<size_t>(appEvent.keyCode));
 			}
 			else
 			{
-				BitsetUnset(state.keys, size_t(appEvent.keyCode));
+				BitsetUnset(state.keys, static_cast<size_t>(appEvent.keyCode));
 
 				if (appEvent.keyCode == KeyCode::X)
 				{
@@ -607,7 +486,7 @@ int32 AppMain(int32 argc, char** argv)
 		return 1;
 	}
 
-	state.keys = state.arena.PushZeroed<uint32>((size_t(KeyCode::Count) + 31) / 32);
+	state.keys = state.arena.PushZeroed<uint32>((static_cast<size_t>(KeyCode::Count) + 31) / 32);
 
 	ConfigureApp({
 		.updateCallback = OnAppUpdate,
