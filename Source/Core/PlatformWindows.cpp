@@ -16,6 +16,7 @@
 #undef CopyFile
 #undef DeleteFile
 #undef CreateDirectory
+#undef GetCurrentDirectory
 #undef CreateProcess
 #undef CreateWindow
 
@@ -488,6 +489,21 @@ namespace Bk
 			FindClose(iterator->findHandle);
 			iterator->findHandle = INVALID_HANDLE_VALUE;
 		}
+	}
+
+	String GetCurrentDirectory(Arena& arena)
+	{
+		ArenaScope scratch = GetScratchArena(&arena);
+
+		DWORD pathLength = GetCurrentDirectoryW(0, nullptr);
+		wchar_t* path = scratch.arena.Push<wchar_t>(pathLength);
+		GetCurrentDirectoryW(pathLength, path);
+
+		StringBuilder builder(scratch.arena);
+		builder.Append(ConvertString(scratch.arena, path));
+		builder.NormalizePath();
+
+		return builder.ToString(arena);
 	}
 
 	ProcessHandle CreateProcess(const ProcessParams& params)

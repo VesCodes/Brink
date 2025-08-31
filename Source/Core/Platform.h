@@ -88,6 +88,8 @@ namespace Bk
 	bool AdvanceFileIterator(FileIteratorHandle iterator, FileIteratorEntry& entry);
 	void DestroyFileIterator(FileIteratorHandle iterator);
 
+	String GetCurrentDirectory(Arena& arena);
+
 	// Process
 
 	using ProcessHandle = uintptr_t;

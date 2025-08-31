@@ -453,6 +453,21 @@ namespace Bk
 		}
 	}
 
+	String GetCurrentDirectory(Arena& arena)
+	{
+		ArenaScope scratch = GetScratchArena(&arena);
+
+		size_t pathLength = pathconf(".", _PC_PATH_MAX);
+		char* path = scratch.arena.Push<char>(pathLength);
+		(void)getcwd(path, pathLength);
+
+		StringBuilder builder(scratch.arena);
+		builder.Append(path);
+		builder.NormalizePath();
+
+		return builder.ToString(arena);
+	}
+
 	ProcessHandle CreateProcess(const ProcessParams& params)
 	{
 		ArenaScope scratch = GetScratchArena();

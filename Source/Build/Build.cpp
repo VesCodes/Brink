@@ -320,14 +320,14 @@ ActionResult CompileModule(const BuildContext& context, String moduleName)
 	builder.Reset();
 	builder.AppendPath(context.cacheDir);
 	builder.AppendPath(moduleName);
-	builder.Append(".module.cpp");
-
-	String moduleUnityFile = builder.ToString(scratch.arena);
-
-	builder.Reset(builder.length - 3);
-	builder.Append("o");
+	builder.Append(".module.o");
 
 	String moduleObjectFile = builder.ToString(scratch.arena);
+
+	builder.Reset(builder.length - 1);
+	builder.Append("cpp");
+
+	String moduleUnityFile = builder.ToString(scratch.arena);
 
 	if (!ShouldCompile(context, moduleObjectFile))
 	{
@@ -417,6 +417,62 @@ bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String 
 	}
 
 	return processExitCode == 0;
+}
+
+bool GenerateCompileCommands(const BuildContext& context, TSpan<String> moduleNames)
+{
+	ArenaScope scratch = GetScratchArena();
+
+	String directory = GetCurrentDirectory(scratch.arena);
+
+	StringBuilder builder(scratch.arena);
+	StringBuilder pathBuilder(scratch.arena);
+
+	builder.AppendLine("[");
+	for (String moduleName : moduleNames)
+	{
+		pathBuilder.Reset();
+		pathBuilder.AppendPath("Source");
+		pathBuilder.AppendPath(moduleName);
+
+		String moduleSourceDir = pathBuilder.ToString(scratch.arena);
+
+		pathBuilder.Reset();
+		pathBuilder.AppendPath(context.cacheDir);
+		pathBuilder.AppendPath(moduleName);
+		pathBuilder.Append(".module.o");
+
+		String moduleObjectFile = pathBuilder.ToString(scratch.arena);
+		String responseFile = GetResponseFilePath(scratch.arena, context, moduleObjectFile);
+
+		FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, moduleSourceDir);
+		for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
+		{
+			if (!file.path.EndsWith(".cpp", true))
+			{
+				continue;
+			}
+
+			builder.AppendLine("\t{");
+			builder.AppendLinef("\t\t\"directory\": \"%.*s\",", directory.length, directory.data);
+			builder.AppendLinef("\t\t\"file\": \"%.*s\",", file.path.length, file.path.data);
+			builder.AppendLinef("\t\t\"arguments\": [ \"clang++\", \"@%.*s\" ]", responseFile.length, responseFile.data);
+			builder.AppendLine("\t},");
+		}
+
+		DestroyFileIterator(fileIt);
+	}
+
+	if (builder.length > 1)
+	{
+		// Strip trailing comma
+		builder.Reset(builder.length - 2);
+		builder.Append('\n');
+	}
+
+	builder.AppendLine("]");
+
+	return WriteTextFile("compile_commands.json", builder.ToString(scratch.arena));
 }
 
 String GenerateGuid(Arena& arena)
@@ -765,6 +821,8 @@ int32 AppMain(int32 argc, char** argv)
 		.definitions = { "BK_BUILD" },
 	};
 
+	bool generateProject = false;
+
 	for (int32 i = 1; i < argc; ++i)
 	{
 		String argName = argv[i];
@@ -779,7 +837,7 @@ int32 AppMain(int32 argc, char** argv)
 
 		if (argName.Equals("-GenerateProject", true))
 		{
-			GenerateProject();
+			generateProject = true;
 		}
 		else if (argName.Equals("-Platform", true))
 		{
@@ -807,6 +865,14 @@ int32 AppMain(int32 argc, char** argv)
 				context.config = BuildConfig::Release;
 			}
 		}
+	}
+
+	PrepareBuildContext(arena, context);
+
+	if (generateProject)
+	{
+		// GenerateProject();
+		GenerateCompileCommands(context, { "Build", "Core", "Engine", "Renderer", "Sandbox" });
 	}
 
 	DateTime buildTime = GetLocalTime();
@@ -845,8 +911,6 @@ int32 AppMain(int32 argc, char** argv)
 				"--preload-file=Build/Sandbox/Assets@Assets",
 			};
 		}
-
-		PrepareBuildContext(arena, context);
 
 		ActionResult result = CompileModules(context, { "Core", "Engine", "Renderer", "Sandbox" });
 
