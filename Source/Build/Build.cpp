@@ -810,6 +810,8 @@ void SelfUpdate(int32 argc, char** argv)
 
 int32 AppMain(int32 argc, char** argv)
 {
+	int32 result = 0;
+
 	SelfUpdate(argc, argv);
 
 	Arena arena = {};
@@ -821,6 +823,7 @@ int32 AppMain(int32 argc, char** argv)
 		.definitions = { "BK_BUILD" },
 	};
 
+	String singleFile = String::Empty;
 	bool generateProject = false;
 
 	for (int32 i = 1; i < argc; ++i)
@@ -865,6 +868,10 @@ int32 AppMain(int32 argc, char** argv)
 				context.config = BuildConfig::Release;
 			}
 		}
+		else if (argName.Equals("-SingleFile", true))
+		{
+			singleFile = argValue;
+		}
 	}
 
 	PrepareBuildContext(arena, context);
@@ -880,6 +887,25 @@ int32 AppMain(int32 argc, char** argv)
 
 	printf("Build started at %02d:%02d:%02d\n", buildTime.hour, buildTime.minute, buildTime.second);
 
+	if (singleFile.length != 0)
+	{
+		StringBuilder builder(arena);
+		builder.AppendPath(context.cacheDir);
+		builder.AppendPath(GetFileNameWithoutExtension(singleFile));
+		builder.Append(".o");
+
+		String objectFile = builder.ToString(arena);
+		CreateDirectory(GetDirectoryName(objectFile));
+
+		ProcessHandle process = CompileFile(context, singleFile, objectFile);
+
+		if (!WaitForProcess(process, &result))
+		{
+			printf("Failed to compile single file '%.*s'\n", int32(singleFile.length), singleFile.data);
+			result = 1;
+		}
+	}
+	else
 	{
 		CreateDirectory("Build/Sandbox");
 		CreateDirectory("Build/Sandbox/Assets");
@@ -912,31 +938,34 @@ int32 AppMain(int32 argc, char** argv)
 			};
 		}
 
-		ActionResult result = CompileModules(context, { "Core", "Engine", "Renderer", "Sandbox" });
+		String modules[] = { "Core", "Engine", "Renderer", "Sandbox" };
 
-		if (result == ActionResult::Failed)
-		{
-			printf("Failed to compile Sandbox modules\n");
-			return 1;
-		}
+		ActionResult compileResult = CompileModules(context, modules);
 
-		if (result == ActionResult::Succeeded)
+		if (compileResult == ActionResult::Succeeded)
 		{
 			double compileTime = GetTimeSec();
 			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - buildStartTime);
 
-			if (!LinkModules(context, { "Core", "Engine", "Renderer", "Sandbox" }, outputFile))
+			if (LinkModules(context, modules, outputFile))
+			{
+				double linkTime = GetTimeSec();
+				printf("Linked modules for Sandbox in %0.4fs\n", linkTime - compileTime);
+			}
+			else
 			{
 				printf("Failed to link Sandbox modules\n");
-				return 1;
+				result = 1;
 			}
-
-			double linkTime = GetTimeSec();
-			printf("Linked modules for Sandbox in %0.4fs\n", linkTime - compileTime);
+		}
+		else if (compileResult == ActionResult::Failed)
+		{
+			printf("Failed to compile Sandbox modules\n");
+			result = 1;
 		}
 	}
 
 	printf("Build completed in %0.4fs\n", GetTimeSec() - buildStartTime);
 
-	return 0;
+	return result;
 }
