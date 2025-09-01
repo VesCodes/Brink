@@ -11,8 +11,8 @@
 
 namespace Bk
 {
-	template<typename T>
-	constexpr T AlignUp(T value, uintptr_t alignment);
+	template<typename Type>
+	constexpr Type AlignUp(Type value, size_t alignment);
 
 	void* MemoryAllocate(size_t size);
 	void MemoryDeallocate(void* ptr, size_t size);
@@ -92,10 +92,10 @@ namespace Bk
 
 namespace Bk
 {
-	template<typename T>
-	constexpr T AlignUp(T value, uintptr_t alignment)
+	template<typename Type>
+	constexpr Type AlignUp(Type value, size_t alignment)
 	{
-		return T((reinterpret_cast<uintptr_t>(value) + alignment - 1) & ~(alignment - 1));
+		return __builtin_align_up(value, alignment);
 	}
 
 	template<typename Type>
