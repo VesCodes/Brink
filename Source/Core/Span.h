@@ -31,6 +31,18 @@ namespace Bk
 		Type* data;
 		size_t length;
 	};
+
+	template<typename Type>
+	auto AsBytes(Type* data, size_t length);
+
+	template<typename Type>
+	TSpan<const uint8> AsBytes(std::initializer_list<Type> data);
+
+	template<typename Type, size_t N>
+	auto AsBytes(Type (&data)[N]);
+
+	template<typename Type>
+	auto AsBytes(TSpan<Type> data);
 }
 
 namespace Bk
@@ -91,5 +103,36 @@ namespace Bk
 	Type* TSpan<Type>::end() const
 	{
 		return data + length;
+	}
+
+	template<typename Type>
+	auto AsBytes(Type* data, size_t length)
+	{
+		if constexpr (__is_const(Type))
+		{
+			return TSpan<const uint8>(reinterpret_cast<const uint8*>(data), length * sizeof(Type));
+		}
+		else
+		{
+			return TSpan<uint8>(reinterpret_cast<uint8*>(data), length * sizeof(Type));
+		}
+	}
+
+	template<typename Type>
+	TSpan<const uint8> AsBytes(std::initializer_list<Type> data)
+	{
+		return AsBytes(data.begin(), data.size());
+	}
+
+	template<typename Type, size_t N>
+	auto AsBytes(Type (&data)[N])
+	{
+		return AsBytes(data, N);
+	}
+
+	template<typename Type>
+	auto AsBytes(TSpan<Type> data)
+	{
+		return AsBytes(data.data, data.length);
 	}
 }

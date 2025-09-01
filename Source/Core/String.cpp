@@ -719,7 +719,7 @@ namespace Bk
 		return nullptr;
 	}
 
-	void StringBuilder::Replace(char oldChar, char newChar)
+	void StringBuilder::Replace(char oldChar, char newChar) const
 	{
 		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
 		{

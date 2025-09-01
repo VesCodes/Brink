@@ -44,7 +44,7 @@ bool WriteTextFile(String outputFile, String content)
 	FileHandle fileHandle = OpenFile(outputFile, FileAccess::Write);
 	if (fileHandle)
 	{
-		result = WriteFile(fileHandle, TSpan((uint8*)content.data, content.length)) == content.length;
+		result = WriteFile(fileHandle, AsBytes(content.data, content.length)) == content.length;
 		CloseFile(fileHandle);
 	}
 

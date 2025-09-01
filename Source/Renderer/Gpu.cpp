@@ -387,7 +387,7 @@ namespace Bk
 		return bufferHandle;
 	}
 
-	void WriteBuffer(uint32 handle, TSpan<uint8> data, uint64 offset)
+	void WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset)
 	{
 		GpuBuffer* buffer = gpuContext.buffers.Get(handle);
 		if (buffer)

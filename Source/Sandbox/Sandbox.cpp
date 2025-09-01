@@ -336,12 +336,12 @@ bool OnAppUpdate()
 
 	Mat4f mvp = proj * view * model;
 
-	WriteBuffer(state.globalsBuffer, TSpan(reinterpret_cast<uint8*>(mvp.elements), sizeof(Mat4f)));
+	WriteBuffer(state.globalsBuffer, AsBytes(&mvp, 1));
 
 	if (state.animPlayer.transforms.length != 0)
 	{
 		state.animPlayer.Update(deltaTime);
-		WriteBuffer(state.jointTransformsBuffer, TSpan(reinterpret_cast<uint8*>(state.animPlayer.transforms.data), sizeof(Mat4f) * state.animPlayer.transforms.length));
+		WriteBuffer(state.jointTransformsBuffer, AsBytes(state.animPlayer.transforms));
 	}
 
 	BeginPass({

@@ -188,7 +188,7 @@ namespace Bk
 		return totalBytesRead;
 	}
 
-	size_t WriteFile(FileHandle handle, TSpan<uint8> buffer)
+	size_t WriteFile(FileHandle handle, TSpan<const uint8> buffer)
 	{
 		if (!handle)
 		{

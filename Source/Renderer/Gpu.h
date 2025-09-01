@@ -170,7 +170,7 @@ namespace Bk
 	void DestroyPipeline(uint32 handle);
 
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
-	void WriteBuffer(uint32 handle, TSpan<uint8> data, uint64 offset = 0);
+	void WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset = 0);
 	void DestroyBuffer(uint32 handle);
 
 	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc);
