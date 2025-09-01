@@ -62,7 +62,7 @@ namespace Bk
 
 	static WGPUStringView WgpuConvert(String string)
 	{
-		return WGPUStringView{ .data = string.data, .length = string.length > 0 ? string.length : WGPU_STRLEN };
+		return WGPUStringView{ .data = string.data, .length = string.length != 0 ? string.length : WGPU_STRLEN };
 	}
 
 	void OnDeviceError(const WGPUDevice* device, WGPUErrorType type, WGPUStringView message, void* userdata1, void* userdata2)
@@ -223,7 +223,7 @@ namespace Bk
 		pipelineDesc.multisample.count = 1;
 		pipelineDesc.multisample.mask = 0xFFFFFFFF;
 
-		if (desc.vertexShader.code.length > 0)
+		if (desc.vertexShader.code.length != 0)
 		{
 			WGPUShaderSourceWGSL shaderSourceDesc = {};
 			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
@@ -264,7 +264,7 @@ namespace Bk
 			}
 		}
 
-		if (desc.pixelShader.code.length > 0)
+		if (desc.pixelShader.code.length != 0)
 		{
 			WGPUShaderSourceWGSL shaderSourceDesc = {};
 			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
@@ -284,7 +284,7 @@ namespace Bk
 			pipelineDesc.fragment = &fragmentState;
 		}
 
-		if (desc.bindingLayouts.length > 0)
+		if (desc.bindingLayouts.length != 0)
 		{
 			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
 			pipelineLayoutDesc.label = WgpuConvert(desc.name);

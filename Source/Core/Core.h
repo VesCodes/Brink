@@ -97,28 +97,28 @@ namespace Bk
 	bool EnumHasAllFlags(EnumType value, EnumType flags)
 	{
 		using UnderlyingType = __underlying_type(EnumType);
-		return ((UnderlyingType)value & (UnderlyingType)flags) == (UnderlyingType)flags;
+		return (static_cast<UnderlyingType>(value) & static_cast<UnderlyingType>(flags)) == static_cast<UnderlyingType>(flags);
 	}
 
 	template<typename EnumType>
 	bool EnumHasAnyFlags(EnumType value, EnumType flags)
 	{
 		using UnderlyingType = __underlying_type(EnumType);
-		return ((UnderlyingType)value & (UnderlyingType)flags) != 0;
+		return (static_cast<UnderlyingType>(value) & static_cast<UnderlyingType>(flags)) != 0;
 	}
 
 	template<typename EnumType>
 	void EnumAddFlags(EnumType& value, EnumType flags)
 	{
 		using UnderlyingType = __underlying_type(EnumType);
-		value = (EnumType)((UnderlyingType)value | (UnderlyingType)flags);
+		value = static_cast<EnumType>(static_cast<UnderlyingType>(value) | static_cast<UnderlyingType>(flags));
 	}
 
 	template<typename EnumType>
 	void EnumRemoveFlags(EnumType& value, EnumType flags)
 	{
 		using UnderlyingType = __underlying_type(EnumType);
-		value = (EnumType)((UnderlyingType)value & ~(UnderlyingType)flags);
+		value = static_cast<EnumType>(static_cast<UnderlyingType>(value) & ~static_cast<UnderlyingType>(flags));
 	}
 
 	bool AssertError(const char* expression, const char* file, int32 line, const char* format, ...);

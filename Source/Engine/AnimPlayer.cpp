@@ -39,7 +39,7 @@ namespace Bk
 
 			transform = Mat4f::Identity;
 
-			if (track.scaleTimes.length > 0)
+			if (track.scaleTimes.length != 0)
 			{
 				size_t keyframe = GetKeyframe(track.scaleTimes, currentTime);
 				Vec3f scale = track.scales[keyframe];
@@ -56,7 +56,7 @@ namespace Bk
 				transform = ScaleMatrix(scale);
 			}
 
-			if (track.rotationTimes.length > 0)
+			if (track.rotationTimes.length != 0)
 			{
 				size_t keyframe = GetKeyframe(track.rotationTimes, currentTime);
 				Quat4f rotation = track.rotations[keyframe];
@@ -81,7 +81,7 @@ namespace Bk
 				transform = RotationMatrix(rotation) * transform;
 			}
 
-			if (track.translationTimes.length > 0)
+			if (track.translationTimes.length != 0)
 			{
 				size_t keyframe = GetKeyframe(track.translationTimes, currentTime);
 				Vec3f translation = track.translations[keyframe];

@@ -95,7 +95,7 @@ namespace Bk
 	template<typename T>
 	constexpr T AlignUp(T value, uintptr_t alignment)
 	{
-		return T(((uintptr_t)value + alignment - 1) & ~(alignment - 1));
+		return T((reinterpret_cast<uintptr_t>(value) + alignment - 1) & ~(alignment - 1));
 	}
 
 	template<typename Type>
@@ -126,7 +126,7 @@ namespace Bk
 	TSpan<Type> Arena::Copy(TSpan<Type> source)
 	{
 		TSpan<Type> result = Push<Type>(source.length);
-		MemoryCopy((void*)result.data, source.data, source.length * sizeof(Type));
+		MemoryCopy(result.data, source.data, source.length * sizeof(Type));
 
 		return result;
 	}

@@ -114,7 +114,7 @@ void LoadGlb(TSpan<uint8> data)
 	}
 
 	TSpan<Skeleton> skeletons = {};
-	if (LoadGlbSkeletons(scratch.arena, data, skeletons) && skeletons.length > 0)
+	if (LoadGlbSkeletons(scratch.arena, data, skeletons) && skeletons.length != 0)
 	{
 		state.animPlayer.skeleton = skeletons[0];
 
@@ -128,7 +128,7 @@ void LoadGlb(TSpan<uint8> data)
 		state.animPlayer.transforms = state.arena.Push<Mat4f>(state.animPlayer.skeleton.bones.length);
 
 		LoadGlbAnimations(state.arena, data, state.animPlayer.skeleton, state.animations);
-		if (state.animations.length > 0)
+		if (state.animations.length != 0)
 		{
 			state.activeAnimation = 0;
 			state.animPlayer.animation = state.animations[state.activeAnimation];

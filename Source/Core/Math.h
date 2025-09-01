@@ -1149,11 +1149,8 @@ namespace Bk
 
 	template<typename T>
 	constexpr TMat4<T>::TMat4(TVec4<T> c0, TVec4<T> c1, TVec4<T> c2, TVec4<T> c3)
+		: columns(c0, c1, c2, c3)
 	{
-		columns[0] = c0;
-		columns[1] = c1;
-		columns[2] = c2;
-		columns[3] = c3;
 	}
 
 	template<typename T>

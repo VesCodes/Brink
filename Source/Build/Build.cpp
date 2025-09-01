@@ -337,17 +337,17 @@ ActionResult CompileModule(const BuildContext& context, String moduleName)
 	builder.Reset();
 	builder.AppendLine("// Automatically generated module unity file");
 
-	FileIteratorHandle fileIterator = CreateFileIterator(scratch.arena, moduleSourceDir);
-	for (FileIteratorEntry entry; AdvanceFileIterator(fileIterator, entry);)
+	FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, moduleSourceDir);
+	for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
 	{
-		if (entry.path.EndsWith(".cpp", true))
+		if (file.path.EndsWith(".cpp", true))
 		{
-			String sourceFile = entry.path.Slice(moduleSourceDirPrefixLength);
+			String sourceFile = file.path.Slice(moduleSourceDirPrefixLength);
 			builder.AppendLinef("#include \"%.*s\"", sourceFile.length, sourceFile.data);
 		}
 	}
 
-	DestroyFileIterator(fileIterator);
+	DestroyFileIterator(fileIt);
 
 	if (!WriteTextFile(moduleUnityFile, builder.ToString(scratch.arena)))
 	{
@@ -530,7 +530,7 @@ void GenerateProjectFiles(StringBuilder& builder, String path)
 
 	DestroyFileIterator(fileIt);
 
-	if (fileBuilder.length > 0)
+	if (fileBuilder.length != 0)
 	{
 		builder.AppendLine("<ItemGroup>");
 		builder.Append(fileBuilder.ToString(scratch.arena));
@@ -591,7 +591,7 @@ void GenerateProjectFilters(StringBuilder& builder, String path)
 	builder.AppendLinef("\t\t<UniqueIdentifier>{%.*s}</UniqueIdentifier>", filterGuid.length, filterGuid.data);
 	builder.AppendLine("\t</Filter>");
 
-	if (fileBuilder.length > 0)
+	if (fileBuilder.length != 0)
 	{
 		builder.Append(fileBuilder.ToString(scratch.arena));
 	}
@@ -605,8 +605,8 @@ void GenerateProject()
 
 	StringBuilder builder(scratch.arena);
 
-	TSpan<String> platforms = { "x64" };
-	TSpan<String> configs = { "Debug", "Release" };
+	String platforms[] = { "x64" };
+	String configs[] = { "Debug", "Release" };
 
 	// https://learn.microsoft.com/en-us/cpp/build/reference/vcxproj-file-structure?view=msvc-170
 
@@ -738,8 +738,8 @@ void SelfUpdate(int32 argc, char** argv)
 	BuildContext context = {
 		.platform = GetPlatform(),
 		.config = BuildConfig::Debug,
-		.includes = { "Source", "ThirdParty" },
-		.definitions = { "BK_BUILD" },
+		.includes = scratch.arena.Copy<String>({ "Source", "ThirdParty" }),
+		.definitions = scratch.arena.Copy<String>({ "BK_BUILD" }),
 	};
 
 	PrepareBuildContext(scratch.arena, context);
@@ -819,8 +819,8 @@ int32 AppMain(int32 argc, char** argv)
 	BuildContext context = {
 		.platform = GetPlatform(),
 		.config = BuildConfig::Debug,
-		.includes = { "Source", "ThirdParty" },
-		.definitions = { "BK_BUILD" },
+		.includes = arena.Copy<String>({ "Source", "ThirdParty" }),
+		.definitions = arena.Copy<String>({ "BK_BUILD" }),
 	};
 
 	String singleFile = String::Empty;

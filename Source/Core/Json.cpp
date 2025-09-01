@@ -198,7 +198,7 @@ namespace Bk
 
 	JsonValue* FindJsonValue(JsonValue* value, String path)
 	{
-		while (value && path.length > 0)
+		while (value && path.length != 0)
 		{
 			size_t pathDelimIdx = path.Find('.');
 			String pathSlice = path.Range(0, pathDelimIdx);

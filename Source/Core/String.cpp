@@ -213,7 +213,7 @@ namespace Bk
 		size_t start = 0;
 		size_t end = length;
 
-		if (length > 0 && data[0] == '"')
+		if (length != 0 && data[0] == '"')
 		{
 			start = 1;
 		}
@@ -355,8 +355,8 @@ namespace Bk
 			c += 1;
 		}
 
-		const uint64 maxDiv10 = UINT64_MAX / 10;
-		const uint64 maxMod10 = UINT64_MAX % 10;
+		constexpr uint64 maxDiv10 = UINT64_MAX / 10;
+		constexpr uint64 maxMod10 = UINT64_MAX % 10;
 
 		uint64 result = 0;
 		bool hasDigits = false;
@@ -576,7 +576,7 @@ namespace Bk
 
 	bool StringBuilder::Append(String string)
 	{
-		while (string.length > 0)
+		while (string.length != 0)
 		{
 			size_t chunkRemaining = chunk.capacity - chunk.length;
 			if (chunkRemaining == 0)
@@ -703,7 +703,7 @@ namespace Bk
 
 	char* StringBuilder::GetLastChar() const
 	{
-		if (length > 0)
+		if (length != 0)
 		{
 			for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
 			{
@@ -760,7 +760,7 @@ namespace Bk
 		}
 
 		Chunk* archivedChunk = nullptr;
-		if (chunk.capacity > 0)
+		if (chunk.capacity != 0)
 		{
 			archivedChunk = arena->Push<Chunk>();
 			*archivedChunk = chunk;
@@ -834,7 +834,7 @@ namespace Bk
 		char* bufferPtr = buffer.data + length;
 		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
 		{
-			if (chainedChunk->length > 0)
+			if (chainedChunk->length != 0)
 			{
 				bufferPtr -= chainedChunk->length;
 				MemoryCopy(bufferPtr, chainedChunk->buffer, chainedChunk->length);

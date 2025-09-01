@@ -40,26 +40,31 @@ namespace Bk
 		builder.AppendPath(dstPath);
 		size_t dstPathLength = builder.length;
 
+		bool result = true;
+
 		FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, srcPath);
-		for (FileIteratorEntry entry; AdvanceFileIterator(fileIt, entry);)
+		for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
 		{
-			if (EnumHasAllFlags(entry.properties.attributes, FileAttributes::Directory))
+			if (EnumHasAllFlags(file.properties.attributes, FileAttributes::Directory))
 			{
 				continue;
 			}
 
 			builder.Reset(dstPathLength);
-			builder.AppendPath(GetFileName(entry.path));
+			builder.AppendPath(GetFileName(file.path));
 
-			String srcFilePath = entry.path;
+			String srcFilePath = file.path;
 			String dstFilePath = builder.ToString(scratch.arena);
 
 			if (!CopyFile(srcFilePath, dstFilePath))
 			{
-				return false;
+				result = false;
+				break;
 			}
 		}
 
-		return true;
+		DestroyFileIterator(fileIt);
+
+		return result;
 	}
 }
