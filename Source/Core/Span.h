@@ -11,8 +11,7 @@ namespace Bk
 	{
 		TSpan() = default;
 
-		TSpan(Type& data);
-		TSpan(Type* data, size_t length = 1);
+		TSpan(Type* data, size_t length);
 		TSpan(std::initializer_list<Type> data);
 
 		template<size_t N>
@@ -36,12 +35,6 @@ namespace Bk
 
 namespace Bk
 {
-	template<typename Type>
-	TSpan<Type>::TSpan(Type& data)
-		: data(&data), length(1)
-	{
-	}
-
 	template<typename Type>
 	TSpan<Type>::TSpan(Type* data, size_t length)
 		: data(data), length(length)
