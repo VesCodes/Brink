@@ -361,7 +361,24 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena();
 
 		char* filePath = ConvertString(scratch.arena, path);
-		return mkdir(filePath, 0755) == 0 || errno == EEXIST;
+
+		bool result = mkdir(filePath, 0755) == 0 || errno == EEXIST;
+		if (!result)
+		{
+			for (char* c = filePath; *c != '\0'; ++c)
+			{
+				if (*c == '/')
+				{
+					*c = '\0';
+					mkdir(filePath, 0755);
+					*c = '/';
+				}
+			}
+
+			result = mkdir(filePath, 0755) == 0 || errno == EEXIST;
+		}
+
+		return result;
 	}
 
 	struct FileIterator

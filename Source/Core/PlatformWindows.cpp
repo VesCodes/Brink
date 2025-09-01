@@ -392,7 +392,24 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena();
 
 		wchar_t* filePath = ConvertString(scratch.arena, path);
-		return CreateDirectoryW(filePath, nullptr) || GetLastError() == ERROR_ALREADY_EXISTS;
+
+		bool result = CreateDirectoryW(filePath, nullptr) || GetLastError() == ERROR_ALREADY_EXISTS;
+		if (!result)
+		{
+			for (wchar_t* c = filePath; *c; ++c)
+			{
+				if (*c == '/')
+				{
+					*c = '\0';
+					CreateDirectoryW(filePath, nullptr);
+					*c = '/';
+				}
+			}
+
+			result = CreateDirectoryW(filePath, nullptr) || GetLastError() == ERROR_ALREADY_EXISTS;
+		}
+
+		return result;
 	}
 
 	struct FileIterator

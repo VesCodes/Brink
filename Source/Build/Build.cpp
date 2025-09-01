@@ -713,22 +713,7 @@ void PrepareBuildContext(Arena& arena, BuildContext& context)
 
 	context.cacheDir = builder.ToString(arena);
 
-	for (size_t cachePathIdx = 0; cachePathIdx < context.cacheDir.length;)
-	{
-		size_t slashIdx = context.cacheDir.Slice(cachePathIdx).Find('/');
-		if (slashIdx != SIZE_MAX)
-		{
-			slashIdx += cachePathIdx;
-			cachePathIdx = slashIdx + 1;
-		}
-		else
-		{
-			cachePathIdx = SIZE_MAX;
-		}
-
-		String cachePath = context.cacheDir.Slice(0, slashIdx);
-		CreateDirectory(cachePath);
-	}
+	CreateDirectory(context.cacheDir);
 }
 
 void SelfUpdate(int32 argc, char** argv)
@@ -907,7 +892,6 @@ int32 AppMain(int32 argc, char** argv)
 	}
 	else
 	{
-		CreateDirectory("Build/Sandbox");
 		CreateDirectory("Build/Sandbox/Assets");
 		CopyDirectory("Source/Sandbox/Assets", "Build/Sandbox/Assets");
 
