@@ -27,6 +27,14 @@
 #endif
 #endif
 
+#if BK_PLATFORM_WINDOWS
+#define BK_EXPORT __declspec(dllexport)
+#define BK_IMPORT __declspec(dllimport)
+#else
+#define BK_EXPORT __attribute__((visibility("default")))
+#define BK_IMPORT __attribute__((visibility("default")))
+#endif
+
 #define BK_ARRAY_COUNT(x) (sizeof(x) / sizeof((x)[0]))
 
 #define BK_ASSERT(expr) BK_ASSERTF(expr, "")

@@ -105,6 +105,14 @@ namespace Bk
 	bool WaitForProcess(ProcessHandle handle, int32* exitCode = nullptr);
 	bool TerminateProcess(ProcessHandle handle);
 
+	// Library
+
+	using LibraryHandle = uintptr_t;
+
+	LibraryHandle OpenLibrary(String path);
+	void* GetLibrarySymbol(LibraryHandle handle, String name);
+	void CloseLibrary(LibraryHandle handle);
+
 	// Window
 
 	struct WindowParams

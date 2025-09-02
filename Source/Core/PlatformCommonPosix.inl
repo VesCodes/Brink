@@ -3,6 +3,7 @@
 #include "Memory.h"
 
 #include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -546,5 +547,41 @@ namespace Bk
 
 		int processHandle = static_cast<int>(handle);
 		return kill(processHandle, SIGKILL) == 0;
+	}
+
+	LibraryHandle OpenLibrary(String path)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+		char* filePath = ConvertString(scratch.arena, path);
+		void* libraryHandle = dlopen(filePath, RTLD_LAZY | RTLD_LOCAL);
+
+		return reinterpret_cast<LibraryHandle>(libraryHandle);
+	}
+
+	void* GetLibrarySymbol(LibraryHandle handle, String name)
+	{
+		if (!handle)
+		{
+			return nullptr;
+		}
+
+		ArenaScope scratch = GetScratchArena();
+
+		void* libraryHandle = reinterpret_cast<void*>(handle);
+		char* symbolName = ConvertString(scratch.arena, name);
+
+		return dlsym(libraryHandle, symbolName);
+	}
+
+	void CloseLibrary(LibraryHandle handle)
+	{
+		if (!handle)
+		{
+			return;
+		}
+
+		void* libraryHandle = reinterpret_cast<void*>(handle);
+		dlclose(libraryHandle);
 	}
 }

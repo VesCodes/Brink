@@ -599,6 +599,42 @@ namespace Bk
 		return ::TerminateProcess(processHandle, 0);
 	}
 
+	LibraryHandle OpenLibrary(String path)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+		wchar_t* filePath = ConvertString(scratch.arena, path);
+		HMODULE libraryHandle = LoadLibraryW(filePath);
+
+		return reinterpret_cast<LibraryHandle>(libraryHandle);
+	}
+
+	void* GetLibrarySymbol(LibraryHandle handle, String name)
+	{
+		if (!handle)
+		{
+			return nullptr;
+		}
+
+		ArenaScope scratch = GetScratchArena();
+
+		HMODULE libraryHandle = reinterpret_cast<HMODULE>(handle);
+		const char* symbolName = scratch.arena.Copy(name, true).data;
+
+		return reinterpret_cast<void*>(GetProcAddress(libraryHandle, symbolName));
+	}
+
+	void CloseLibrary(LibraryHandle handle)
+	{
+		if (!handle)
+		{
+			return;
+		}
+
+		HMODULE libraryHandle = reinterpret_cast<HMODULE>(handle);
+		FreeLibrary(libraryHandle);
+	}
+
 	KeyCode ConvertScanCode(uint32 scanCode)
 	{
 		switch (scanCode)
