@@ -1,0 +1,37 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build",
+			"type": "shell",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"command": "${workspaceFolder}/Build.sh",
+			"windows": {
+				"command": "${workspaceFolder}\\Build.bat"
+			},
+			"args": [
+				"-Platform=${input:targetPlatform}"
+			],
+			"problemMatcher": "$gcc",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": false,
+				"clear": false
+			}
+		}
+	],
+	"inputs": [
+		{
+			"id": "targetPlatform",
+			"type": "command",
+			"command": "cpptools.activeConfigCustomVariable",
+			"args": "targetPlatform"
+		}
+	]
+}

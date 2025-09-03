@@ -1,0 +1,66 @@
+{
+	"version": 4,
+	"env": {
+		"includes": [
+			"${workspaceFolder}/Source/**",
+			"${workspaceFolder}/ThirdParty/**"
+		],
+		"compileCommands": "${workspaceFolder}/compile_commands.json"
+	},
+	"configurations": [
+		{
+			"name": "Windows",
+			"includePath": [
+				"${env:includes}"
+			],
+			"compilerPath": "clang++",
+			"intelliSenseMode": "windows-clang-x64",
+			"compileCommands": "${env:compileCommands}",
+			"customConfigurationVariables": {
+				"targetPlatform": "Windows"
+			}
+		},
+		{
+			"name": "MacOS",
+			"includePath": [
+				"${env:includes}"
+			],
+			"compilerPath": "clang++",
+			"intelliSenseMode": "macos-clang-arm64",
+			"compileCommands": "${env:compileCommands}",
+			"customConfigurationVariables": {
+				"targetPlatform": "MacOS"
+			}
+		},
+		{
+			"name": "Emscripten",
+			"includePath": [
+				"${env:includes}"
+			],
+			"compilerPath": "em++",
+			"compilerArgs": [
+				"--use-port=emdawnwebgpu"
+			],
+			"intelliSenseMode": "clang-x86",
+			"compileCommands": "${env:compileCommands}",
+			"customConfigurationVariables": {
+				"targetPlatform": "Emscripten"
+			}
+		},
+		{
+			"name": "Emscripten (Windows)",
+			"includePath": [
+				"${env:includes}"
+			],
+			"compilerPath": "em++.bat",
+			"compilerArgs": [
+				"--use-port=emdawnwebgpu"
+			],
+			"intelliSenseMode": "clang-x86",
+			"compileCommands": "${env:compileCommands}",
+			"customConfigurationVariables": {
+				"targetPlatform": "Emscripten"
+			}
+		}
+	]
+}
