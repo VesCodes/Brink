@@ -864,7 +864,7 @@ int32 AppMain(int32 argc, char** argv)
 	if (generateProject)
 	{
 		// GenerateProject();
-		GenerateCompileCommands(context, { "Build", "Core", "Engine", "Renderer", "Sandbox" });
+		GenerateCompileCommands(context, { "Build", "Core", "Engine", "Sandbox" });
 	}
 
 	DateTime buildTime = GetLocalTime();
@@ -922,7 +922,7 @@ int32 AppMain(int32 argc, char** argv)
 			};
 		}
 
-		String modules[] = { "Core", "Engine", "Renderer", "Sandbox" };
+		String modules[] = { "Core", "Engine", "Sandbox" };
 
 		ActionResult compileResult = CompileModules(context, modules);
 

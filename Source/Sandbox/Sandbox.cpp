@@ -7,10 +7,9 @@
 
 #include "Engine/AnimPlayer.h"
 #include "Engine/AnimSequence.h"
+#include "Engine/Gpu.h"
 #include "Engine/Mesh.h"
 #include "Engine/Skeleton.h"
-
-#include "Renderer/Gpu.h"
 
 #include "GltfLoader.h"
 
