@@ -17,18 +17,18 @@ namespace Bk
 	{
 		String name;
 		TSpan<MeshSection> sections;
-		TSpan<uint8> positionBuffer;
-		TSpan<uint8> jointIndexBuffer;
-		TSpan<uint8> jointWeightBuffer;
-		TSpan<uint8> indexBuffer;
+		TSpan<Vec3f> positions;
+		TSpan<uint8> boneIndices;
+		TSpan<float> boneWeights;
+		TSpan<uint16> indices;
 	};
 
 	struct Mesh
 	{
 		TSpan<MeshSection> sections;
-		uint32 vertexBuffer;
-		uint32 jointIndexBuffer;
-		uint32 jointWeightBuffer;
-		uint32 indexBuffer;
+		uint32 positionsBuffer;
+		uint32 boneIndicesBuffer;
+		uint32 boneWeightsBuffer;
+		uint32 indicesBuffer;
 	};
 }

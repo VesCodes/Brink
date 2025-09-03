@@ -30,7 +30,7 @@ struct
 	uint32 surface;
 	uint32 meshPipeline;
 	uint32 globalsBuffer;
-	uint32 jointTransformsBuffer;
+	uint32 boneTransformsBuffer;
 	uint32 globalBindingGroup;
 
 	TSpan<Mesh> meshes;
@@ -54,8 +54,8 @@ void LoadGlb(TSpan<uint8> data)
 
 	for (Mesh& mesh : state.meshes)
 	{
-		DestroyBuffer(mesh.vertexBuffer);
-		DestroyBuffer(mesh.indexBuffer);
+		DestroyBuffer(mesh.positionsBuffer);
+		DestroyBuffer(mesh.indicesBuffer);
 	}
 
 	state.meshes = {};
@@ -76,39 +76,39 @@ void LoadGlb(TSpan<uint8> data)
 			mesh.sections = state.arena.Copy(meshDesc.sections);
 
 			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_VertexBuffer", meshIdx);
+			resourceNameBuilder.Appendf("Mesh%02d_Positions", meshIdx);
 
-			mesh.vertexBuffer = CreateBuffer({
+			mesh.positionsBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = meshDesc.positionBuffer,
+				.data = AsBytes(meshDesc.positions),
 			});
 
 			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_JointIndexBuffer", meshIdx);
+			resourceNameBuilder.Appendf("Mesh%02d_BoneIndices", meshIdx);
 
-			mesh.jointIndexBuffer = CreateBuffer({
+			mesh.boneIndicesBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = meshDesc.jointIndexBuffer,
+				.data = AsBytes(meshDesc.boneIndices),
 			});
 
 			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_JointWeightBuffer", meshIdx);
+			resourceNameBuilder.Appendf("Mesh%02d_BoneWeights", meshIdx);
 
-			mesh.jointWeightBuffer = CreateBuffer({
+			mesh.boneWeightsBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Vertex,
-				.data = meshDesc.jointWeightBuffer,
+				.data = AsBytes(meshDesc.boneWeights),
 			});
 
 			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_IndexBuffer", meshIdx);
+			resourceNameBuilder.Appendf("Mesh%02d_Indices", meshIdx);
 
-			mesh.indexBuffer = CreateBuffer({
+			mesh.indicesBuffer = CreateBuffer({
 				.name = resourceNameBuilder.ToString(scratch.arena),
 				.type = GpuBufferType::Index,
-				.data = meshDesc.indexBuffer,
+				.data = AsBytes(meshDesc.indices),
 			});
 		}
 	}
@@ -221,14 +221,14 @@ void Initialize()
 	});
 
 	state.globalsBuffer = CreateBuffer({
-		.name = "Globals Buffer",
+		.name = "Globals",
 		.type = GpuBufferType::Uniform,
 		.access = GpuBufferAccess::GpuOnly,
 		.size = sizeof(Mat4f),
 	});
 
-	state.jointTransformsBuffer = CreateBuffer({
-		.name = "Joint Transforms Buffer",
+	state.boneTransformsBuffer = CreateBuffer({
+		.name = "Bone Transforms",
 		.type = GpuBufferType::Storage,
 		.access = GpuBufferAccess::GpuOnly,
 		.size = sizeof(Mat4f) * 512,
@@ -239,7 +239,7 @@ void Initialize()
 		.bindingLayout = globalBindingLayout,
 		.bindings = {
 			{ .buffer = state.globalsBuffer },
-			{ .buffer = state.jointTransformsBuffer },
+			{ .buffer = state.boneTransformsBuffer },
 		},
 	});
 }
@@ -341,7 +341,7 @@ bool OnAppUpdate()
 	if (state.animPlayer.transforms.length != 0)
 	{
 		state.animPlayer.Update(deltaTime);
-		WriteBuffer(state.jointTransformsBuffer, AsBytes(state.animPlayer.transforms));
+		WriteBuffer(state.boneTransformsBuffer, AsBytes(state.animPlayer.transforms));
 	}
 
 	BeginPass({
@@ -357,11 +357,11 @@ bool OnAppUpdate()
 			Draw({
 				.pipeline = state.meshPipeline,
 				.vertexBuffers = {
-					mesh.vertexBuffer,
-					mesh.jointIndexBuffer,
-					mesh.jointWeightBuffer,
+					mesh.positionsBuffer,
+					mesh.boneIndicesBuffer,
+					mesh.boneWeightsBuffer,
 				},
-				.indexBuffer = mesh.indexBuffer,
+				.indexBuffer = mesh.indicesBuffer,
 				.bindingGroups = {
 					state.globalBindingGroup,
 				},

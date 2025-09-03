@@ -849,36 +849,36 @@ namespace Bk
 				}
 			}
 
-			mesh.positionBuffer = arena.Push<uint8>(positionBufferSize);
+			mesh.positions = arena.Push<Vec3f>(positionBufferSize / sizeof(Vec3f));
 
-			uint8* positionBuffer = mesh.positionBuffer.data;
+			uint8* positionBuffer = reinterpret_cast<uint8*>(mesh.positions.data);
 			for (TSpan buffer : positionBuffers)
 			{
 				MemoryCopy(positionBuffer, buffer.data, buffer.length);
 				positionBuffer += buffer.length;
 			}
 
-			mesh.jointIndexBuffer = arena.Push<uint8>(jointIndexBufferSize);
+			mesh.boneIndices = arena.Push<uint8>(jointIndexBufferSize);
 
-			uint8* jointIndexBuffer = mesh.jointIndexBuffer.data;
+			uint8* jointIndexBuffer = mesh.boneIndices.data;
 			for (TSpan buffer : jointIndexBuffers)
 			{
 				MemoryCopy(jointIndexBuffer, buffer.data, buffer.length);
 				jointIndexBuffer += buffer.length;
 			}
 
-			mesh.jointWeightBuffer = arena.Push<uint8>(jointWeightBufferSize);
+			mesh.boneWeights = arena.Push<float>(jointWeightBufferSize / sizeof(float));
 
-			uint8* jointWeightBuffer = mesh.jointWeightBuffer.data;
+			uint8* jointWeightBuffer = reinterpret_cast<uint8*>(mesh.boneWeights.data);
 			for (TSpan buffer : jointWeightBuffers)
 			{
 				MemoryCopy(jointWeightBuffer, buffer.data, buffer.length);
 				jointWeightBuffer += buffer.length;
 			}
 
-			mesh.indexBuffer = arena.Push<uint8>(indexBufferSize);
+			mesh.indices = arena.Push<uint16>(indexBufferSize / sizeof(uint16));
 
-			uint8* indexBuffer = mesh.indexBuffer.data;
+			uint8* indexBuffer = reinterpret_cast<uint8*>(mesh.indices.data);
 			for (TSpan buffer : indexBuffers)
 			{
 				MemoryCopy(indexBuffer, buffer.data, buffer.length);
