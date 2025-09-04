@@ -37,11 +37,38 @@ struct BuildContext
 	TSpan<String> extraLinkerArguments;
 };
 
-bool WriteTextFile(String outputFile, String content)
+bool ReadTextFile(Arena& arena, String filePath, String& content)
 {
 	bool result = false;
 
-	FileHandle fileHandle = OpenFile(outputFile, FileAccess::Write);
+	FileHandle fileHandle = OpenFile(filePath, FileAccess::Read);
+	if (fileHandle)
+	{
+		ArenaMarker marker = arena.PushMarker();
+
+		TSpan<uint8> buffer = arena.Push(GetFileSize(fileHandle));
+		if (ReadFile(fileHandle, buffer) == buffer.length)
+		{
+			content.data = reinterpret_cast<const char*>(buffer.data);
+			content.length = buffer.length;
+			result = true;
+		}
+		else
+		{
+			arena.PopMarker(marker);
+		}
+
+		CloseFile(fileHandle);
+	}
+
+	return result;
+}
+
+bool WriteTextFile(String filePath, String content)
+{
+	bool result = false;
+
+	FileHandle fileHandle = OpenFile(filePath, FileAccess::Write);
 	if (fileHandle)
 	{
 		result = WriteFile(fileHandle, AsBytes(content.data, content.length)) == content.length;
@@ -84,30 +111,21 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 		return true;
 	}
 
-	FileProperties outputFileProps = GetFileProperties(outputFile);
-	uint64 outputFileTime = GetPackedTimeFromDateTime(outputFileProps.createdTime);
-
 	String dependencyFile = GetDependencyFilePath(scratch.arena, context, outputFile);
 	if (!FileExists(dependencyFile))
 	{
 		return true;
 	}
 
-	FileHandle fileHandle = OpenFile(dependencyFile, FileAccess::Read);
-	if (!fileHandle)
+	String dependencyTokenStream;
+	if (!ReadTextFile(scratch.arena, dependencyFile, dependencyTokenStream))
 	{
-		printf("Failed to open dependency file '%.*s'\n", int32(dependencyFile.length), dependencyFile.data);
+		printf("Failed to read dependency file '%.*s'\n", int32(dependencyFile.length), dependencyFile.data);
 		return true;
 	}
 
-	TSpan<uint8> fileContent = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
-	fileContent.length = ReadFile(fileHandle, fileContent);
-	CloseFile(fileHandle);
-
-	String tokenStream((char*)fileContent.data, fileContent.length);
-
 	String targetFile;
-	if (!ParseToken(tokenStream, targetFile))
+	if (!ParseToken(dependencyTokenStream, targetFile))
 	{
 		printf("Failed to parse dependency file '%.*s'\n", int32(dependencyFile.length), dependencyFile.data);
 		return true;
@@ -120,9 +138,12 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 		return true;
 	}
 
+	FileProperties outputFileProps = GetFileProperties(outputFile);
+	uint64 outputFileTime = GetPackedTimeFromDateTime(outputFileProps.createdTime);
+
 	bool result = false;
 
-	for (String token; ParseToken(tokenStream, token);)
+	for (String token; ParseToken(dependencyTokenStream, token);)
 	{
 		if (token == "\\")
 		{
