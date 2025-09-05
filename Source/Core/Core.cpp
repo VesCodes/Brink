@@ -10,16 +10,16 @@ namespace Bk
 	bool AssertError(const char* expression, const char* file, int32 line, const char* format, ...)
 	{
 		TStringBuilder<1024> errorMessage;
-		errorMessage.Appendf("ASSERTION FAILED: %s [%s:%d]\n", expression, file, line);
+		Appendf(errorMessage, "ASSERTION FAILED: %s [%s:%d]\n", expression, file, line);
 
 		if (format && format[0] != '\0')
 		{
 			va_list args;
 			va_start(args, format);
 
-			if (errorMessage.Appendv(format, args))
+			if (Appendv(errorMessage, format, args))
 			{
-				errorMessage.Append('\n');
+				Append(errorMessage, '\n');
 			}
 
 			va_end(args);
@@ -34,16 +34,16 @@ namespace Bk
 	void FatalError(int32 exitCode, const char* format, ...)
 	{
 		TStringBuilder<1024> errorMessage;
-		errorMessage.Appendf("FATAL ERROR: %d\n", exitCode);
+		Appendf(errorMessage, "FATAL ERROR: %d\n", exitCode);
 
 		if (format && format[0] != '\0')
 		{
 			va_list args;
 			va_start(args, format);
 
-			if (errorMessage.Appendv(format, args))
+			if (Appendv(errorMessage, format, args))
 			{
-				errorMessage.Append('\n');
+				Append(errorMessage, '\n');
 			}
 
 			va_end(args);

@@ -12,33 +12,33 @@ namespace Bk
 {
 	const String String::Empty = {};
 
-	String String::Slice(size_t start, size_t count) const
+	char String::operator[](size_t idx) const
 	{
-		BK_ASSERT(start <= length);
-		return String(data + start, Min(count, length - start));
+		BK_ASSERT(idx < length);
+		return data[idx];
 	}
 
-	String String::Range(size_t start, size_t end) const
+	String Slice(String string, size_t start, size_t count)
 	{
-		BK_ASSERT(start <= length && start <= end);
-		return String(data + start, Min(end - start, length - start));
+		BK_ASSERT(start <= string.length);
+		return String(string.data + start, Min(count, string.length - start));
 	}
 
-	bool String::Equals(String other, bool ignoreCase) const
+	bool Equals(String string, String other, bool ignoreCase)
 	{
-		if (length != other.length)
+		if (string.length != other.length)
 		{
 			return false;
 		}
 
 		if (!ignoreCase)
 		{
-			return MemoryCompare(data, other.data, length) == 0;
+			return CompareMemory(string.data, other.data, string.length) == 0;
 		}
 
-		for (size_t idx = 0; idx < length; ++idx)
+		for (size_t idx = 0; idx < string.length; ++idx)
 		{
-			if (ToUpper(data[idx]) != ToUpper(other.data[idx]))
+			if (ToUpper(string.data[idx]) != ToUpper(other.data[idx]))
 			{
 				return false;
 			}
@@ -47,20 +47,20 @@ namespace Bk
 		return true;
 	}
 
-	bool String::Contains(char search, bool ignoreCase) const
+	bool Contains(String string, char search, bool ignoreCase)
 	{
-		return Find(search, ignoreCase) != SIZE_MAX;
+		return Find(string, search, ignoreCase) != SIZE_MAX;
 	}
 
-	bool String::Contains(String search, bool ignoreCase) const
+	bool Contains(String string, String search, bool ignoreCase)
 	{
-		return Find(search, ignoreCase) != SIZE_MAX;
+		return Find(string, search, ignoreCase) != SIZE_MAX;
 	}
 
-	size_t String::Find(char search, bool ignoreCase) const
+	size_t Find(String string, char search, bool ignoreCase)
 	{
-		const char* start = data;
-		const char* end = data + length;
+		const char* start = string.data;
+		const char* end = string.data + string.length;
 
 		if (ignoreCase)
 		{
@@ -87,21 +87,21 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
-	size_t String::Find(String search, bool ignoreCase) const
+	size_t Find(String string, String search, bool ignoreCase)
 	{
 		if (search.length == 1)
 		{
-			return Find(search.data[0], ignoreCase);
+			return Find(string, search.data[0], ignoreCase);
 		}
 
-		if (search.length > 1 && search.length <= length)
+		if (search.length > 1 && search.length <= string.length)
 		{
-			String slice(data, search.length);
-			for (size_t i = 0; i <= length - search.length; ++i)
+			String slice(string.data, search.length);
+			for (size_t i = 0; i <= string.length - search.length; ++i)
 			{
-				if (slice.Equals(search, ignoreCase))
+				if (Equals(slice, search, ignoreCase))
 				{
-					return static_cast<size_t>(slice.data - data);
+					return static_cast<size_t>(slice.data - string.data);
 				}
 
 				slice.data += 1;
@@ -111,15 +111,15 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
-	size_t String::FindLast(char search, bool ignoreCase) const
+	size_t FindLast(String string, char search, bool ignoreCase)
 	{
-		if (length == 0)
+		if (string.length == 0)
 		{
 			return SIZE_MAX;
 		}
 
-		const char* start = data;
-		const char* end = data + length;
+		const char* start = string.data;
+		const char* end = string.data + string.length;
 
 		if (ignoreCase)
 		{
@@ -146,21 +146,21 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
-	size_t String::FindLast(String search, bool ignoreCase) const
+	size_t FindLast(String string, String search, bool ignoreCase)
 	{
 		if (search.length == 1)
 		{
-			return FindLast(search.data[0], ignoreCase);
+			return FindLast(string, search.data[0], ignoreCase);
 		}
 
-		if (search.length > 1 && search.length <= length)
+		if (search.length > 1 && search.length <= string.length)
 		{
-			String slice(data + length - search.length, search.length);
-			for (size_t i = 0; i <= length - search.length; ++i)
+			String slice(string.data + string.length - search.length, search.length);
+			for (size_t i = 0; i <= string.length - search.length; ++i)
 			{
-				if (slice.Equals(search, ignoreCase))
+				if (Equals(slice, search, ignoreCase))
 				{
-					return static_cast<size_t>(slice.data - data);
+					return static_cast<size_t>(slice.data - string.data);
 				}
 
 				slice.data -= 1;
@@ -170,86 +170,80 @@ namespace Bk
 		return SIZE_MAX;
 	}
 
-	bool String::StartsWith(String prefix, bool ignoreCase) const
+	bool StartsWith(String string, String prefix, bool ignoreCase)
 	{
-		if (prefix.length > length)
+		if (prefix.length > string.length)
 		{
 			return false;
 		}
 
-		return Slice(0, prefix.length).Equals(prefix, ignoreCase);
+		return Equals(Slice(0, prefix.length), prefix, ignoreCase);
 	}
 
-	bool String::EndsWith(String suffix, bool ignoreCase) const
+	bool EndsWith(String string, String suffix, bool ignoreCase)
 	{
-		if (suffix.length > length)
+		if (suffix.length > string.length)
 		{
 			return false;
 		}
 
-		return Slice(length - suffix.length).Equals(suffix, ignoreCase);
+		return Equals(Slice(string, string.length - suffix.length), suffix, ignoreCase);
 	}
 
-	String String::Trim() const
+	String Trim(String string)
 	{
 		size_t start = 0;
-		size_t end = length;
+		size_t end = string.length;
 
-		while (start < length && IsSpace(data[start]))
+		while (start < string.length && IsSpace(string.data[start]))
 		{
 			start += 1;
 		}
 
-		while (end > start && IsSpace(data[end - 1]))
+		while (end > start && IsSpace(string.data[end - 1]))
 		{
 			end -= 1;
 		}
 
-		return Range(start, end);
+		return Slice(string, start, end - start);
 	}
 
-	String String::TrimQuotes() const
+	String TrimQuotes(String string)
 	{
 		size_t start = 0;
-		size_t end = length;
+		size_t end = string.length;
 
-		if (length != 0 && data[0] == '"')
+		if (string.length != 0 && string.data[0] == '"')
 		{
 			start = 1;
 		}
 
-		if (length > 1 && data[length - 1] == '"')
+		if (string.length > 1 && string.data[string.length - 1] == '"')
 		{
-			end = length - 1;
+			end = string.length - 1;
 		}
 
-		return Range(start, end);
+		return Slice(string, start, end - start);
 	}
 
-	char String::operator[](size_t index) const
+	bool operator==(String string, String other)
 	{
-		BK_ASSERT(index < length);
-		return data[index];
+		return string.length == other.length && CompareMemory(string.data, other.data, string.length) == 0;
 	}
 
-	bool String::operator==(String other) const
+	bool operator!=(String string, String other)
 	{
-		return length == other.length && MemoryCompare(data, other.data, length) == 0;
+		return string.length != other.length || CompareMemory(string.data, other.data, string.length) != 0;
 	}
 
-	bool String::operator!=(String other) const
+	const char* begin(String string)
 	{
-		return length != other.length || MemoryCompare(data, other.data, length) != 0;
+		return string.data;
 	}
 
-	const char* String::begin() const
+	const char* end(String string)
 	{
-		return data;
-	}
-
-	const char* String::end() const
-	{
-		return data + length;
+		return string.data + string.length;
 	}
 
 	bool ParseValue(String stream, bool& value)
@@ -259,13 +253,13 @@ namespace Bk
 			return false;
 		}
 
-		if (stream.Equals("true", true) || stream.Equals("1"))
+		if (Equals(stream, "true", true) || Equals(stream, "1"))
 		{
 			value = true;
 			return true;
 		}
 
-		if (stream.Equals("false", true) || stream.Equals("0"))
+		if (Equals(stream, "false", true) || Equals(stream, "0"))
 		{
 			value = false;
 			return true;
@@ -509,7 +503,7 @@ namespace Bk
 			tokenStart += 1;
 		}
 
-		stream = stream.Slice(tokenStart);
+		stream = Slice(stream, tokenStart);
 		if (stream.length == 0)
 		{
 			return false;
@@ -531,8 +525,8 @@ namespace Bk
 			}
 		}
 
-		token = stream.Slice(0, tokenEnd);
-		stream = stream.Slice(tokenEnd);
+		token = Slice(stream, 0, tokenEnd);
+		stream = Slice(stream, tokenEnd);
 
 		return true;
 	}
@@ -557,62 +551,105 @@ namespace Bk
 		length = 0;
 	}
 
-	bool StringBuilder::Append(char c)
+	static bool Expand(StringBuilder& builder, size_t requiredCapacity)
 	{
-		if (chunk.length + 1 > chunk.capacity)
+		for (StringBuilder::Chunk *chunk = builder.chunk.previous, *lastChunk = &builder.chunk; chunk; chunk = chunk->previous)
 		{
-			if (!Expand(1))
+			if (chunk->length == 0)
+			{
+				lastChunk->previous = chunk->previous;
+
+				StringBuilder::Chunk archivedChunk = builder.chunk;
+
+				builder.chunk = *chunk;
+				*chunk = archivedChunk;
+				builder.chunk.previous = chunk;
+
+				return true;
+			}
+
+			lastChunk = chunk;
+		}
+
+		if (!builder.arena)
+		{
+			return false;
+		}
+
+		StringBuilder::Chunk* archivedChunk = nullptr;
+		if (builder.chunk.capacity != 0)
+		{
+			archivedChunk = Push<StringBuilder::Chunk>(*builder.arena);
+			*archivedChunk = builder.chunk;
+		}
+
+		constexpr size_t minCapacity = 64;
+		constexpr size_t maxCapacityGrowth = 8096;
+
+		builder.chunk.previous = archivedChunk;
+		builder.chunk.capacity = Max(requiredCapacity, minCapacity, Min(builder.length, maxCapacityGrowth));
+		builder.chunk.buffer = Push<char>(*builder.arena, builder.chunk.capacity);
+		builder.chunk.length = 0;
+
+		return true;
+	}
+
+	bool Append(StringBuilder& builder, char c)
+	{
+		if (builder.chunk.length + 1 > builder.chunk.capacity)
+		{
+			if (!Expand(builder, 1))
 			{
 				return false;
 			}
 		}
 
-		chunk.buffer[chunk.length] = c;
-		chunk.length += 1;
-		length += 1;
+		builder.chunk.buffer[builder.chunk.length] = c;
+		builder.chunk.length += 1;
+		builder.length += 1;
 
 		return true;
 	}
 
-	bool StringBuilder::Append(String string)
+	bool Append(StringBuilder& builder, String string)
 	{
 		while (string.length != 0)
 		{
-			size_t chunkRemaining = chunk.capacity - chunk.length;
+			size_t chunkRemaining = builder.chunk.capacity - builder.chunk.length;
 			if (chunkRemaining == 0)
 			{
-				if (!Expand(string.length))
+				if (!Expand(builder, string.length))
 				{
 					return false;
 				}
 
-				chunkRemaining = chunk.capacity;
+				chunkRemaining = builder.chunk.capacity;
 			}
 
 			size_t sliceLength = Min(string.length, chunkRemaining);
 
-			MemoryCopy(chunk.buffer + chunk.length, string.data, sliceLength);
-			chunk.length += sliceLength;
-			length += sliceLength;
+			CopyMemory(builder.chunk.buffer + builder.chunk.length, string.data, sliceLength);
+			builder.chunk.length += sliceLength;
+			builder.length += sliceLength;
 
-			string = string.Slice(sliceLength);
+			string = Slice(string, sliceLength);
 		}
 
 		return true;
 	}
 
-	bool StringBuilder::Appendf(const char* format, ...)
+	bool Appendf(StringBuilder& builder, const char* format, ...)
 	{
 		va_list args;
 		va_start(args, format);
 
-		bool result = Appendv(format, args);
+		bool result = Appendv(builder, format, args);
 		va_end(args);
 
 		return result;
 	}
 
-	bool StringBuilder::Appendv(const char* format, va_list args)
+	bool Appendv(StringBuilder& builder, const char* format, va_list args)
 	{
 		char buffer[STB_SPRINTF_MIN];
 
@@ -620,56 +657,56 @@ namespace Bk
 			[](const char* buffer, void* context, int32 length)
 			{
 				StringBuilder* builder = static_cast<StringBuilder*>(context);
-				bool result = builder->Append(String(buffer, static_cast<size_t>(length)));
+				bool result = Append(*builder, String(buffer, static_cast<size_t>(length)));
 
 				return result ? const_cast<char*>(buffer) : nullptr;
 			},
-			this, buffer, format, args);
+			&builder, buffer, format, args);
 
 		return (result >= 0 && static_cast<size_t>(result) < sizeof(buffer));
 	}
 
-	bool StringBuilder::AppendLine(String line)
+	bool AppendLine(StringBuilder& builder, String line)
 	{
-		if (!Append(line))
+		if (!Append(builder, line))
 		{
 			return false;
 		}
 
-		return Append('\n');
+		return Append(builder, '\n');
 	}
 
-	bool StringBuilder::AppendLinef(const char* format, ...)
+	bool AppendLinef(StringBuilder& builder, const char* format, ...)
 	{
 		va_list args;
 		va_start(args, format);
 
-		bool result = Appendv(format, args);
+		bool result = Appendv(builder, format, args);
 		va_end(args);
 
-		return result && Append('\n');
+		return result && Append(builder, '\n');
 	}
 
-	bool StringBuilder::AppendPath(String path)
+	bool AppendPath(StringBuilder& builder, String path)
 	{
-		char* lastChar = GetLastChar();
+		char* lastChar = GetLastChar(builder);
 		if (lastChar && *lastChar != '/' && *lastChar != '\\')
 		{
-			if (!Append('/'))
+			if (!Append(builder, '/'))
 			{
 				return false;
 			}
 		}
 
-		return Append(path);
+		return Append(builder, path);
 	}
 
-	bool StringBuilder::AppendPathf(const char* format, ...)
+	bool AppendPathf(StringBuilder& builder, const char* format, ...)
 	{
-		char* lastChar = GetLastChar();
+		char* lastChar = GetLastChar(builder);
 		if (lastChar && *lastChar != '/' && *lastChar != '\\')
 		{
-			if (!Append('/'))
+			if (!Append(builder, '/'))
 			{
 				return false;
 			}
@@ -678,18 +715,18 @@ namespace Bk
 		va_list args;
 		va_start(args, format);
 
-		bool result = Appendv(format, args);
+		bool result = Appendv(builder, format, args);
 		va_end(args);
 
 		return result;
 	}
 
-	void StringBuilder::NormalizePath()
+	void NormalizePath(const StringBuilder& builder)
 	{
-		for (Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		for (const StringBuilder::Chunk* chunk = &builder.chunk; chunk; chunk = chunk->previous)
 		{
-			char* start = chainedChunk->buffer;
-			char* end = chainedChunk->buffer + chainedChunk->length;
+			char* start = chunk->buffer;
+			char* end = chunk->buffer + chunk->length;
 
 			for (char* c = start; c < end; ++c)
 			{
@@ -701,31 +738,31 @@ namespace Bk
 		}
 	}
 
-	char* StringBuilder::GetLastChar() const
+	char* GetLastChar(const StringBuilder& builder)
 	{
-		if (length != 0)
+		if (builder.length != 0)
 		{
-			for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+			for (const StringBuilder::Chunk* chunk = &builder.chunk; chunk; chunk = chunk->previous)
 			{
-				if (chainedChunk->length == 0)
+				if (chunk->length == 0)
 				{
 					continue;
 				}
 
-				return chainedChunk->buffer + chainedChunk->length - 1;
+				return chunk->buffer + chunk->length - 1;
 			}
 		}
 
 		return nullptr;
 	}
 
-	void StringBuilder::Replace(char oldChar, char newChar) const
+	void Replace(const StringBuilder& builder, char oldChar, char newChar)
 	{
-		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		for (const StringBuilder::Chunk* chunk = &builder.chunk; chunk; chunk = chunk->previous)
 		{
-			for (size_t idx = 0; idx < chainedChunk->length; ++idx)
+			for (size_t idx = 0; idx < chunk->length; ++idx)
 			{
-				char* c = chainedChunk->buffer + idx;
+				char* c = chunk->buffer + idx;
 				if (*c == oldChar)
 				{
 					*c = newChar;
@@ -734,154 +771,111 @@ namespace Bk
 		}
 	}
 
-	bool StringBuilder::Expand(size_t requiredCapacity)
-	{
-		for (Chunk *chainedChunk = chunk.previous, *lastChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
-		{
-			if (chainedChunk->length == 0)
-			{
-				lastChunk->previous = chainedChunk->previous;
-
-				Chunk archivedChunk = chunk;
-
-				chunk = *chainedChunk;
-				*chainedChunk = archivedChunk;
-				chunk.previous = chainedChunk;
-
-				return true;
-			}
-
-			lastChunk = chainedChunk;
-		}
-
-		if (!arena)
-		{
-			return false;
-		}
-
-		Chunk* archivedChunk = nullptr;
-		if (chunk.capacity != 0)
-		{
-			archivedChunk = arena->Push<Chunk>();
-			*archivedChunk = chunk;
-		}
-
-		constexpr size_t minCapacity = 64;
-		constexpr size_t maxCapacityGrowth = 8096;
-
-		chunk.previous = archivedChunk;
-		chunk.capacity = Max(requiredCapacity, minCapacity, Min(length, maxCapacityGrowth));
-		chunk.buffer = arena->Push<char>(chunk.capacity);
-		chunk.length = 0;
-
-		return true;
-	}
-
-	void StringBuilder::Reset(size_t keepLength)
+	void Reset(StringBuilder& builder, size_t keepLength)
 	{
 		if (keepLength == 0)
 		{
-			for (Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+			for (StringBuilder::Chunk* chunk = &builder.chunk; chunk; chunk = chunk->previous)
 			{
-				chainedChunk->length = 0;
+				chunk->length = 0;
 			}
 
-			length = 0;
+			builder.length = 0;
 		}
-		else if (keepLength < length)
+		else if (keepLength < builder.length)
 		{
-			size_t discardLength = length - keepLength;
+			size_t discardLength = builder.length - keepLength;
 
-			for (Chunk *chainedChunk = &chunk, *lastChunk = nullptr; chainedChunk; chainedChunk = chainedChunk->previous)
+			for (StringBuilder::Chunk *chunk = &builder.chunk, *lastChunk = nullptr; chunk; chunk = chunk->previous)
 			{
-				if (discardLength <= chainedChunk->length)
+				if (discardLength <= chunk->length)
 				{
-					chainedChunk->length -= discardLength;
+					chunk->length -= discardLength;
 
 					if (lastChunk)
 					{
-						lastChunk->previous = chainedChunk->previous;
+						lastChunk->previous = chunk->previous;
 
-						Chunk archivedChunk = chunk;
+						StringBuilder::Chunk archivedChunk = builder.chunk;
 
-						chunk = *chainedChunk;
-						*chainedChunk = archivedChunk;
-						chunk.previous = chainedChunk;
+						builder.chunk = *chunk;
+						*chunk = archivedChunk;
+						builder.chunk.previous = chunk;
 					}
 
 					break;
 				}
 
-				discardLength -= chainedChunk->length;
-				chainedChunk->length = 0;
+				discardLength -= chunk->length;
+				chunk->length = 0;
 
-				lastChunk = chainedChunk;
+				lastChunk = chunk;
 			}
 
-			length = keepLength;
+			builder.length = keepLength;
 		}
 	}
 
-	String StringBuilder::ToString(Arena& arena, bool nullTerminate) const
+	String ToString(const StringBuilder& builder, Arena& arena, bool nullTerminate)
 	{
-		TSpan<char> buffer = arena.Push<char>(nullTerminate ? length + 1 : length);
+		TSpan<char> buffer = Push<char>(arena, nullTerminate ? builder.length + 1 : builder.length);
 
 		if (nullTerminate)
 		{
-			buffer[length] = '\0';
+			buffer[builder.length] = '\0';
 		}
 
-		char* bufferPtr = buffer.data + length;
-		for (const Chunk* chainedChunk = &chunk; chainedChunk; chainedChunk = chainedChunk->previous)
+		char* bufferPtr = buffer.data + builder.length;
+		for (const StringBuilder::Chunk* chunk = &builder.chunk; chunk; chunk = chunk->previous)
 		{
-			if (chainedChunk->length != 0)
+			if (chunk->length != 0)
 			{
-				bufferPtr -= chainedChunk->length;
-				MemoryCopy(bufferPtr, chainedChunk->buffer, chainedChunk->length);
+				bufferPtr -= chunk->length;
+				CopyMemory(bufferPtr, chunk->buffer, chunk->length);
 			}
 		}
 
 		// Ensure the entire buffer has been filled
 		BK_ASSERT(buffer.data == bufferPtr);
 
-		return String(buffer.data, length);
+		return String(buffer.data, builder.length);
 	}
 
 	String GetDirectoryName(String path)
 	{
-		size_t slashIdx = path.FindLast('/');
+		size_t slashIdx = FindLast(path, '/');
 		if (slashIdx == SIZE_MAX)
 		{
-			slashIdx = path.FindLast('\\');
+			slashIdx = FindLast(path, '\\');
 		}
 
-		return slashIdx != SIZE_MAX ? path.Slice(0, slashIdx) : String::Empty;
+		return slashIdx != SIZE_MAX ? Slice(path, 0, slashIdx) : String::Empty;
 	}
 
 	String GetFileName(String path)
 	{
-		size_t slashIdx = path.FindLast('/');
+		size_t slashIdx = FindLast(path, '/');
 		if (slashIdx == SIZE_MAX)
 		{
-			slashIdx = path.FindLast('\\');
+			slashIdx = FindLast(path, '\\');
 		}
 
-		return slashIdx != SIZE_MAX ? path.Slice(slashIdx + 1) : path;
+		return slashIdx != SIZE_MAX ? Slice(path, slashIdx + 1) : path;
 	}
 
 	String GetFileNameWithoutExtension(String path)
 	{
 		String fileName = GetFileName(path);
-		size_t dotIdx = fileName.FindLast('.');
+		size_t dotIdx = FindLast(fileName, '.');
 
-		return dotIdx != SIZE_MAX ? fileName.Slice(0, dotIdx) : fileName;
+		return dotIdx != SIZE_MAX ? Slice(fileName, 0, dotIdx) : fileName;
 	}
 
 	String GetExtension(String path)
 	{
 		String fileName = GetFileName(path);
-		size_t dotIdx = fileName.FindLast('.');
+		size_t dotIdx = FindLast(fileName, '.');
 
-		return dotIdx != SIZE_MAX ? fileName.Slice(dotIdx + 1) : String::Empty;
+		return dotIdx != SIZE_MAX ? Slice(fileName, dotIdx + 1) : String::Empty;
 	}
 }

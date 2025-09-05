@@ -44,9 +44,9 @@ bool ReadTextFile(Arena& arena, String filePath, String& content)
 	FileHandle fileHandle = OpenFile(filePath, FileAccess::Read);
 	if (fileHandle)
 	{
-		ArenaMarker marker = arena.PushMarker();
+		ArenaMarker marker = PushMarker(arena);
 
-		TSpan<uint8> buffer = arena.Push(GetFileSize(fileHandle));
+		TSpan<uint8> buffer = Push(arena, GetFileSize(fileHandle));
 		if (ReadFile(fileHandle, buffer) == buffer.length)
 		{
 			content.data = reinterpret_cast<const char*>(buffer.data);
@@ -55,7 +55,7 @@ bool ReadTextFile(Arena& arena, String filePath, String& content)
 		}
 		else
 		{
-			arena.PopMarker(marker);
+			PopMarker(arena, marker);
 		}
 
 		CloseFile(fileHandle);
@@ -83,11 +83,11 @@ String GetResponseFilePath(Arena& arena, const BuildContext& context, String tar
 	ArenaScope scratch = GetScratchArena(&arena);
 
 	StringBuilder builder(scratch.arena);
-	builder.AppendPath(context.cacheDir);
-	builder.AppendPath(GetFileName(targetFile));
-	builder.Append(".rsp");
+	AppendPath(builder, context.cacheDir);
+	AppendPath(builder, GetFileName(targetFile));
+	Append(builder, ".rsp");
 
-	return builder.ToString(arena);
+	return ToString(builder, arena);
 }
 
 String GetDependencyFilePath(Arena& arena, const BuildContext& context, String targetFile)
@@ -95,11 +95,11 @@ String GetDependencyFilePath(Arena& arena, const BuildContext& context, String t
 	ArenaScope scratch = GetScratchArena(&arena);
 
 	StringBuilder builder(scratch.arena);
-	builder.AppendPath(context.cacheDir);
-	builder.AppendPath(GetFileName(targetFile));
-	builder.Append(".d");
+	AppendPath(builder, context.cacheDir);
+	AppendPath(builder, GetFileName(targetFile));
+	Append(builder, ".d");
 
-	return builder.ToString(arena);
+	return ToString(builder, arena);
 }
 
 bool ShouldCompile(const BuildContext& context, String outputFile)
@@ -131,7 +131,7 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 		return true;
 	}
 
-	targetFile = targetFile.Slice(0, targetFile.length - 1);
+	targetFile = Slice(targetFile, 0, targetFile.length - 1);
 	if (targetFile != outputFile)
 	{
 		printf("[%.*s] Mismatched dependency target '%.*s'\n", int32(outputFile.length), outputFile.data, int32(targetFile.length), targetFile.data);
@@ -181,10 +181,10 @@ ProcessHandle RunCompiler(const BuildContext& context, String arguments)
 		executable = "cmd.exe";
 
 		StringBuilder builder(scratch.arena);
-		builder.Append("/c em++ ");
-		builder.Append(arguments);
+		Append(builder, "/c em++ ");
+		Append(builder, arguments);
 
-		arguments = builder.ToString(scratch.arena);
+		arguments = ToString(builder, scratch.arena);
 #else
 		executable = "em++";
 #endif
@@ -202,77 +202,77 @@ ProcessHandle CompileFile(const BuildContext& context, String inputFile, String 
 
 	StringBuilder arguments(scratch.arena);
 
-	arguments.AppendLine("-c");
-	arguments.AppendLine("-x c++");
-	arguments.AppendLine("-std=c++20");
+	AppendLine(arguments, "-c");
+	AppendLine(arguments, "-x c++");
+	AppendLine(arguments, "-std=c++20");
 
 	switch (context.config)
 	{
 		case BuildConfig::Debug:
 		{
-			arguments.AppendLine("-O0");
+			AppendLine(arguments, "-O0");
 			break;
 		}
 
 		case BuildConfig::Release:
 		{
-			arguments.AppendLine("-O3");
+			AppendLine(arguments, "-O3");
 			break;
 		}
 	}
 
 	// #TODO: Add option to skip generating debug info
 	// #TODO: Look into -gcodeview for Windows
-	arguments.AppendLine("-g");
+	AppendLine(arguments, "-g");
 
-	arguments.AppendLine("-fdiagnostics-absolute-paths");
-	arguments.AppendLine("-fvisibility=hidden");
-	arguments.AppendLine("-fno-exceptions");
-	// arguments.AppendLine("-ftime-trace");
+	AppendLine(arguments, "-fdiagnostics-absolute-paths");
+	AppendLine(arguments, "-fvisibility=hidden");
+	AppendLine(arguments, "-fno-exceptions");
+	// AppendLine(arguments, "-ftime-trace");
 
-	arguments.AppendLine("-Wall");
-	arguments.AppendLine("-Werror");
-	arguments.AppendLine("-Wno-unknown-warning-option");
+	AppendLine(arguments, "-Wall");
+	AppendLine(arguments, "-Werror");
+	AppendLine(arguments, "-Wno-unknown-warning-option");
 
-	arguments.AppendLine("-MMD");
+	AppendLine(arguments, "-MMD");
 	String dependencyFile = GetDependencyFilePath(scratch.arena, context, outputFile);
-	arguments.AppendLinef("-MF \"%.*s\"", dependencyFile.length, dependencyFile.data);
+	AppendLinef(arguments, "-MF \"%.*s\"", dependencyFile.length, dependencyFile.data);
 
 	for (String includePath : context.includes)
 	{
-		arguments.AppendLinef("-I \"%.*s\"", includePath.length, includePath.data);
+		AppendLinef(arguments, "-I \"%.*s\"", includePath.length, includePath.data);
 	}
 
 	for (String includePath : context.systemIncludes)
 	{
-		arguments.AppendLinef("-isystem \"%.*s\"", includePath.length, includePath.data);
+		AppendLinef(arguments, "-isystem \"%.*s\"", includePath.length, includePath.data);
 	}
 
 	for (String definition : context.definitions)
 	{
-		arguments.AppendLinef("-D \"%.*s\"", definition.length, definition.data);
+		AppendLinef(arguments, "-D \"%.*s\"", definition.length, definition.data);
 	}
 
 	for (String extraArgument : context.extraCompilerArguments)
 	{
-		arguments.AppendLine(extraArgument);
+		AppendLine(arguments, extraArgument);
 	}
 
-	arguments.AppendLinef("\"%.*s\"", inputFile.length, inputFile.data);
-	arguments.AppendLinef("-o \"%.*s\"", outputFile.length, outputFile.data);
+	AppendLinef(arguments, "\"%.*s\"", inputFile.length, inputFile.data);
+	AppendLinef(arguments, "-o \"%.*s\"", outputFile.length, outputFile.data);
 
 	String responseFile = GetResponseFilePath(scratch.arena, context, outputFile);
-	if (!WriteTextFile(responseFile, arguments.ToString(scratch.arena)))
+	if (!WriteTextFile(responseFile, ToString(arguments, scratch.arena)))
 	{
 		printf("Failed to write response file '%.*s'\n", int32(responseFile.length), responseFile.data);
 		return 0;
 	}
 
-	arguments.Reset();
-	arguments.Append('@');
-	arguments.Append(responseFile);
+	Reset(arguments);
+	Append(arguments, '@');
+	Append(arguments, responseFile);
 
-	return RunCompiler(context, arguments.ToString(scratch.arena));
+	return RunCompiler(context, ToString(arguments, scratch.arena));
 }
 
 ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, String outputFile)
@@ -282,42 +282,42 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 	StringBuilder arguments(scratch.arena);
 
 	// #TODO: Add option to skip generating debug info
-	arguments.AppendLine("-g");
+	AppendLine(arguments, "-g");
 
 	// #TODO: Look into LLD linker
-	// arguments.AppendLine("-fuse-ld=lld");
+	// AppendLine(arguments, "-fuse-ld=lld");
 
-	arguments.AppendLine("-fdiagnostics-absolute-paths");
+	AppendLine(arguments, "-fdiagnostics-absolute-paths");
 
 	if (context.platform == Platform::Windows)
 	{
-		arguments.AppendLine("-Wl,-incremental:no");
+		AppendLine(arguments, "-Wl,-incremental:no");
 	}
 
 	for (String extraArgument : context.extraLinkerArguments)
 	{
-		arguments.AppendLine(extraArgument);
+		AppendLine(arguments, extraArgument);
 	}
 
 	for (String inputFile : inputFiles)
 	{
-		arguments.AppendLinef("\"%.*s\"", inputFile.length, inputFile.data);
+		AppendLinef(arguments, "\"%.*s\"", inputFile.length, inputFile.data);
 	}
 
-	arguments.AppendLinef("-o \"%.*s\"", outputFile.length, outputFile.data);
+	AppendLinef(arguments, "-o \"%.*s\"", outputFile.length, outputFile.data);
 
 	String responseFile = GetResponseFilePath(scratch.arena, context, outputFile);
-	if (!WriteTextFile(responseFile, arguments.ToString(scratch.arena)))
+	if (!WriteTextFile(responseFile, ToString(arguments, scratch.arena)))
 	{
 		printf("Failed to write response file '%.*s'\n", int32(responseFile.length), responseFile.data);
 		return 0;
 	}
 
-	arguments.Reset();
-	arguments.Append('@');
-	arguments.Append(responseFile);
+	Reset(arguments);
+	Append(arguments, '@');
+	Append(arguments, responseFile);
 
-	return RunCompiler(context, arguments.ToString(scratch.arena));
+	return RunCompiler(context, ToString(arguments, scratch.arena));
 }
 
 enum class ActionResult : uint8
@@ -332,45 +332,45 @@ ActionResult CompileModule(const BuildContext& context, String moduleName)
 	ArenaScope scratch = GetScratchArena();
 
 	StringBuilder builder(scratch.arena);
-	builder.AppendPath("Source");
-	builder.AppendPath(moduleName);
+	AppendPath(builder, "Source");
+	AppendPath(builder, moduleName);
 
-	String moduleSourceDir = builder.ToString(scratch.arena);
+	String moduleSourceDir = ToString(builder, scratch.arena);
 	size_t moduleSourceDirPrefixLength = moduleSourceDir.length - moduleName.length;
 
-	builder.Reset();
-	builder.AppendPath(context.cacheDir);
-	builder.AppendPath(moduleName);
-	builder.Append(".module.o");
+	Reset(builder);
+	AppendPath(builder, context.cacheDir);
+	AppendPath(builder, moduleName);
+	Append(builder, ".module.o");
 
-	String moduleObjectFile = builder.ToString(scratch.arena);
+	String moduleObjectFile = ToString(builder, scratch.arena);
 
-	builder.Reset(builder.length - 1);
-	builder.Append("cpp");
+	Reset(builder, builder.length - 1);
+	Append(builder, "cpp");
 
-	String moduleUnityFile = builder.ToString(scratch.arena);
+	String moduleUnityFile = ToString(builder, scratch.arena);
 
 	if (!ShouldCompile(context, moduleObjectFile))
 	{
 		return ActionResult::Skipped;
 	}
 
-	builder.Reset();
-	builder.AppendLine("// Automatically generated module unity file");
+	Reset(builder);
+	AppendLine(builder, "// Automatically generated module unity file");
 
 	FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, moduleSourceDir);
 	for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
 	{
-		if (file.path.EndsWith(".cpp", true))
+		if (EndsWith(file.path, ".cpp", true))
 		{
-			String sourceFile = file.path.Slice(moduleSourceDirPrefixLength);
-			builder.AppendLinef("#include \"%.*s\"", sourceFile.length, sourceFile.data);
+			String sourceFile = Slice(file.path, moduleSourceDirPrefixLength);
+			AppendLinef(builder, "#include \"%.*s\"", sourceFile.length, sourceFile.data);
 		}
 	}
 
 	DestroyFileIterator(fileIt);
 
-	if (!WriteTextFile(moduleUnityFile, builder.ToString(scratch.arena)))
+	if (!WriteTextFile(moduleUnityFile, ToString(builder, scratch.arena)))
 	{
 		printf("Failed to write module unity file '%.*s'\n", int32(moduleUnityFile.length), moduleUnityFile.data);
 		return ActionResult::Failed;
@@ -415,18 +415,18 @@ bool LinkModules(const BuildContext& context, TSpan<String> moduleNames, String 
 	ArenaScope scratch = GetScratchArena();
 
 	StringBuilder builder(scratch.arena);
-	builder.AppendPath(context.cacheDir);
+	AppendPath(builder, context.cacheDir);
 
 	size_t cacheDirLength = builder.length;
 
-	TSpan<String> moduleObjectFiles = scratch.arena.Push<String>(moduleNames.length);
+	TSpan<String> moduleObjectFiles = Push<String>(scratch.arena, moduleNames.length);
 	for (size_t moduleIdx = 0; moduleIdx < moduleNames.length; ++moduleIdx)
 	{
-		builder.AppendPath(moduleNames[moduleIdx]);
-		builder.Append(".module.o");
+		AppendPath(builder, moduleNames[moduleIdx]);
+		Append(builder, ".module.o");
 
-		moduleObjectFiles[moduleIdx] = builder.ToString(scratch.arena);
-		builder.Reset(cacheDirLength);
+		moduleObjectFiles[moduleIdx] = ToString(builder, scratch.arena);
+		Reset(builder, cacheDirLength);
 	}
 
 	ProcessHandle process = LinkFiles(context, moduleObjectFiles, executableName);
@@ -449,36 +449,36 @@ bool GenerateCompileCommands(const BuildContext& context, TSpan<String> moduleNa
 	StringBuilder builder(scratch.arena);
 	StringBuilder pathBuilder(scratch.arena);
 
-	builder.AppendLine("[");
+	AppendLine(builder, "[");
 	for (String moduleName : moduleNames)
 	{
-		pathBuilder.Reset();
-		pathBuilder.AppendPath("Source");
-		pathBuilder.AppendPath(moduleName);
+		Reset(pathBuilder);
+		AppendPath(pathBuilder, "Source");
+		AppendPath(pathBuilder, moduleName);
 
-		String moduleSourceDir = pathBuilder.ToString(scratch.arena);
+		String moduleSourceDir = ToString(pathBuilder, scratch.arena);
 
-		pathBuilder.Reset();
-		pathBuilder.AppendPath(context.cacheDir);
-		pathBuilder.AppendPath(moduleName);
-		pathBuilder.Append(".module.o");
+		Reset(pathBuilder);
+		AppendPath(pathBuilder, context.cacheDir);
+		AppendPath(pathBuilder, moduleName);
+		Append(pathBuilder, ".module.o");
 
-		String moduleObjectFile = pathBuilder.ToString(scratch.arena);
+		String moduleObjectFile = ToString(pathBuilder, scratch.arena);
 		String responseFile = GetResponseFilePath(scratch.arena, context, moduleObjectFile);
 
 		FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, moduleSourceDir);
 		for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
 		{
-			if (!file.path.EndsWith(".cpp", true))
+			if (!EndsWith(file.path, ".cpp", true))
 			{
 				continue;
 			}
 
-			builder.AppendLine("\t{");
-			builder.AppendLinef("\t\t\"directory\": \"%.*s\",", directory.length, directory.data);
-			builder.AppendLinef("\t\t\"file\": \"%.*s\",", file.path.length, file.path.data);
-			builder.AppendLinef("\t\t\"arguments\": [ \"clang++\", \"@%.*s\" ]", responseFile.length, responseFile.data);
-			builder.AppendLine("\t},");
+			AppendLine(builder, "\t{");
+			AppendLinef(builder, "\t\t\"directory\": \"%.*s\",", directory.length, directory.data);
+			AppendLinef(builder, "\t\t\"file\": \"%.*s\",", file.path.length, file.path.data);
+			AppendLinef(builder, "\t\t\"arguments\": [ \"clang++\", \"@%.*s\" ]", responseFile.length, responseFile.data);
+			AppendLine(builder, "\t},");
 		}
 
 		DestroyFileIterator(fileIt);
@@ -487,13 +487,13 @@ bool GenerateCompileCommands(const BuildContext& context, TSpan<String> moduleNa
 	if (builder.length > 1)
 	{
 		// Strip trailing comma
-		builder.Reset(builder.length - 2);
-		builder.Append('\n');
+		Reset(builder, builder.length - 2);
+		Append(builder, '\n');
 	}
 
-	builder.AppendLine("]");
+	AppendLine(builder, "]");
 
-	return WriteTextFile("compile_commands.json", builder.ToString(scratch.arena));
+	return WriteTextFile("compile_commands.json", ToString(builder, scratch.arena));
 }
 
 String GenerateGuid(Arena& arena)
@@ -511,11 +511,11 @@ String GenerateGuid(Arena& arena)
 	ArenaScope scratch = GetScratchArena(&arena);
 
 	StringBuilder builder(scratch.arena);
-	builder.Appendf("%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
-	                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-	                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
+	Appendf(builder, "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+	        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+	        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]);
 
-	return builder.ToString(arena);
+	return ToString(builder, arena);
 }
 
 void GenerateProjectFiles(StringBuilder& builder, String path)
@@ -535,17 +535,17 @@ void GenerateProjectFiles(StringBuilder& builder, String path)
 
 		String fileExt = GetExtension(file.path);
 
-		if (fileExt.Equals("cpp", true))
+		if (Equals(fileExt, "cpp", true))
 		{
-			fileBuilder.AppendLinef("\t<ClCompile Include=\"%.*s\"/>", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t<ClCompile Include=\"%.*s\"/>", file.path.length, file.path.data);
 		}
-		else if (fileExt.Equals("h", true))
+		else if (Equals(fileExt, "h", true))
 		{
-			fileBuilder.AppendLinef("\t<ClInclude Include=\"%.*s\"/>", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t<ClInclude Include=\"%.*s\"/>", file.path.length, file.path.data);
 		}
 		else
 		{
-			fileBuilder.AppendLinef("\t<None Include=\"%.*s\"/>", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t<None Include=\"%.*s\"/>", file.path.length, file.path.data);
 		}
 	}
 
@@ -553,9 +553,9 @@ void GenerateProjectFiles(StringBuilder& builder, String path)
 
 	if (fileBuilder.length != 0)
 	{
-		builder.AppendLine("<ItemGroup>");
-		builder.Append(fileBuilder.ToString(scratch.arena));
-		builder.AppendLine("</ItemGroup>");
+		AppendLine(builder, "<ItemGroup>");
+		Append(builder, ToString(fileBuilder, scratch.arena));
+		AppendLine(builder, "</ItemGroup>");
 	}
 }
 
@@ -565,11 +565,11 @@ void GenerateProjectFilters(StringBuilder& builder, String path)
 
 	StringBuilder fileBuilder(scratch.arena);
 
-	fileBuilder.Append(path);
-	fileBuilder.Replace('/', '\\');
+	Append(fileBuilder, path);
+	Replace(fileBuilder, '/', '\\');
 
-	String filterPath = fileBuilder.ToString(scratch.arena);
-	fileBuilder.Reset();
+	String filterPath = ToString(fileBuilder, scratch.arena);
+	Reset(fileBuilder);
 
 	FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, path);
 	for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
@@ -582,42 +582,42 @@ void GenerateProjectFilters(StringBuilder& builder, String path)
 
 		String fileExt = GetExtension(file.path);
 
-		if (fileExt.Equals("cpp", true))
+		if (Equals(fileExt, "cpp", true))
 		{
-			fileBuilder.AppendLinef("\t<ClCompile Include=\"%.*s\">", file.path.length, file.path.data);
-			fileBuilder.AppendLinef("\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
-			fileBuilder.AppendLinef("\t</ClCompile>", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t<ClCompile Include=\"%.*s\">", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
+			AppendLinef(fileBuilder, "\t</ClCompile>", file.path.length, file.path.data);
 		}
-		else if (fileExt.Equals("h", true))
+		else if (Equals(fileExt, "h", true))
 		{
-			fileBuilder.AppendLinef("\t<ClInclude Include=\"%.*s\">", file.path.length, file.path.data);
-			fileBuilder.AppendLinef("\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
-			fileBuilder.AppendLinef("\t</ClInclude>", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t<ClInclude Include=\"%.*s\">", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
+			AppendLinef(fileBuilder, "\t</ClInclude>", file.path.length, file.path.data);
 		}
 		else
 		{
-			fileBuilder.AppendLinef("\t<None Include=\"%.*s\">", file.path.length, file.path.data);
-			fileBuilder.AppendLinef("\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
-			fileBuilder.AppendLinef("\t</None>", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t<None Include=\"%.*s\">", file.path.length, file.path.data);
+			AppendLinef(fileBuilder, "\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
+			AppendLinef(fileBuilder, "\t</None>", file.path.length, file.path.data);
 		}
 	}
 
 	DestroyFileIterator(fileIt);
 
-	builder.AppendLine("<ItemGroup>");
+	AppendLine(builder, "<ItemGroup>");
 
 	String filterGuid = GenerateGuid(scratch.arena);
 
-	builder.AppendLinef("\t<Filter Include=\"%.*s\">", filterPath.length, filterPath.data);
-	builder.AppendLinef("\t\t<UniqueIdentifier>{%.*s}</UniqueIdentifier>", filterGuid.length, filterGuid.data);
-	builder.AppendLine("\t</Filter>");
+	AppendLinef(builder, "\t<Filter Include=\"%.*s\">", filterPath.length, filterPath.data);
+	AppendLinef(builder, "\t\t<UniqueIdentifier>{%.*s}</UniqueIdentifier>", filterGuid.length, filterGuid.data);
+	AppendLine(builder, "\t</Filter>");
 
 	if (fileBuilder.length != 0)
 	{
-		builder.Append(fileBuilder.ToString(scratch.arena));
+		Append(builder, ToString(fileBuilder, scratch.arena));
 	}
 
-	builder.AppendLine("</ItemGroup>");
+	AppendLine(builder, "</ItemGroup>");
 }
 
 void GenerateProject()
@@ -631,108 +631,108 @@ void GenerateProject()
 
 	// https://learn.microsoft.com/en-us/cpp/build/reference/vcxproj-file-structure?view=msvc-170
 
-	builder.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-	builder.AppendLine("<Project DefaultTargets=\"Build\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">");
+	AppendLine(builder, "<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+	AppendLine(builder, "<Project DefaultTargets=\"Build\" xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">");
 
 	{
-		builder.AppendLine("<ItemGroup Label=\"ProjectConfigurations\">");
+		AppendLine(builder, "<ItemGroup Label=\"ProjectConfigurations\">");
 
 		for (String config : configs)
 		{
 			for (String platform : platforms)
 			{
-				builder.AppendLinef("\t<ProjectConfiguration Include=\"%.*s|%.*s\">", config.length, config.data, platform.length, platform.data);
-				builder.AppendLinef("\t\t<Configuration>%.*s</Configuration>", config.length, config.data);
-				builder.AppendLinef("\t\t<Platform>%.*s</Platform>", platform.length, platform.data);
-				builder.AppendLine("\t</ProjectConfiguration>");
+				AppendLinef(builder, "\t<ProjectConfiguration Include=\"%.*s|%.*s\">", config.length, config.data, platform.length, platform.data);
+				AppendLinef(builder, "\t\t<Configuration>%.*s</Configuration>", config.length, config.data);
+				AppendLinef(builder, "\t\t<Platform>%.*s</Platform>", platform.length, platform.data);
+				AppendLine(builder, "\t</ProjectConfiguration>");
 			}
 		}
 
-		builder.AppendLine("</ItemGroup>");
+		AppendLine(builder, "</ItemGroup>");
 	}
 
 	{
 		String projectGuid = GenerateGuid(scratch.arena);
 
-		builder.AppendLine("<PropertyGroup Label=\"Globals\">");
-		builder.AppendLinef("\t<ProjectGuid>{%.*s}</ProjectGuid>", projectGuid.length, projectGuid.data);
-		builder.AppendLine("\t<VCProjectVersion>17.0</VCProjectVersion>");
-		builder.AppendLine("\t<Keyword>MakeFileProj</Keyword>");
-		builder.AppendLine("</PropertyGroup>");
+		AppendLine(builder, "<PropertyGroup Label=\"Globals\">");
+		AppendLinef(builder, "\t<ProjectGuid>{%.*s}</ProjectGuid>", projectGuid.length, projectGuid.data);
+		AppendLine(builder, "\t<VCProjectVersion>17.0</VCProjectVersion>");
+		AppendLine(builder, "\t<Keyword>MakeFileProj</Keyword>");
+		AppendLine(builder, "</PropertyGroup>");
 	}
 
-	builder.AppendLine("<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.default.props\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.default.props')\"/>");
+	AppendLine(builder, "<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.default.props\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.default.props')\"/>");
 
 	{
-		builder.AppendLine("<PropertyGroup Label=\"Configuration\">");
-		builder.AppendLine("\t<ConfigurationType>Makefile</ConfigurationType>");
-		builder.AppendLine("\t<PlatformToolset>v143</PlatformToolset>");
-		builder.AppendLine("</PropertyGroup>");
+		AppendLine(builder, "<PropertyGroup Label=\"Configuration\">");
+		AppendLine(builder, "\t<ConfigurationType>Makefile</ConfigurationType>");
+		AppendLine(builder, "\t<PlatformToolset>v143</PlatformToolset>");
+		AppendLine(builder, "</PropertyGroup>");
 	}
 
-	builder.AppendLine("<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.props\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.props')\"/>");
+	AppendLine(builder, "<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.props\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.props')\"/>");
 
-	builder.AppendLine("<ImportGroup Label=\"ExtensionSettings\"/>");
-	builder.AppendLine("<ImportGroup Label=\"PropertySheets\"/>");
-	builder.AppendLine("<PropertyGroup Label=\"UserMacros\"/>");
+	AppendLine(builder, "<ImportGroup Label=\"ExtensionSettings\"/>");
+	AppendLine(builder, "<ImportGroup Label=\"PropertySheets\"/>");
+	AppendLine(builder, "<PropertyGroup Label=\"UserMacros\"/>");
 
 	{
-		builder.AppendLine("<PropertyGroup>");
-		builder.AppendLine("\t<BuildCommand Condition=\"'$(OS)' == 'Windows_NT'\">Build.bat</BuildCommand>");
-		builder.AppendLine("\t<BuildCommand Condition=\"'$(OS)' != 'Windows_NT'\">bash Build.sh</BuildCommand>");
-		builder.AppendLine("\t<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);BK_BUILD</NMakePreprocessorDefinitions>");
-		builder.AppendLine("\t<IncludePath>$(IncludePath);Source;ThirdParty</IncludePath>");
-		builder.AppendLine("\t<AdditionalOptions>/std:c++20</AdditionalOptions>");
-		builder.AppendLine("\t<OutDir>Build\\Cache</OutDir>");
-		builder.AppendLine("\t<IntDir>Build\\Cache</IntDir>");
-		builder.AppendLine("</PropertyGroup>");
+		AppendLine(builder, "<PropertyGroup>");
+		AppendLine(builder, "\t<BuildCommand Condition=\"'$(OS)' == 'Windows_NT'\">Build.bat</BuildCommand>");
+		AppendLine(builder, "\t<BuildCommand Condition=\"'$(OS)' != 'Windows_NT'\">bash Build.sh</BuildCommand>");
+		AppendLine(builder, "\t<NMakePreprocessorDefinitions>$(NMakePreprocessorDefinitions);BK_BUILD</NMakePreprocessorDefinitions>");
+		AppendLine(builder, "\t<IncludePath>$(IncludePath);Source;ThirdParty</IncludePath>");
+		AppendLine(builder, "\t<AdditionalOptions>/std:c++20</AdditionalOptions>");
+		AppendLine(builder, "\t<OutDir>Build\\Cache</OutDir>");
+		AppendLine(builder, "\t<IntDir>Build\\Cache</IntDir>");
+		AppendLine(builder, "</PropertyGroup>");
 
 		for (String config : configs)
 		{
 			for (String platform : platforms)
 			{
-				builder.AppendLinef("<PropertyGroup Condition=\"'$(Configuration)|$(Platform)' == '%.*s|%.*s'\">",
-				                    config.length, config.data, platform.length, platform.data);
+				AppendLinef(builder, "<PropertyGroup Condition=\"'$(Configuration)|$(Platform)' == '%.*s|%.*s'\">",
+				            config.length, config.data, platform.length, platform.data);
 
-				builder.AppendLine("\t<NMakeBuildCommandLine>$(BuildCommand)</NMakeBuildCommandLine>");
-				builder.AppendLine("\t<NMakeReBuildCommandLine>$(BuildCommand)</NMakeReBuildCommandLine>");
-				builder.AppendLine("\t<NMakeCleanCommandLine>$(BuildCommand)</NMakeCleanCommandLine>");
-				builder.AppendLine("\t<NMakeOutput>Build\\BkBuild.exe</NMakeOutput>");
+				AppendLine(builder, "\t<NMakeBuildCommandLine>$(BuildCommand)</NMakeBuildCommandLine>");
+				AppendLine(builder, "\t<NMakeReBuildCommandLine>$(BuildCommand)</NMakeReBuildCommandLine>");
+				AppendLine(builder, "\t<NMakeCleanCommandLine>$(BuildCommand)</NMakeCleanCommandLine>");
+				AppendLine(builder, "\t<NMakeOutput>Build\\BkBuild.exe</NMakeOutput>");
 
-				builder.AppendLinef("</PropertyGroup>");
+				AppendLinef(builder, "</PropertyGroup>");
 			}
 		}
 	}
 
 	GenerateProjectFiles(builder, "Source");
 
-	builder.AppendLine("<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.targets\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.targets')\"/>");
-	builder.AppendLine("<ImportGroup Label=\"ExtensionTargets\"/>");
+	AppendLine(builder, "<Import Project=\"$(VCTargetsPath)\\Microsoft.Cpp.targets\" Condition=\"Exists('$(VCTargetsPath)\\Microsoft.Cpp.targets')\"/>");
+	AppendLine(builder, "<ImportGroup Label=\"ExtensionTargets\"/>");
 
-	builder.AppendLine("</Project>");
+	AppendLine(builder, "</Project>");
 
-	WriteTextFile("Brink.vcxproj", builder.ToString(scratch.arena));
+	WriteTextFile("Brink.vcxproj", ToString(builder, scratch.arena));
 
-	builder.Reset();
+	Reset(builder);
 
-	builder.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-	builder.AppendLine("<Project xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">");
+	AppendLine(builder, "<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+	AppendLine(builder, "<Project xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">");
 
 	GenerateProjectFilters(builder, "Source");
 
-	builder.AppendLine("</Project>");
+	AppendLine(builder, "</Project>");
 
-	WriteTextFile("Brink.vcxproj.filters", builder.ToString(scratch.arena));
+	WriteTextFile("Brink.vcxproj.filters", ToString(builder, scratch.arena));
 }
 
 void PrepareBuildContext(Arena& arena, BuildContext& context)
 {
 	StringBuilder builder(arena);
-	builder.AppendPath("Build/Cache");
-	builder.AppendPath(GetPlatformName(context.platform));
-	builder.AppendPath(context.config == BuildConfig::Debug ? "Debug" : "Release");
+	AppendPath(builder, "Build/Cache");
+	AppendPath(builder, GetPlatformName(context.platform));
+	AppendPath(builder, context.config == BuildConfig::Debug ? "Debug" : "Release");
 
-	context.cacheDir = builder.ToString(arena);
+	context.cacheDir = ToString(builder, arena);
 
 	CreateDirectory(context.cacheDir);
 }
@@ -744,8 +744,8 @@ void SelfUpdate(int32 argc, char** argv)
 	BuildContext context = {
 		.platform = GetPlatform(),
 		.config = BuildConfig::Debug,
-		.includes = scratch.arena.Copy<String>({ "Source", "ThirdParty" }),
-		.definitions = scratch.arena.Copy<String>({ "BK_BUILD" }),
+		.includes = Copy<String>(scratch.arena, { "Source", "ThirdParty" }),
+		.definitions = Copy<String>(scratch.arena, { "BK_BUILD" }),
 	};
 
 	PrepareBuildContext(scratch.arena, context);
@@ -764,12 +764,12 @@ void SelfUpdate(int32 argc, char** argv)
 	}
 
 	StringBuilder builder(scratch.arena);
-	builder.AppendPath(argv[0]);
-	builder.NormalizePath();
-	builder.Append(".bak");
+	AppendPath(builder, argv[0]);
+	NormalizePath(builder);
+	Append(builder, ".bak");
 
-	String backupFile = builder.ToString(scratch.arena);
-	String targetFile = backupFile.Slice(0, backupFile.length - 4);
+	String backupFile = ToString(builder, scratch.arena);
+	String targetFile = Slice(backupFile, 0, backupFile.length - 4);
 
 	DeleteFile(backupFile);
 	MoveFile(targetFile, backupFile);
@@ -782,28 +782,28 @@ void SelfUpdate(int32 argc, char** argv)
 		ExitApp(1);
 	}
 
-	builder.Reset();
+	Reset(builder);
 	for (int32 i = 1; i < argc; ++i)
 	{
 		String argValue = argv[i];
 
-		if (argValue.Contains(' '))
+		if (Contains(argValue, ' '))
 		{
-			builder.Append('\"');
-			builder.Append(argValue);
-			builder.Append("\"");
+			Append(builder, '\"');
+			Append(builder, argValue);
+			Append(builder, "\"");
 		}
 		else
 		{
-			builder.Append(argValue);
+			Append(builder, argValue);
 		}
 
-		builder.Append(' ');
+		Append(builder, ' ');
 	}
 
 	ProcessHandle process = CreateProcess({
 		.executable = argv[0],
-		.arguments = builder.ToString(scratch.arena),
+		.arguments = ToString(builder, scratch.arena),
 	});
 
 	printf("-----\n");
@@ -825,8 +825,8 @@ int32 AppMain(int32 argc, char** argv)
 	BuildContext context = {
 		.platform = GetPlatform(),
 		.config = BuildConfig::Debug,
-		.includes = arena.Copy<String>({ "Source", "ThirdParty" }),
-		.definitions = arena.Copy<String>({ "BK_BUILD" }),
+		.includes = Copy<String>(arena, { "Source", "ThirdParty" }),
+		.definitions = Copy<String>(arena, { "BK_BUILD" }),
 	};
 
 	String singleFile = String::Empty;
@@ -837,44 +837,44 @@ int32 AppMain(int32 argc, char** argv)
 		String argName = argv[i];
 		String argValue = String::Empty;
 
-		size_t equalsIdx = argName.Find('=');
+		size_t equalsIdx = Find(argName, '=');
 		if (equalsIdx != SIZE_MAX)
 		{
-			argValue = argName.Slice(equalsIdx + 1);
-			argName = argName.Slice(0, equalsIdx);
+			argValue = Slice(argName, equalsIdx + 1);
+			argName = Slice(argName, 0, equalsIdx);
 		}
 
-		if (argName.Equals("-GenerateProject", true))
+		if (Equals(argName, "-GenerateProject", true))
 		{
 			generateProject = true;
 		}
-		else if (argName.Equals("-Platform", true))
+		else if (Equals(argName, "-Platform", true))
 		{
-			if (argValue.Equals("Windows", true))
+			if (Equals(argValue, "Windows", true))
 			{
 				context.platform = Platform::Windows;
 			}
-			else if (argValue.Equals("MacOS", true))
+			else if (Equals(argValue, "MacOS", true))
 			{
 				context.platform = Platform::MacOS;
 			}
-			else if (argValue.Equals("Emscripten", true))
+			else if (Equals(argValue, "Emscripten", true))
 			{
 				context.platform = Platform::Emscripten;
 			}
 		}
-		else if (argName.Equals("-Config", true))
+		else if (Equals(argName, "-Config", true))
 		{
-			if (argValue.Equals("Debug", true))
+			if (Equals(argValue, "Debug", true))
 			{
 				context.config = BuildConfig::Debug;
 			}
-			else if (argValue.Equals("Release", true))
+			else if (Equals(argValue, "Release", true))
 			{
 				context.config = BuildConfig::Release;
 			}
 		}
-		else if (argName.Equals("-SingleFile", true))
+		else if (Equals(argName, "-SingleFile", true))
 		{
 			singleFile = argValue;
 		}
@@ -896,11 +896,11 @@ int32 AppMain(int32 argc, char** argv)
 	if (singleFile.length != 0)
 	{
 		StringBuilder builder(arena);
-		builder.AppendPath(context.cacheDir);
-		builder.AppendPath(GetFileNameWithoutExtension(singleFile));
-		builder.Append(".o");
+		AppendPath(builder, context.cacheDir);
+		AppendPath(builder, GetFileNameWithoutExtension(singleFile));
+		Append(builder, ".o");
 
-		String objectFile = builder.ToString(arena);
+		String objectFile = ToString(builder, arena);
 		CreateDirectory(GetDirectoryName(objectFile));
 
 		ProcessHandle process = CompileFile(context, singleFile, objectFile);

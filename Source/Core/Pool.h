@@ -6,23 +6,9 @@
 namespace Bk
 {
 	template<typename Type>
-	struct TPoolIterator;
-
-	template<typename Type>
 	struct TPool
 	{
 		static_assert(sizeof(Type) >= sizeof(uintptr_t), "Pool type must be at least the size of a pointer");
-
-		void Initialize(Arena& arena, uint16 size);
-
-		Type* Acquire(uint32* handle = nullptr);
-		void Release(uint32 handle);
-
-		Type* Get(uint32 handle);
-		uint32 GetHandle(Type* slot);
-
-		TPoolIterator<Type> begin() const;
-		TPoolIterator<Type> end() const;
 
 		Type* slots;
 		uint16* generations;
@@ -31,6 +17,21 @@ namespace Bk
 		size_t capacity;
 		size_t count;
 	};
+
+	template<typename Type>
+	void Allocate(Arena& arena, TPool<Type>& pool, uint16 capacity);
+
+	template<typename Type>
+	Type* AcquireSlot(TPool<Type>& pool, uint32* handle = nullptr);
+
+	template<typename Type>
+	void ReleaseSlot(TPool<Type>& pool, uint32 handle);
+
+	template<typename Type>
+	Type* GetSlot(TPool<Type>& pool, uint32 handle);
+
+	template<typename Type>
+	uint32 GetHandle(TPool<Type>& pool, Type* slot);
 
 	template<typename Type>
 	struct TPoolIterator
@@ -42,58 +43,64 @@ namespace Bk
 		bool operator!=(const TPoolIterator& other) const;
 
 		const TPool<Type>& pool;
-		size_t index;
+		size_t idx;
 	};
+
+	template<typename Type>
+	TPoolIterator<Type> begin(const TPool<Type>& pool);
+
+	template<typename Type>
+	TPoolIterator<Type> end(const TPool<Type>& pool);
 }
 
 namespace Bk
 {
 	template<typename Type>
-	void TPool<Type>::Initialize(Arena& arena, uint16 size)
+	void Allocate(Arena& arena, TPool<Type>& pool, uint16 capacity)
 	{
-		capacity = size;
-		count = 0;
+		pool.capacity = capacity;
+		pool.count = 0;
 
-		slots = arena.Push<Type>(capacity);
-		generations = arena.PushZeroed<uint16>(capacity);
-		alive = arena.PushZeroed<uint32>((capacity + 31) / 32);
-		nextFree = 0;
+		pool.slots = Push<Type>(arena, capacity);
+		pool.generations = PushZeroed<uint16>(arena, capacity);
+		pool.alive = PushZeroed<uint32>(arena, (capacity + 31) / 32);
+		pool.nextFree = 0;
 	}
 
 	template<typename Type>
-	Type* TPool<Type>::Acquire(uint32* handle)
+	Type* AcquireSlot(TPool<Type>& pool, uint32* handle)
 	{
 		Type* slot = nullptr;
-		size_t index;
+		size_t idx;
 
-		if (nextFree)
+		if (pool.nextFree)
 		{
-			slot = reinterpret_cast<Type*>(nextFree);
-			index = static_cast<size_t>(slot - slots);
+			slot = reinterpret_cast<Type*>(pool.nextFree);
+			idx = static_cast<size_t>(slot - pool.slots);
 
-			nextFree = *reinterpret_cast<uintptr_t*>(nextFree);
+			pool.nextFree = *reinterpret_cast<uintptr_t*>(pool.nextFree);
 		}
-		else if (count < capacity)
+		else if (pool.count < pool.capacity)
 		{
-			slot = slots + count;
-			index = count;
+			slot = pool.slots + pool.count;
+			idx = pool.count;
 
-			count += 1;
+			pool.count += 1;
 		}
 
 		if (slot)
 		{
-			uint16& generation = generations[index];
+			uint16& generation = pool.generations[idx];
 			if (generation == 0)
 			{
 				generation = 1;
 			}
 
-			BitsetSet(alive, index);
+			BitsetSet(pool.alive, idx);
 
 			if (handle)
 			{
-				*handle = (static_cast<uint32>(generation) << 16) | index;
+				*handle = (static_cast<uint32>(generation) << 16) | idx;
 			}
 		}
 
@@ -101,55 +108,55 @@ namespace Bk
 	}
 
 	template<typename Type>
-	void TPool<Type>::Release(uint32 handle)
+	void ReleaseSlot(TPool<Type>& pool, uint32 handle)
 	{
-		size_t index = handle & 0xFFFF;
-		BK_ASSERT(index < count);
+		size_t idx = handle & 0xFFFF;
+		BK_ASSERT(idx < pool.count);
 
 		uint16 generation = handle >> 16;
-		BK_ASSERT(generation == generations[index]);
+		BK_ASSERT(generation == pool.generations[idx]);
 
-		generations[index] += 1;
-		BitsetUnset(alive, index);
+		pool.generations[idx] += 1;
+		BitsetUnset(pool.alive, idx);
 
-		Type* slot = slots + index;
-		*reinterpret_cast<uintptr_t*>(slot) = nextFree;
-		nextFree = reinterpret_cast<uintptr_t>(slot);
+		Type* slot = pool.slots + idx;
+		*reinterpret_cast<uintptr_t*>(slot) = pool.nextFree;
+		pool.nextFree = reinterpret_cast<uintptr_t>(slot);
 	}
 
 	template<typename Type>
-	Type* TPool<Type>::Get(uint32 handle)
+	Type* GetSlot(TPool<Type>& pool, uint32 handle)
 	{
-		size_t index = handle & 0xFFFF;
-		BK_ASSERT(index < count);
+		size_t idx = handle & 0xFFFF;
+		BK_ASSERT(idx < pool.count);
 
 		uint16 generation = handle >> 16;
-		BK_ASSERT(generation == generations[index]);
+		BK_ASSERT(generation == pool.generations[idx]);
 
-		return slots + index;
+		return pool.slots + idx;
 	}
 
 	template<typename Type>
-	uint32 TPool<Type>::GetHandle(Type* slot)
+	uint32 GetHandle(TPool<Type>& pool, Type* slot)
 	{
-		size_t index = slot - slots;
-		BK_ASSERT(index < count);
+		size_t idx = slot - pool.slots;
+		BK_ASSERT(idx < pool.count);
 
-		uint16 generation = generations[index];
+		uint16 generation = pool.generations[idx];
 
-		return (static_cast<uint32>(generation) << 16) | index;
+		return (static_cast<uint32>(generation) << 16) | idx;
 	}
 
 	template<typename Type>
-	TPoolIterator<Type> TPool<Type>::begin() const
+	TPoolIterator<Type> begin(const TPool<Type>& pool)
 	{
-		return TPoolIterator(*this, 0);
+		return TPoolIterator(pool, 0);
 	}
 
 	template<typename Type>
-	TPoolIterator<Type> TPool<Type>::end() const
+	TPoolIterator<Type> end(const TPool<Type>& pool)
 	{
-		return TPoolIterator(*this, capacity);
+		return TPoolIterator(pool, pool.capacity);
 	}
 
 	template<typename Type>
@@ -158,24 +165,24 @@ namespace Bk
 	{
 		if (start < pool.capacity)
 		{
-			index = BitsetFind(pool.alive, true, start, pool.capacity);
+			idx = BitsetFind(pool.alive, true, start, pool.capacity);
 		}
 		else
 		{
-			index = SIZE_MAX;
+			idx = SIZE_MAX;
 		}
 	}
 
 	template<typename Type>
 	TPoolIterator<Type>& TPoolIterator<Type>::operator++()
 	{
-		if (index + 1 < pool.capacity)
+		if (idx + 1 < pool.capacity)
 		{
-			index = BitsetFind(pool.alive, true, index + 1, pool.capacity);
+			idx = BitsetFind(pool.alive, true, idx + 1, pool.capacity);
 		}
 		else
 		{
-			index = SIZE_MAX;
+			idx = SIZE_MAX;
 		}
 
 		return *this;
@@ -184,12 +191,12 @@ namespace Bk
 	template<typename Type>
 	Type* TPoolIterator<Type>::operator*() const
 	{
-		return pool.slots + index;
+		return pool.slots + idx;
 	}
 
 	template<typename Type>
 	bool TPoolIterator<Type>::operator!=(const TPoolIterator& other) const
 	{
-		return index != other.index;
+		return idx != other.idx;
 	}
 }

@@ -161,7 +161,7 @@ namespace Bk
 		{
 			AppEvent appEvent = {};
 			appEvent.type = AppEventType::Key;
-			appEvent.target = platformContext.windows.GetHandle(static_cast<Window*>(userData));
+			appEvent.target = GetHandle(platformContext.windows, static_cast<Window*>(userData));
 			appEvent.keyCode = ConvertKeyCode(event->code);
 			appEvent.keyPressed = type == EMSCRIPTEN_EVENT_KEYDOWN;
 
@@ -179,7 +179,7 @@ namespace Bk
 		{
 			AppEvent appEvent = {};
 			appEvent.type = AppEventType::Key;
-			appEvent.target = platformContext.windows.GetHandle(static_cast<Window*>(userData));
+			appEvent.target = GetHandle(platformContext.windows, static_cast<Window*>(userData));
 			appEvent.keyCode = ConvertMouseButton(event->button);
 			appEvent.keyPressed = type == EMSCRIPTEN_EVENT_MOUSEDOWN;
 
@@ -189,7 +189,7 @@ namespace Bk
 		{
 			AppEvent appEvent = {};
 			appEvent.type = AppEventType::MouseMove;
-			appEvent.target = platformContext.windows.GetHandle(static_cast<Window*>(userData));
+			appEvent.target = GetHandle(platformContext.windows, static_cast<Window*>(userData));
 			appEvent.mouseX = static_cast<float>(event->targetX);
 			appEvent.mouseY = static_cast<float>(event->targetY);
 
@@ -207,7 +207,7 @@ namespace Bk
 		{
 			AppEvent appEvent = {};
 			appEvent.type = AppEventType::MouseWheel;
-			appEvent.target = platformContext.windows.GetHandle(static_cast<Window*>(userData));
+			appEvent.target = GetHandle(platformContext.windows, static_cast<Window*>(userData));
 			appEvent.wheelDelta = static_cast<float>(-event->deltaY);
 
 			switch (event->deltaMode)
@@ -238,7 +238,7 @@ namespace Bk
 
 			for (Window* window : platformContext.windows)
 			{
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				result |= ProcessAppEvent(appEvent);
 			}
 		}
@@ -250,7 +250,7 @@ namespace Bk
 	{
 		AppEvent appEvent = {};
 		appEvent.type = AppEventType::DropFile;
-		appEvent.target = platformContext.windows.GetHandle(window);
+		appEvent.target = GetHandle(platformContext.windows, window);
 		appEvent.dropFilePath = filePath;
 
 		ProcessAppEvent(appEvent);
@@ -261,13 +261,13 @@ namespace Bk
 		if (platformContext.windows.capacity == 0)
 		{
 			// #TODO: Move to a platform init routine
-			platformContext.windows.Initialize(platformContext.arena, 128);
+			Allocate(platformContext.arena, platformContext.windows, 128);
 
 			emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, nullptr, false, ProcessResizeEvent);
 		}
 
 		uint32 handle = 0;
-		Window* window = platformContext.windows.Acquire(&handle);
+		Window* window = AcquireSlot(platformContext.windows, &handle);
 
 		if (window)
 		{
@@ -324,7 +324,7 @@ namespace Bk
 
 	void DestroyWindow(uint32 handle)
 	{
-		Window* window = platformContext.windows.Get(handle);
+		Window* window = GetSlot(platformContext.windows, handle);
 		if (window)
 		{
 			emscripten_set_keydown_callback(window->target, nullptr, false, nullptr);
@@ -342,7 +342,7 @@ namespace Bk
 				target.ondrop = null;
 			}, window->target);
 
-			platformContext.windows.Release(handle);
+			ReleaseSlot(platformContext.windows, handle);
 		}
 	}
 
@@ -350,7 +350,7 @@ namespace Bk
 	{
 		void* result = nullptr;
 
-		Window* window = platformContext.windows.Get(handle);
+		Window* window = GetSlot(platformContext.windows, handle);
 		if (window)
 		{
 			result = const_cast<char*>(window->target);
@@ -363,7 +363,7 @@ namespace Bk
 	{
 		bool result = false;
 
-		Window* window = platformContext.windows.Get(handle);
+		Window* window = GetSlot(platformContext.windows, handle);
 		if (window)
 		{
 			double surfaceWidth, surfaceHeight;

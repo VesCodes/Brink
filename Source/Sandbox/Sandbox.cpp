@@ -66,46 +66,46 @@ void LoadGlb(TSpan<uint8> data)
 	TSpan<MeshDesc> meshes = {};
 	if (LoadGlbMeshes(scratch.arena, data, meshes))
 	{
-		state.meshes = state.arena.Push<Mesh>(meshes.length);
+		state.meshes = Push<Mesh>(state.arena, meshes.length);
 		for (size_t meshIdx = 0; meshIdx < state.meshes.length; ++meshIdx)
 		{
 			const MeshDesc& meshDesc = meshes[meshIdx];
 			Mesh& mesh = state.meshes[meshIdx];
 
-			mesh.sections = state.arena.Copy(meshDesc.sections);
+			mesh.sections = Copy(state.arena, meshDesc.sections);
 
-			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_Positions", meshIdx);
+			Reset(resourceNameBuilder);
+			Appendf(resourceNameBuilder, "Mesh%02d_Positions", meshIdx);
 
 			mesh.positionsBuffer = CreateBuffer({
-				.name = resourceNameBuilder.ToString(scratch.arena),
+				.name = ToString(resourceNameBuilder, scratch.arena),
 				.type = GpuBufferType::Vertex,
 				.data = AsBytes(meshDesc.positions),
 			});
 
-			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_BoneIndices", meshIdx);
+			Reset(resourceNameBuilder);
+			Appendf(resourceNameBuilder, "Mesh%02d_BoneIndices", meshIdx);
 
 			mesh.boneIndicesBuffer = CreateBuffer({
-				.name = resourceNameBuilder.ToString(scratch.arena),
+				.name = ToString(resourceNameBuilder, scratch.arena),
 				.type = GpuBufferType::Vertex,
 				.data = AsBytes(meshDesc.boneIndices),
 			});
 
-			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_BoneWeights", meshIdx);
+			Reset(resourceNameBuilder);
+			Appendf(resourceNameBuilder, "Mesh%02d_BoneWeights", meshIdx);
 
 			mesh.boneWeightsBuffer = CreateBuffer({
-				.name = resourceNameBuilder.ToString(scratch.arena),
+				.name = ToString(resourceNameBuilder, scratch.arena),
 				.type = GpuBufferType::Vertex,
 				.data = AsBytes(meshDesc.boneWeights),
 			});
 
-			resourceNameBuilder.Reset();
-			resourceNameBuilder.Appendf("Mesh%02d_Indices", meshIdx);
+			Reset(resourceNameBuilder);
+			Appendf(resourceNameBuilder, "Mesh%02d_Indices", meshIdx);
 
 			mesh.indicesBuffer = CreateBuffer({
-				.name = resourceNameBuilder.ToString(scratch.arena),
+				.name = ToString(resourceNameBuilder, scratch.arena),
 				.type = GpuBufferType::Index,
 				.data = AsBytes(meshDesc.indices),
 			});
@@ -117,14 +117,14 @@ void LoadGlb(TSpan<uint8> data)
 	{
 		state.animPlayer.skeleton = skeletons[0];
 
-		state.animPlayer.skeleton.bones = state.arena.Copy(state.animPlayer.skeleton.bones);
+		state.animPlayer.skeleton.bones = Copy(state.arena, state.animPlayer.skeleton.bones);
 		for (Bone& bone : state.animPlayer.skeleton.bones)
 		{
-			bone.name = state.arena.Copy(bone.name);
+			bone.name = Copy(state.arena, bone.name);
 		}
 
-		state.animPlayer.skeleton.invBindPose = state.arena.Copy(state.animPlayer.skeleton.invBindPose);
-		state.animPlayer.transforms = state.arena.Push<Mat4f>(state.animPlayer.skeleton.bones.length);
+		state.animPlayer.skeleton.invBindPose = Copy(state.arena, state.animPlayer.skeleton.invBindPose);
+		state.animPlayer.transforms = Push<Mat4f>(state.arena, state.animPlayer.skeleton.bones.length);
 
 		LoadGlbAnimations(state.arena, data, state.animPlayer.skeleton, state.animations);
 		if (state.animations.length != 0)
@@ -157,7 +157,7 @@ void Initialize()
 
 	if (FileHandle fileHandle = OpenFile("Assets/Hiker.glb", FileAccess::Read))
 	{
-		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+		TSpan<uint8> fileData = Push(scratch.arena, GetFileSize(fileHandle));
 		if (ReadFile(fileHandle, fileData) == fileData.length)
 		{
 			LoadGlb(fileData);
@@ -169,7 +169,7 @@ void Initialize()
 	String shaderCode = {};
 	if (FileHandle fileHandle = OpenFile("Assets/Basic.wgsl", FileAccess::Read))
 	{
-		TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+		TSpan<uint8> fileData = Push(scratch.arena, GetFileSize(fileHandle));
 		if (ReadFile(fileHandle, fileData) == fileData.length)
 		{
 			shaderCode = String(reinterpret_cast<char*>(fileData.data), fileData.length);
@@ -432,7 +432,7 @@ bool OnAppEvent(const AppEvent& appEvent)
 			{
 				ArenaScope scratch = GetScratchArena();
 
-				TSpan<uint8> fileData = scratch.arena.Push<uint8>(GetFileSize(fileHandle));
+				TSpan<uint8> fileData = Push(scratch.arena, GetFileSize(fileHandle));
 				if (ReadFile(fileHandle, fileData) == fileData.length)
 				{
 					LoadGlb(fileData);
@@ -485,7 +485,7 @@ int32 AppMain(int32 argc, char** argv)
 		return 1;
 	}
 
-	state.keys = state.arena.PushZeroed<uint32>((static_cast<size_t>(KeyCode::Count) + 31) / 32);
+	state.keys = PushZeroed<uint32>(state.arena, (static_cast<size_t>(KeyCode::Count) + 31) / 32);
 
 	ConfigureApp({
 		.updateCallback = OnAppUpdate,

@@ -6,7 +6,7 @@ namespace Bk
 {
 	JsonValue* ParseJson(Arena& arena, String json)
 	{
-		ArenaMarker marker = arena.PushMarker();
+		ArenaMarker marker = PushMarker(arena);
 
 		JsonValue* root = nullptr;
 		JsonValue* scope = nullptr;
@@ -18,7 +18,7 @@ namespace Bk
 
 			if (c == '{' || c == '[')
 			{
-				JsonValue* newScope = arena.PushZeroed<JsonValue>();
+				JsonValue* newScope = PushZeroed<JsonValue>(arena);
 				newScope->type = c == '{' ? JsonType::Object : JsonType::Array;
 				newScope->value.data = json.data + position;
 				newScope->parent = scope;
@@ -48,9 +48,9 @@ namespace Bk
 
 					if (c == '"')
 					{
-						current = arena.PushZeroed<JsonValue>();
+						current = PushZeroed<JsonValue>(arena);
 						current->type = JsonType::String;
-						current->value = json.Range(start, position);
+						current->value = Slice(json, start, position - start);
 						current->parent = scope;
 
 						break;
@@ -78,7 +78,7 @@ namespace Bk
 
 							position += 4;
 						}
-						else if (!escapeChars.Contains(c))
+						else if (!Contains(escapeChars, c))
 						{
 							// Invalid escape sequence
 							break;
@@ -101,11 +101,11 @@ namespace Bk
 				{
 					c = json.data[position];
 
-					if (!numberChars.Contains(c))
+					if (!Contains(numberChars, c))
 					{
-						current = arena.PushZeroed<JsonValue>();
+						current = PushZeroed<JsonValue>(arena);
 						current->type = JsonType::Number;
-						current->value = json.Range(start, position);
+						current->value = Slice(json, start, position - start);
 						current->parent = scope;
 						ParseValue(current->value, current->asNumber);
 
@@ -116,19 +116,19 @@ namespace Bk
 
 				if (position == json.length)
 				{
-					current = arena.PushZeroed<JsonValue>();
+					current = PushZeroed<JsonValue>(arena);
 					current->type = JsonType::Number;
-					current->value = json.Range(start, position);
+					current->value = Slice(json, start, position - start);
 					current->parent = scope;
 					ParseValue(current->value, current->asNumber);
 				}
 			}
 			else if (c == 't')
 			{
-				String value = json.Slice(position, 4);
+				String value = Slice(json, position, 4);
 				if (value == "true")
 				{
-					current = arena.PushZeroed<JsonValue>();
+					current = PushZeroed<JsonValue>(arena);
 					current->type = JsonType::Bool;
 					current->value = value;
 					current->parent = scope;
@@ -139,10 +139,10 @@ namespace Bk
 			}
 			else if (c == 'f')
 			{
-				String value = json.Slice(position, 5);
+				String value = Slice(json, position, 5);
 				if (value == "false")
 				{
-					current = arena.PushZeroed<JsonValue>();
+					current = PushZeroed<JsonValue>(arena);
 					current->type = JsonType::Bool;
 					current->value = value;
 					current->parent = scope;
@@ -153,10 +153,10 @@ namespace Bk
 			}
 			else if (c == 'n')
 			{
-				String value = json.Slice(position, 4);
+				String value = Slice(json, position, 4);
 				if (value == "null")
 				{
-					current = arena.PushZeroed<JsonValue>();
+					current = PushZeroed<JsonValue>(arena);
 					current->type = JsonType::Null;
 					current->value = value;
 					current->parent = scope;
@@ -190,7 +190,7 @@ namespace Bk
 
 		if (!root)
 		{
-			arena.PopMarker(marker);
+			PopMarker(arena, marker);
 		}
 
 		return root;
@@ -200,13 +200,13 @@ namespace Bk
 	{
 		while (value && path.length != 0)
 		{
-			size_t pathDelimIdx = path.Find('.');
-			String pathSlice = path.Range(0, pathDelimIdx);
+			size_t pathDelimIdx = Find(path, '.');
+			String pathSlice = Slice(path, 0, pathDelimIdx);
 
-			uint64 index;
-			if (value->type == JsonType::Array && ParseValue(pathSlice, index))
+			uint64 idx;
+			if (value->type == JsonType::Array && ParseValue(pathSlice, idx))
 			{
-				value = FindJsonValueInArray(value, index);
+				value = FindJsonValueInArray(value, idx);
 			}
 			else if (value->type == JsonType::Object)
 			{
@@ -223,7 +223,7 @@ namespace Bk
 				break;
 			}
 
-			path = path.Slice(pathDelimIdx + 1);
+			path = Slice(path, pathDelimIdx + 1);
 		}
 
 		return value;
@@ -250,15 +250,15 @@ namespace Bk
 		return nullptr;
 	}
 
-	JsonValue* FindJsonValueInArray(JsonValue* array, size_t index)
+	JsonValue* FindJsonValueInArray(JsonValue* array, size_t idx)
 	{
-		if (!array || array->type != JsonType::Array || array->children <= index)
+		if (!array || array->type != JsonType::Array || array->children <= idx)
 		{
 			return nullptr;
 		}
 
 		JsonValue* child = array + 1;
-		for (size_t childIdx = 0; child && childIdx < index; ++childIdx)
+		for (size_t childIdx = 0; child && childIdx < idx; ++childIdx)
 		{
 			child = child->sibling;
 		}

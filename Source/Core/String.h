@@ -25,35 +25,35 @@ namespace Bk
 		constexpr String(const char* string, size_t length);
 		constexpr String(const char* string);
 
-		String Slice(size_t start, size_t count = SIZE_MAX) const;
-		String Range(size_t start, size_t end) const;
-
-		bool Equals(String other, bool ignoreCase = false) const;
-
-		bool Contains(char search, bool ignoreCase = false) const;
-		bool Contains(String search, bool ignoreCase = false) const;
-
-		size_t Find(char search, bool ignoreCase = false) const;
-		size_t Find(String search, bool ignoreCase = false) const;
-		size_t FindLast(char search, bool ignoreCase = false) const;
-		size_t FindLast(String search, bool ignoreCase = false) const;
-
-		bool StartsWith(String prefix, bool ignoreCase = false) const;
-		bool EndsWith(String suffix, bool ignoreCase = false) const;
-
-		String Trim() const;
-		String TrimQuotes() const;
-
-		char operator[](size_t index) const;
-		bool operator==(String other) const;
-		bool operator!=(String other) const;
-
-		const char* begin() const;
-		const char* end() const;
+		char operator[](size_t idx) const;
 
 		const char* data;
 		size_t length;
 	};
+
+	String Slice(String string, size_t start, size_t count = SIZE_MAX);
+
+	bool Equals(String string, String other, bool ignoreCase = false);
+
+	bool Contains(String string, char search, bool ignoreCase = false);
+	bool Contains(String string, String search, bool ignoreCase = false);
+
+	size_t Find(String string, char search, bool ignoreCase = false);
+	size_t Find(String string, String search, bool ignoreCase = false);
+	size_t FindLast(String string, char search, bool ignoreCase = false);
+	size_t FindLast(String string, String search, bool ignoreCase = false);
+
+	bool StartsWith(String string, String prefix, bool ignoreCase = false);
+	bool EndsWith(String string, String suffix, bool ignoreCase = false);
+
+	String Trim(String string);
+	String TrimQuotes(String string);
+
+	bool operator==(String string, String other);
+	bool operator!=(String string, String other);
+
+	const char* begin(String string);
+	const char* end(String string);
 
 	bool ParseValue(String stream, bool& value);
 	bool ParseValue(String stream, int64& value);
@@ -71,26 +71,6 @@ namespace Bk
 		StringBuilder(char* buffer, size_t bufferSize);
 		StringBuilder(Arena& arena);
 
-		bool Append(char c);
-		bool Append(String string);
-		bool Appendf(const char* format, ...);
-		bool Appendv(const char* format, va_list args);
-
-		bool AppendLine(String line);
-		bool AppendLinef(const char* format, ...);
-
-		bool AppendPath(String path);
-		bool AppendPathf(const char* format, ...);
-		void NormalizePath();
-
-		char* GetLastChar() const;
-		void Replace(char oldChar, char newChar) const;
-
-		bool Expand(size_t requiredCapacity);
-		void Reset(size_t keepLength = 0);
-
-		String ToString(Arena& arena, bool nullTerminate = false) const;
-
 		Arena* arena;
 
 		struct Chunk
@@ -103,6 +83,25 @@ namespace Bk
 
 		size_t length;
 	};
+
+	bool Append(StringBuilder& builder, char c);
+	bool Append(StringBuilder& builder, String string);
+	bool Appendf(StringBuilder& builder, const char* format, ...);
+	bool Appendv(StringBuilder& builder, const char* format, va_list args);
+
+	bool AppendLine(StringBuilder& builder, String line);
+	bool AppendLinef(StringBuilder& builder, const char* format, ...);
+
+	bool AppendPath(StringBuilder& builder, String path);
+	bool AppendPathf(StringBuilder& builder, const char* format, ...);
+	void NormalizePath(const StringBuilder& builder);
+
+	char* GetLastChar(const StringBuilder& builder);
+	void Replace(const StringBuilder& builder, char oldChar, char newChar);
+
+	void Reset(StringBuilder& builder, size_t keepLength = 0);
+
+	String ToString(const StringBuilder& builder, Arena& arena, bool nullTerminate = false);
 
 	String GetDirectoryName(String path);
 	String GetFileName(String path);
@@ -125,11 +124,11 @@ namespace Bk
 		template<size_t N>
 		constexpr AsciiSet(const char (&chars)[N]);
 
-		constexpr bool Contains(char c) const;
-
 		uint64 loMask;
 		uint64 hiMask;
 	};
+
+	constexpr bool Contains(const AsciiSet& set, char c);
 }
 
 namespace Bk
@@ -207,12 +206,12 @@ namespace Bk
 		}
 	}
 
-	constexpr bool AsciiSet::Contains(char c) const
+	constexpr bool Contains(const AsciiSet& set, char c)
 	{
 		uint64 bit = 1ull << (c & 0x3f);
 		uint64 isLo = 0ull - (c >> 6 == 0);
 		uint64 isHi = 0ull - (c >> 6 == 1);
 
-		return ((bit & isLo & loMask) | (bit & isHi & hiMask)) != 0;
+		return ((bit & isLo & set.loMask) | (bit & isHi & set.hiMask)) != 0;
 	}
 }

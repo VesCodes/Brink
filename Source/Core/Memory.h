@@ -14,14 +14,14 @@ namespace Bk
 	template<typename Type>
 	constexpr Type AlignUp(Type value, size_t alignment);
 
-	void* MemoryAllocate(size_t size);
-	void MemoryDeallocate(void* ptr, size_t size);
+	void* AllocateMemory(size_t size);
+	void DeallocateMemory(void* ptr, size_t size);
 
-	void* MemoryCopy(void* dst, const void* src, size_t size);
-	void* MemoryMove(void* dst, const void* src, size_t size);
-	int32 MemoryCompare(const void* a, const void* b, size_t size);
-	void* MemorySet(void* ptr, int32 value, size_t size);
-	void* MemoryZero(void* ptr, size_t size);
+	void* CopyMemory(void* dst, const void* src, size_t size);
+	void* MoveMemory(void* dst, const void* src, size_t size);
+	int32 CompareMemory(const void* a, const void* b, size_t size);
+	void* SetMemory(void* ptr, int32 value, size_t size);
+	void* ZeroMemory(void* ptr, size_t size);
 
 	uint32 CountLeadingZeros(uint64 value);
 	uint32 CountTrailingZeros(uint64 value);
@@ -56,27 +56,27 @@ namespace Bk
 		static size_t DefaultAlignment;
 		static size_t DefaultBlockAlignment;
 
-		TSpan<uint8> Push(size_t size, size_t alignment = DefaultAlignment);
-		TSpan<uint8> PushZeroed(size_t size, size_t alignment = DefaultAlignment);
-
-		template<typename Type>
-		TSpan<Type> Push(size_t count = 1);
-
-		template<typename Type>
-		TSpan<Type> PushZeroed(size_t count = 1);
-
-		ArenaMarker PushMarker() const;
-		void PopMarker(ArenaMarker marker);
-
-		template<typename Type>
-		TSpan<Type> Copy(TSpan<Type> source);
-
-		String Copy(String source, bool nullTerminate = false);
-
-		ArenaBlock* currentBlock;
+		ArenaBlock* block;
 		size_t blockAlignment;
 		ArenaFlags flags;
 	};
+
+	TSpan<uint8> Push(Arena& arena, size_t size, size_t alignment = Arena::DefaultAlignment);
+	TSpan<uint8> PushZeroed(Arena& arena, size_t size, size_t alignment = Arena::DefaultAlignment);
+
+	template<typename Type>
+	TSpan<Type> Push(Arena& arena, size_t count = 1);
+
+	template<typename Type>
+	TSpan<Type> PushZeroed(Arena& arena, size_t count = 1);
+
+	ArenaMarker PushMarker(const Arena& arena);
+	void PopMarker(Arena& arena, ArenaMarker marker);
+
+	template<typename Type>
+	TSpan<Type> Copy(Arena& arena, TSpan<Type> source);
+
+	String Copy(Arena& arena, String source, bool nullTerminate = false);
 
 	struct ArenaScope
 	{
@@ -87,7 +87,7 @@ namespace Bk
 		ArenaMarker marker;
 	};
 
-	ArenaScope GetScratchArena(Arena* persistentArena = nullptr);
+	ArenaScope GetScratchArena(const Arena* persistentArena = nullptr);
 }
 
 namespace Bk
@@ -99,9 +99,9 @@ namespace Bk
 	}
 
 	template<typename Type>
-	TSpan<Type> Arena::Push(size_t count)
+	TSpan<Type> Push(Arena& arena, size_t count)
 	{
-		uint8* data = Push(sizeof(Type) * count, alignof(Type));
+		uint8* data = Push(arena, sizeof(Type) * count, alignof(Type));
 
 		TSpan<Type> result = {};
 		result.data = reinterpret_cast<Type*>(data);
@@ -111,9 +111,9 @@ namespace Bk
 	}
 
 	template<typename Type>
-	TSpan<Type> Arena::PushZeroed(size_t count)
+	TSpan<Type> PushZeroed(Arena& arena, size_t count)
 	{
-		uint8* data = PushZeroed(sizeof(Type) * count, alignof(Type));
+		uint8* data = PushZeroed(arena, sizeof(Type) * count, alignof(Type));
 
 		TSpan<Type> result = {};
 		result.data = reinterpret_cast<Type*>(data);
@@ -123,10 +123,10 @@ namespace Bk
 	}
 
 	template<typename Type>
-	TSpan<Type> Arena::Copy(TSpan<Type> source)
+	TSpan<Type> Copy(Arena& arena, TSpan<Type> source)
 	{
-		TSpan<Type> result = Push<Type>(source.length);
-		MemoryCopy(result.data, source.data, source.length * sizeof(Type));
+		TSpan<Type> result = Push<Type>(arena, source.length);
+		CopyMemory(result.data, source.data, source.length * sizeof(Type));
 
 		return result;
 	}

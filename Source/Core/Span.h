@@ -20,17 +20,21 @@ namespace Bk
 		template<typename OtherType>
 		TSpan(TSpan<OtherType> other) requires(__is_convertible(OtherType*, Type*));
 
-		TSpan Slice(size_t start, size_t count = SIZE_MAX) const;
-
 		operator Type*() const;
-		Type& operator[](size_t index) const;
-
-		Type* begin() const;
-		Type* end() const;
+		Type& operator[](size_t idx) const;
 
 		Type* data;
 		size_t length;
 	};
+
+	template<typename Type>
+	TSpan<Type> Slice(TSpan<Type> span, size_t start, size_t count = SIZE_MAX);
+
+	template<typename Type>
+	Type* begin(TSpan<Type> span);
+
+	template<typename Type>
+	Type* end(TSpan<Type> span);
 
 	template<typename Type>
 	auto AsBytes(Type* data, size_t length);
@@ -74,35 +78,35 @@ namespace Bk
 	}
 
 	template<typename Type>
-	TSpan<Type> TSpan<Type>::Slice(size_t start, size_t count) const
-	{
-		BK_ASSERT(start < length);
-		return TSpan(data + start, Min(count, length - start));
-	}
-
-	template<typename Type>
 	TSpan<Type>::operator Type*() const
 	{
 		return data;
 	}
 
 	template<typename Type>
-	Type& TSpan<Type>::operator[](size_t index) const
+	Type& TSpan<Type>::operator[](size_t idx) const
 	{
-		BK_ASSERT(index < length);
-		return data[index];
+		BK_ASSERT(idx < length);
+		return data[idx];
 	}
 
 	template<typename Type>
-	Type* TSpan<Type>::begin() const
+	TSpan<Type> Slice(TSpan<Type> span, size_t start, size_t count)
 	{
-		return data;
+		BK_ASSERT(start < span.length);
+		return TSpan(span.data + start, Min(count, span.length - start));
 	}
 
 	template<typename Type>
-	Type* TSpan<Type>::end() const
+	Type* begin(TSpan<Type> span)
 	{
-		return data + length;
+		return span.data;
+	}
+
+	template<typename Type>
+	Type* end(TSpan<Type> span)
+	{
+		return span.data + span.length;
 	}
 
 	template<typename Type>

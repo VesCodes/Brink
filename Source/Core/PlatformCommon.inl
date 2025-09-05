@@ -37,7 +37,7 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena();
 
 		StringBuilder builder(scratch.arena);
-		builder.AppendPath(dstPath);
+		AppendPath(builder, dstPath);
 		size_t dstPathLength = builder.length;
 
 		bool result = true;
@@ -50,11 +50,11 @@ namespace Bk
 				continue;
 			}
 
-			builder.Reset(dstPathLength);
-			builder.AppendPath(GetFileName(file.path));
+			Reset(builder, dstPathLength);
+			AppendPath(builder, GetFileName(file.path));
 
 			String srcFilePath = file.path;
-			String dstFilePath = builder.ToString(scratch.arena);
+			String dstFilePath = ToString(builder, scratch.arena);
 
 			if (!CopyFile(srcFilePath, dstFilePath))
 			{

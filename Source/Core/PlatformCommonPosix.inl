@@ -89,8 +89,8 @@ namespace Bk
 			return nullptr;
 		}
 
-		char* result = arena.Push<char>(string.length + 1);
-		MemoryCopy(result, string.data, string.length);
+		char* result = Push<char>(arena, string.length + 1);
+		CopyMemory(result, string.data, string.length);
 		result[string.length] = '\0';
 
 		return result;
@@ -312,7 +312,7 @@ namespace Bk
 		size_t bytesLeft = GetFileSize(srcFile);
 
 		size_t bufferCapacity = Min(bytesLeft, BK_MEGABYTES(1));
-		TSpan<uint8> buffer = scratch.arena.Push<uint8>(bufferCapacity);
+		TSpan<uint8> buffer = Push(scratch.arena, bufferCapacity);
 
 		while (bytesLeft > 0)
 		{
@@ -396,10 +396,10 @@ namespace Bk
 	{
 		ArenaScope scratch = GetScratchArena(&arena);
 
-		FileIterator* iterator = arena.Push<FileIterator>();
+		FileIterator* iterator = Push<FileIterator>(arena);
 		iterator->arena = &arena;
 		iterator->pathBuilder = StringBuilder(arena);
-		iterator->pathBuilder.AppendPath(path);
+		AppendPath(iterator->pathBuilder, path);
 		iterator->pathLength = iterator->pathBuilder.length;
 
 		char* filePath = ConvertString(scratch.arena, path);
@@ -426,10 +426,10 @@ namespace Bk
 				continue;
 			}
 
-			iterator->pathBuilder.Reset(iterator->pathLength);
-			iterator->pathBuilder.AppendPath(fileName);
+			Reset(iterator->pathBuilder, iterator->pathLength);
+			AppendPath(iterator->pathBuilder, fileName);
 
-			entry.path = iterator->pathBuilder.ToString(*iterator->arena, true);
+			entry.path = ToString(iterator->pathBuilder, *iterator->arena, true);
 			entry.properties = {};
 
 			struct stat fileStat = {};
@@ -476,22 +476,22 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena(&arena);
 
 		size_t pathLength = pathconf(".", _PC_PATH_MAX);
-		char* path = scratch.arena.Push<char>(pathLength);
+		char* path = Push<char>(scratch.arena, pathLength);
 		(void)getcwd(path, pathLength);
 
 		StringBuilder builder(scratch.arena);
-		builder.Append(path);
-		builder.NormalizePath();
+		Append(builder, path);
+		NormalizePath(builder);
 
-		return builder.ToString(arena);
+		return ToString(builder, arena);
 	}
 
 	ProcessHandle CreateProcess(const ProcessParams& params)
 	{
 		ArenaScope scratch = GetScratchArena();
 
-		TSpan<char*> arguments = scratch.arena.Push<char*>(1024);
-		arguments[0] = ConvertString(scratch.arena, params.executable.TrimQuotes());
+		TSpan<char*> arguments = Push<char*>(scratch.arena, 1024);
+		arguments[0] = ConvertString(scratch.arena, TrimQuotes(params.executable));
 
 		String argumentStream = params.arguments;
 		for (size_t i = 1; i < arguments.length; ++i)
@@ -503,7 +503,7 @@ namespace Bk
 				break;
 			}
 
-			arguments[i] = ConvertString(scratch.arena, argument.TrimQuotes());
+			arguments[i] = ConvertString(scratch.arena, TrimQuotes(argument));
 		}
 
 		int processHandle;

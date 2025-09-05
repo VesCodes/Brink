@@ -5,37 +5,37 @@
 
 namespace Bk
 {
-	void* MemoryAllocate(size_t size)
+	void* AllocateMemory(size_t size)
 	{
 		return malloc(size);
 	}
 
-	void MemoryDeallocate(void* ptr, size_t size)
+	void DeallocateMemory(void* ptr, size_t size)
 	{
 		free(ptr);
 	}
 
-	void* MemoryCopy(void* dst, const void* src, size_t size)
+	void* CopyMemory(void* dst, const void* src, size_t size)
 	{
 		return memcpy(dst, src, size);
 	}
 
-	void* MemoryMove(void* dst, const void* src, size_t size)
+	void* MoveMemory(void* dst, const void* src, size_t size)
 	{
 		return memmove(dst, src, size);
 	}
 
-	int32 MemoryCompare(const void* a, const void* b, size_t size)
+	int32 CompareMemory(const void* a, const void* b, size_t size)
 	{
 		return memcmp(a, b, size);
 	}
 
-	void* MemorySet(void* ptr, int32 value, size_t size)
+	void* SetMemory(void* ptr, int32 value, size_t size)
 	{
 		return memset(ptr, value, size);
 	}
 
-	void* MemoryZero(void* ptr, size_t size)
+	void* ZeroMemory(void* ptr, size_t size)
 	{
 		return memset(ptr, 0, size);
 	}
@@ -109,85 +109,85 @@ namespace Bk
 	size_t Arena::DefaultAlignment = 8;
 	size_t Arena::DefaultBlockAlignment = BK_MEGABYTES(4);
 
-	TSpan<uint8> Arena::Push(size_t size, size_t alignment)
+	TSpan<uint8> Push(Arena& arena, size_t size, size_t alignment)
 	{
-		size_t alignedOffset = currentBlock ? AlignUp(currentBlock->offset, alignment) : 0;
-		if (!currentBlock || alignedOffset + size > currentBlock->size)
+		size_t offset = arena.block ? AlignUp(arena.block->offset, alignment) : 0;
+		if (!arena.block || offset + size > arena.block->size)
 		{
-			if (blockAlignment == 0)
+			if (arena.blockAlignment == 0)
 			{
-				blockAlignment = DefaultBlockAlignment;
+				arena.blockAlignment = Arena::DefaultBlockAlignment;
 			}
 
-			alignedOffset = AlignUp(sizeof(ArenaBlock), alignment);
+			offset = AlignUp(sizeof(ArenaBlock), alignment);
 
-			size_t blockSize = AlignUp(alignedOffset + size, blockAlignment);
-			ArenaBlock* block = static_cast<ArenaBlock*>(MemoryAllocate(blockSize));
+			size_t blockSize = AlignUp(offset + size, arena.blockAlignment);
+			ArenaBlock* block = static_cast<ArenaBlock*>(AllocateMemory(blockSize));
 
 			if (!block)
 			{
 				FatalError(1, "Failed to allocate %zd bytes for arena", blockSize);
 			}
 
-			block->previous = currentBlock;
+			block->previous = arena.block;
 			block->size = blockSize;
 
-			currentBlock = block;
+			arena.block = block;
 		}
 
 		TSpan<uint8> result = {};
-		result.data = reinterpret_cast<uint8*>(currentBlock) + alignedOffset;
+		result.data = reinterpret_cast<uint8*>(arena.block) + offset;
 		result.length = size;
 
-		currentBlock->offset = alignedOffset + size;
+		arena.block->offset = offset + size;
 
 		return result;
 	}
 
-	TSpan<uint8> Arena::PushZeroed(size_t size, size_t alignment)
+	TSpan<uint8> PushZeroed(Arena& arena, size_t size, size_t alignment)
 	{
-		TSpan<uint8> result = Push(size, alignment);
-		MemoryZero(result.data, result.length);
+		TSpan<uint8> result = Push(arena, size, alignment);
+		ZeroMemory(result.data, result.length);
 
 		return result;
 	}
 
-	ArenaMarker Arena::PushMarker() const
+	ArenaMarker PushMarker(const Arena& arena)
 	{
 		ArenaMarker marker = {};
-		if (currentBlock)
+		if (arena.block)
 		{
-			marker.block = currentBlock;
-			marker.offset = currentBlock->offset;
+			marker.block = arena.block;
+			marker.offset = arena.block->offset;
 		}
 
 		return marker;
 	}
 
-	void Arena::PopMarker(ArenaMarker marker)
+	void PopMarker(Arena& arena, ArenaMarker marker)
 	{
-		while (currentBlock && currentBlock != marker.block)
+		while (arena.block && arena.block != marker.block)
 		{
-			if (!currentBlock->previous && EnumHasAnyFlags(flags, ArenaFlags::KeepFirstBlock))
+			if (!arena.block->previous && EnumHasAnyFlags(arena.flags, ArenaFlags::KeepFirstBlock))
 			{
 				break;
 			}
 
-			ArenaBlock* block = currentBlock;
-			currentBlock = currentBlock->previous;
-			MemoryDeallocate(block, block->size);
+			ArenaBlock* block = arena.block;
+			arena.block = block->previous;
+			DeallocateMemory(block, block->size);
 		}
 
-		if (currentBlock)
+		if (arena.block)
 		{
-			currentBlock->offset = Max(marker.offset, sizeof(ArenaBlock));
+			arena.block->offset = Max(marker.offset, sizeof(ArenaBlock));
 		}
 	}
 
-	String Arena::Copy(String source, bool nullTerminate)
+	String Copy(Arena& arena, String source, bool nullTerminate)
 	{
-		TSpan<char> buffer = Push<char>(nullTerminate ? source.length + 1 : source.length);
-		MemoryCopy(buffer.data, source.data, source.length);
+		TSpan<char> buffer = Push<char>(arena, nullTerminate ? source.length + 1 : source.length);
+		CopyMemory(buffer.data, source.data, source.length);
 
 		if (nullTerminate)
 		{
@@ -198,16 +198,16 @@ namespace Bk
 	}
 
 	ArenaScope::ArenaScope(Arena& arena)
-		: arena(arena), marker(arena.PushMarker())
+		: arena(arena), marker(PushMarker(arena))
 	{
 	}
 
 	ArenaScope::~ArenaScope()
 	{
-		arena.PopMarker(marker);
+		PopMarker(arena, marker);
 	}
 
-	ArenaScope GetScratchArena(Arena* persistentArena)
+	ArenaScope GetScratchArena(const Arena* persistentArena)
 	{
 		for (Arena& scratchArena : arenaTls.scratchArenas)
 		{

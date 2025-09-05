@@ -115,7 +115,7 @@ namespace Bk
 			return nullptr;
 		}
 
-		wchar_t* result = arena.Push<wchar_t>(length + 1);
+		wchar_t* result = Push<wchar_t>(arena, length + 1);
 		MultiByteToWideChar(CP_UTF8, 0, string.data, string.length, result, length);
 		result[length] = '\0';
 
@@ -132,7 +132,7 @@ namespace Bk
 			return String::Empty;
 		}
 
-		TSpan<char> result = arena.Push<char>(length);
+		TSpan<char> result = Push<char>(arena, length);
 		WideCharToMultiByte(CP_UTF8, 0, string, stringLength, result.data, result.length, nullptr, nullptr);
 
 		return String(result.data, result.length);
@@ -427,15 +427,15 @@ namespace Bk
 	{
 		ArenaScope scratch = GetScratchArena(&arena);
 
-		FileIterator* iterator = arena.Push<FileIterator>();
+		FileIterator* iterator = Push<FileIterator>(arena);
 		iterator->arena = &arena;
 		iterator->pathBuilder = StringBuilder(arena);
-		iterator->pathBuilder.AppendPath(path);
+		AppendPath(iterator->pathBuilder, path);
 		iterator->pathLength = iterator->pathBuilder.length;
 
-		iterator->pathBuilder.AppendPath("*");
+		AppendPath(iterator->pathBuilder, "*");
 
-		wchar_t* filePath = ConvertString(scratch.arena, iterator->pathBuilder.ToString(scratch.arena));
+		wchar_t* filePath = ConvertString(scratch.arena, ToString(iterator->pathBuilder, scratch.arena));
 		iterator->findHandle = FindFirstFileW(filePath, &iterator->findInfo);
 
 		return iterator;
@@ -456,10 +456,10 @@ namespace Bk
 			String fileName = ConvertString(scratch.arena, iterator->findInfo.cFileName);
 			if (fileName != "." && fileName != "..")
 			{
-				iterator->pathBuilder.Reset(iterator->pathLength);
-				iterator->pathBuilder.AppendPath(fileName);
+				Reset(iterator->pathBuilder, iterator->pathLength);
+				AppendPath(iterator->pathBuilder, fileName);
 
-				entry.path = iterator->pathBuilder.ToString(*iterator->arena);
+				entry.path = ToString(iterator->pathBuilder, *iterator->arena);
 				entry.properties = {};
 
 				entry.properties.size = static_cast<size_t>(iterator->findInfo.nFileSizeHigh) << 32 | iterator->findInfo.nFileSizeLow;
@@ -513,14 +513,14 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena(&arena);
 
 		DWORD pathLength = GetCurrentDirectoryW(0, nullptr);
-		wchar_t* path = scratch.arena.Push<wchar_t>(pathLength);
+		wchar_t* path = Push<wchar_t>(scratch.arena, pathLength);
 		GetCurrentDirectoryW(pathLength, path);
 
 		StringBuilder builder(scratch.arena);
-		builder.Append(ConvertString(scratch.arena, path));
-		builder.NormalizePath();
+		Append(builder, ConvertString(scratch.arena, path));
+		NormalizePath(builder);
 
-		return builder.ToString(arena);
+		return ToString(builder, arena);
 	}
 
 	ProcessHandle CreateProcess(const ProcessParams& params)
@@ -531,7 +531,7 @@ namespace Bk
 		int32 argumentsLength = MultiByteToWideChar(CP_UTF8, 0, params.arguments.data, params.arguments.length, nullptr, 0);
 
 		size_t commandLineLength = executableLength + 3 + argumentsLength;
-		wchar_t* commandLine = scratch.arena.Push<wchar_t>(commandLineLength + 1);
+		wchar_t* commandLine = Push<wchar_t>(scratch.arena, commandLineLength + 1);
 
 		MultiByteToWideChar(CP_UTF8, 0, params.executable.data, params.executable.length, commandLine + 1, executableLength);
 		commandLine[0] = '\"';
@@ -619,7 +619,7 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena();
 
 		HMODULE libraryHandle = reinterpret_cast<HMODULE>(handle);
-		const char* symbolName = scratch.arena.Copy(name, true).data;
+		const char* symbolName = Copy(scratch.arena, name, true).data;
 
 		return reinterpret_cast<void*>(GetProcAddress(libraryHandle, symbolName));
 	}
@@ -766,7 +766,7 @@ namespace Bk
 			{
 				AppEvent appEvent = {};
 				appEvent.type = AppEventType::WindowClose;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 
 				ProcessAppEvent(appEvent);
 
@@ -805,7 +805,7 @@ namespace Bk
 
 				AppEvent appEvent = {};
 				appEvent.type = AppEventType::Key;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				appEvent.keyCode = ConvertScanCode(scanCode);
 				appEvent.keyPressed = (flags & KF_UP) == 0;
 
@@ -819,7 +819,7 @@ namespace Bk
 			{
 				AppEvent appEvent = {};
 				appEvent.type = AppEventType::Key;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				appEvent.keyCode = KeyCode::LeftMouseButton;
 				appEvent.keyPressed = msg == WM_LBUTTONDOWN;
 
@@ -833,7 +833,7 @@ namespace Bk
 			{
 				AppEvent appEvent = {};
 				appEvent.type = AppEventType::Key;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				appEvent.keyCode = KeyCode::MiddleMouseButton;
 				appEvent.keyPressed = msg == WM_MBUTTONDOWN;
 
@@ -847,7 +847,7 @@ namespace Bk
 			{
 				AppEvent appEvent = {};
 				appEvent.type = AppEventType::Key;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				appEvent.keyCode = KeyCode::RightMouseButton;
 				appEvent.keyPressed = msg == WM_RBUTTONDOWN;
 
@@ -861,7 +861,7 @@ namespace Bk
 				AppEvent appEvent = {};
 
 				appEvent.type = AppEventType::MouseMove;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				appEvent.mouseX = static_cast<float>(LOWORD(lParam));
 				appEvent.mouseY = static_cast<float>(HIWORD(lParam));
 
@@ -874,7 +874,7 @@ namespace Bk
 			{
 				AppEvent appEvent = {};
 				appEvent.type = AppEventType::MouseWheel;
-				appEvent.target = platformContext.windows.GetHandle(window);
+				appEvent.target = GetHandle(platformContext.windows, window);
 				appEvent.wheelDelta = GET_WHEEL_DELTA_WPARAM(wParam) / static_cast<float>(WHEEL_DELTA);
 
 				ProcessAppEvent(appEvent);
@@ -890,12 +890,12 @@ namespace Bk
 				for (size_t i = 0; i < numFiles; ++i)
 				{
 					size_t fileNameLength = DragQueryFileW(drop, i, nullptr, 0) + 1;
-					wchar_t* fileName = scratch.arena.Push<wchar_t>(fileNameLength);
+					wchar_t* fileName = Push<wchar_t>(scratch.arena, fileNameLength);
 					DragQueryFileW(drop, i, fileName, fileNameLength);
 
 					AppEvent appEvent = {};
 					appEvent.type = AppEventType::DropFile;
-					appEvent.target = platformContext.windows.GetHandle(window);
+					appEvent.target = GetHandle(platformContext.windows, window);
 					appEvent.dropFilePath = ConvertString(scratch.arena, fileName);
 
 					ProcessAppEvent(appEvent);
@@ -917,7 +917,7 @@ namespace Bk
 		if (platformContext.windows.capacity == 0)
 		{
 			// #TODO: Move to a platform init routine
-			platformContext.windows.Initialize(platformContext.arena, 128);
+			Allocate(platformContext.arena, platformContext.windows, 128);
 
 			WNDCLASSW windowClass = {};
 			windowClass.lpszClassName = L"BrinkWindowClass";
@@ -929,7 +929,7 @@ namespace Bk
 		}
 
 		uint32 handle = 0;
-		Window* window = platformContext.windows.Acquire(&handle);
+		Window* window = AcquireSlot(platformContext.windows, &handle);
 
 		if (window)
 		{
@@ -951,11 +951,11 @@ namespace Bk
 
 	void DestroyWindow(uint32 handle)
 	{
-		Window* window = platformContext.windows.Get(handle);
+		Window* window = GetSlot(platformContext.windows, handle);
 		if (window)
 		{
 			DestroyWindow(window->handle);
-			platformContext.windows.Release(handle);
+			ReleaseSlot(platformContext.windows, handle);
 		}
 	}
 
@@ -963,7 +963,7 @@ namespace Bk
 	{
 		void* result = nullptr;
 
-		Window* window = platformContext.windows.Get(handle);
+		Window* window = GetSlot(platformContext.windows, handle);
 		if (window)
 		{
 			result = window->handle;
@@ -976,7 +976,7 @@ namespace Bk
 	{
 		bool result = false;
 
-		Window* window = platformContext.windows.Get(handle);
+		Window* window = GetSlot(platformContext.windows, handle);
 		if (window)
 		{
 			RECT surfaceRect = {};

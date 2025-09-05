@@ -283,7 +283,7 @@ namespace Bk
 
 		if (JsonValue* children = FindJsonValueInObject(node, "children"))
 		{
-			result.children = arena.Push<int32>(children->children);
+			result.children = Push<int32>(arena, children->children);
 
 			size_t childIdx = 0;
 			for (JsonValue* child = FindJsonValueInArray(children, 0); child; child = child->sibling, ++childIdx)
@@ -363,7 +363,7 @@ namespace Bk
 
 		if (JsonValue* primitives = FindJsonValueInObject(mesh, "primitives"))
 		{
-			result.primitives = arena.Push<GltfMeshPrimitive>(primitives->children);
+			result.primitives = Push<GltfMeshPrimitive>(arena, primitives->children);
 
 			size_t primitiveIdx = 0;
 			for (JsonValue* primitive = FindJsonValueInArray(primitives, 0); primitive; primitive = primitive->sibling, ++primitiveIdx)
@@ -440,7 +440,7 @@ namespace Bk
 
 		if (JsonValue* joints = FindJsonValueInObject(skin, "joints"))
 		{
-			result.joints = arena.Push<int32>(joints->children);
+			result.joints = Push<int32>(arena, joints->children);
 
 			size_t jointIdx = 0;
 			for (JsonValue* joint = FindJsonValueInArray(joints, 0); joint; joint = joint->sibling, ++jointIdx)
@@ -463,7 +463,7 @@ namespace Bk
 
 		if (JsonValue* channels = FindJsonValueInObject(animation, "channels"))
 		{
-			result.channels = arena.Push<GltfAnimationChannel>(channels->children);
+			result.channels = Push<GltfAnimationChannel>(arena, channels->children);
 
 			size_t channelIdx = 0;
 			for (JsonValue* channel = FindJsonValueInArray(channels, 0); channel; channel = channel->sibling, ++channelIdx)
@@ -509,7 +509,7 @@ namespace Bk
 
 		if (JsonValue* samplers = FindJsonValueInObject(animation, "samplers"))
 		{
-			result.samplers = arena.Push<GltfAnimationSampler>(samplers->children);
+			result.samplers = Push<GltfAnimationSampler>(arena, samplers->children);
 
 			size_t samplerIdx = 0;
 			for (JsonValue* sampler = FindJsonValueInArray(samplers, 0); sampler; sampler = sampler->sibling, ++samplerIdx)
@@ -562,7 +562,7 @@ namespace Bk
 		JsonValue* gltfAccessors = FindJsonValueInObject(gltf, "accessors");
 		if (gltfAccessors && gltfAccessors->children > 0)
 		{
-			asset.accessors = arena.Push<GltfAccessor>(gltfAccessors->children);
+			asset.accessors = Push<GltfAccessor>(arena, gltfAccessors->children);
 
 			size_t accessorIdx = 0;
 			for (JsonValue* gltfAccessor = FindJsonValueInArray(gltfAccessors, 0); gltfAccessor; gltfAccessor = gltfAccessor->sibling, ++accessorIdx)
@@ -574,7 +574,7 @@ namespace Bk
 		JsonValue* gltfBufferViews = FindJsonValueInObject(gltf, "bufferViews");
 		if (gltfBufferViews && gltfBufferViews->children > 0)
 		{
-			asset.bufferViews = arena.Push<GltfBufferView>(gltfBufferViews->children);
+			asset.bufferViews = Push<GltfBufferView>(arena, gltfBufferViews->children);
 
 			size_t bufferViewIdx = 0;
 			for (JsonValue* gltfBufferView = FindJsonValueInArray(gltfBufferViews, 0); gltfBufferView; gltfBufferView = gltfBufferView->sibling, ++bufferViewIdx)
@@ -586,7 +586,7 @@ namespace Bk
 		JsonValue* gltfBuffers = FindJsonValueInObject(gltf, "buffers");
 		if (gltfBuffers && gltfBuffers->children > 0)
 		{
-			asset.buffers = arena.Push<GltfBuffer>(gltfBuffers->children);
+			asset.buffers = Push<GltfBuffer>(arena, gltfBuffers->children);
 
 			size_t bufferIdx = 0;
 			for (JsonValue* gltfBuffer = FindJsonValueInArray(gltfBuffers, 0); gltfBuffer; gltfBuffer = gltfBuffer->sibling, ++bufferIdx)
@@ -598,7 +598,7 @@ namespace Bk
 		JsonValue* gltfNodes = FindJsonValueInObject(gltf, "nodes");
 		if (gltfNodes && gltfNodes->children > 0)
 		{
-			asset.nodes = arena.Push<GltfNode>(gltfNodes->children);
+			asset.nodes = Push<GltfNode>(arena, gltfNodes->children);
 
 			size_t nodeIdx = 0;
 			for (JsonValue* gltfNode = FindJsonValueInArray(gltfNodes, 0); gltfNode; gltfNode = gltfNode->sibling, ++nodeIdx)
@@ -610,7 +610,7 @@ namespace Bk
 		JsonValue* gltfMeshes = FindJsonValueInObject(gltf, "meshes");
 		if (gltfMeshes && gltfMeshes->children > 0)
 		{
-			asset.meshes = arena.Push<GltfMesh>(gltfMeshes->children);
+			asset.meshes = Push<GltfMesh>(arena, gltfMeshes->children);
 
 			size_t meshIdx = 0;
 			for (JsonValue* gltfMesh = FindJsonValueInArray(gltfMeshes, 0); gltfMesh; gltfMesh = gltfMesh->sibling, ++meshIdx)
@@ -622,7 +622,7 @@ namespace Bk
 		JsonValue* gltfSkins = FindJsonValueInObject(gltf, "skins");
 		if (gltfSkins && gltfSkins->children > 0)
 		{
-			asset.skins = arena.Push<GltfSkin>(gltfSkins->children);
+			asset.skins = Push<GltfSkin>(arena, gltfSkins->children);
 
 			size_t skinIdx = 0;
 			for (JsonValue* gltfSkin = FindJsonValueInArray(gltfSkins, 0); gltfSkin; gltfSkin = gltfSkin->sibling, ++skinIdx)
@@ -634,7 +634,7 @@ namespace Bk
 		JsonValue* gltfAnimations = FindJsonValueInObject(gltf, "animations");
 		if (gltfAnimations && gltfAnimations->children > 0)
 		{
-			asset.animations = arena.Push<GltfAnimation>(gltfAnimations->children);
+			asset.animations = Push<GltfAnimation>(arena, gltfAnimations->children);
 
 			size_t animationIdx = 0;
 			for (JsonValue* gltfAnimation = FindJsonValueInArray(gltfAnimations, 0); gltfAnimation; gltfAnimation = gltfAnimation->sibling, ++animationIdx)
@@ -716,7 +716,7 @@ namespace Bk
 
 		if (accessor.bufferView == -1)
 		{
-			MemorySet(result.data, 0, componentSize * accessor.count);
+			ZeroMemory(result.data, componentSize * accessor.count);
 		}
 		else
 		{
@@ -728,13 +728,13 @@ namespace Bk
 
 			if (bufferView.byteStride == 0)
 			{
-				MemoryCopy(dstBufferPtr, srcBufferPtr, componentSize * accessor.count);
+				CopyMemory(dstBufferPtr, srcBufferPtr, componentSize * accessor.count);
 			}
 			else
 			{
 				for (size_t componentIdx = 0; componentIdx < accessor.count; ++componentIdx)
 				{
-					MemoryCopy(dstBufferPtr, srcBufferPtr, componentSize);
+					CopyMemory(dstBufferPtr, srcBufferPtr, componentSize);
 
 					srcBufferPtr += bufferView.byteStride;
 					dstBufferPtr += componentSize;
@@ -755,7 +755,7 @@ namespace Bk
 			return false;
 		}
 
-		meshes = arena.PushZeroed<MeshDesc>(gltfAsset.meshes.length);
+		meshes = PushZeroed<MeshDesc>(arena, gltfAsset.meshes.length);
 
 		for (size_t meshIdx = 0; meshIdx < meshes.length; ++meshIdx)
 		{
@@ -763,20 +763,20 @@ namespace Bk
 
 			MeshDesc& mesh = meshes[meshIdx];
 
-			mesh.name = arena.Copy(gltfMesh.name);
-			mesh.sections = arena.PushZeroed<MeshSection>(gltfMesh.primitives.length);
+			mesh.name = Copy(arena, gltfMesh.name);
+			mesh.sections = PushZeroed<MeshSection>(arena, gltfMesh.primitives.length);
 
-			TSpan<TSpan<uint8>> positionBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
+			TSpan<TSpan<uint8>> positionBuffers = PushZeroed<TSpan<uint8>>(scratch.arena, mesh.sections.length);
 			size_t positionBufferSize = 0;
 			size_t vertexCount = 0;
 
-			TSpan<TSpan<uint8>> jointIndexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
+			TSpan<TSpan<uint8>> jointIndexBuffers = PushZeroed<TSpan<uint8>>(scratch.arena, mesh.sections.length);
 			size_t jointIndexBufferSize = 0;
 
-			TSpan<TSpan<uint8>> jointWeightBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
+			TSpan<TSpan<uint8>> jointWeightBuffers = PushZeroed<TSpan<uint8>>(scratch.arena, mesh.sections.length);
 			size_t jointWeightBufferSize = 0;
 
-			TSpan<TSpan<uint8>> indexBuffers = scratch.arena.PushZeroed<TSpan<uint8>>(mesh.sections.length);
+			TSpan<TSpan<uint8>> indexBuffers = PushZeroed<TSpan<uint8>>(scratch.arena, mesh.sections.length);
 			size_t indexBufferSize = 0;
 			size_t indexCount = 0;
 
@@ -797,7 +797,7 @@ namespace Bk
 					BK_ASSERTF(accessor.componentElements == 3, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					positionBuffers[sectionIdx] = scratch.arena.Push(GetAccessorBufferSize(accessor));
+					positionBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
 					CopyAccessorBuffer(gltfAsset, accessor, positionBuffers[sectionIdx]);
 
 					positionBufferSize += positionBuffers[sectionIdx].length;
@@ -813,7 +813,7 @@ namespace Bk
 					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					jointIndexBuffers[sectionIdx] = scratch.arena.Push(GetAccessorBufferSize(accessor));
+					jointIndexBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
 					CopyAccessorBuffer(gltfAsset, accessor, jointIndexBuffers[sectionIdx]);
 
 					jointIndexBufferSize += jointIndexBuffers[sectionIdx].length;
@@ -826,7 +826,7 @@ namespace Bk
 					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					jointWeightBuffers[sectionIdx] = scratch.arena.Push(GetAccessorBufferSize(accessor));
+					jointWeightBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
 					CopyAccessorBuffer(gltfAsset, accessor, jointWeightBuffers[sectionIdx]);
 
 					jointWeightBufferSize += jointWeightBuffers[sectionIdx].length;
@@ -839,7 +839,7 @@ namespace Bk
 					BK_ASSERTF(accessor.componentElements == 1, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					indexBuffers[sectionIdx] = scratch.arena.Push(GetAccessorBufferSize(accessor));
+					indexBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
 					CopyAccessorBuffer(gltfAsset, accessor, indexBuffers[sectionIdx]);
 
 					indexBufferSize += indexBuffers[sectionIdx].length;
@@ -849,39 +849,39 @@ namespace Bk
 				}
 			}
 
-			mesh.positions = arena.Push<Vec3f>(positionBufferSize / sizeof(Vec3f));
+			mesh.positions = Push<Vec3f>(arena, positionBufferSize / sizeof(Vec3f));
 
 			uint8* positionBuffer = reinterpret_cast<uint8*>(mesh.positions.data);
 			for (TSpan buffer : positionBuffers)
 			{
-				MemoryCopy(positionBuffer, buffer.data, buffer.length);
+				CopyMemory(positionBuffer, buffer.data, buffer.length);
 				positionBuffer += buffer.length;
 			}
 
-			mesh.boneIndices = arena.Push<uint8>(jointIndexBufferSize);
+			mesh.boneIndices = Push(arena, jointIndexBufferSize);
 
 			uint8* jointIndexBuffer = mesh.boneIndices.data;
 			for (TSpan buffer : jointIndexBuffers)
 			{
-				MemoryCopy(jointIndexBuffer, buffer.data, buffer.length);
+				CopyMemory(jointIndexBuffer, buffer.data, buffer.length);
 				jointIndexBuffer += buffer.length;
 			}
 
-			mesh.boneWeights = arena.Push<float>(jointWeightBufferSize / sizeof(float));
+			mesh.boneWeights = Push<float>(arena, jointWeightBufferSize / sizeof(float));
 
 			uint8* jointWeightBuffer = reinterpret_cast<uint8*>(mesh.boneWeights.data);
 			for (TSpan buffer : jointWeightBuffers)
 			{
-				MemoryCopy(jointWeightBuffer, buffer.data, buffer.length);
+				CopyMemory(jointWeightBuffer, buffer.data, buffer.length);
 				jointWeightBuffer += buffer.length;
 			}
 
-			mesh.indices = arena.Push<uint16>(indexBufferSize / sizeof(uint16));
+			mesh.indices = Push<uint16>(arena, indexBufferSize / sizeof(uint16));
 
 			uint8* indexBuffer = reinterpret_cast<uint8*>(mesh.indices.data);
 			for (TSpan buffer : indexBuffers)
 			{
-				MemoryCopy(indexBuffer, buffer.data, buffer.length);
+				CopyMemory(indexBuffer, buffer.data, buffer.length);
 				indexBuffer += buffer.length;
 			}
 		}
@@ -899,7 +899,7 @@ namespace Bk
 			return false;
 		}
 
-		TSpan<int32> nodeToParentIdx = scratch.arena.Push<int32>(gltfAsset.nodes.length);
+		TSpan<int32> nodeToParentIdx = Push<int32>(scratch.arena, gltfAsset.nodes.length);
 		for (int32 nodeIdx = 0; nodeIdx < nodeToParentIdx.length; ++nodeIdx)
 		{
 			const GltfNode& gltfNode = gltfAsset.nodes[nodeIdx];
@@ -909,14 +909,14 @@ namespace Bk
 			}
 		}
 
-		skeletons = arena.PushZeroed<Skeleton>(gltfAsset.skins.length);
+		skeletons = PushZeroed<Skeleton>(arena, gltfAsset.skins.length);
 
 		for (size_t skeletonIdx = 0; skeletonIdx < skeletons.length; ++skeletonIdx)
 		{
 			const GltfSkin& gltfSkin = gltfAsset.skins[skeletonIdx];
 
 			Skeleton& skeleton = skeletons[skeletonIdx];
-			skeleton.bones = arena.Push<Bone>(gltfSkin.joints.length);
+			skeleton.bones = Push<Bone>(arena, gltfSkin.joints.length);
 
 			for (int32 boneIdx = 0; boneIdx < skeleton.bones.length; ++boneIdx)
 			{
@@ -927,7 +927,7 @@ namespace Bk
 				Bone& bone = skeleton.bones[boneIdx];
 
 				// #TODO: Fallback joint name
-				bone.name = arena.Copy(gltfJointNode.name);
+				bone.name = Copy(arena, gltfJointNode.name);
 
 				bone.parentIdx = -1;
 				for (int32 parentBoneIdx = 0; parentBoneIdx < boneIdx; ++parentBoneIdx)
@@ -947,7 +947,7 @@ namespace Bk
 				BK_ASSERTF(accessor.componentElements == 16, "Unexpected buffer layout");
 				BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-				skeleton.invBindPose = arena.Push<Mat4f>(accessor.count);
+				skeleton.invBindPose = Push<Mat4f>(arena, accessor.count);
 				CopyAccessorBuffer(gltfAsset, accessor, AsBytes(skeleton.invBindPose));
 			}
 		}
@@ -965,7 +965,7 @@ namespace Bk
 			return false;
 		}
 
-		TSpan<int32> nodeToBoneIdx = scratch.arena.Push<int32>(gltfAsset.nodes.length);
+		TSpan<int32> nodeToBoneIdx = Push<int32>(scratch.arena, gltfAsset.nodes.length);
 		for (int32 nodeIdx = 0; nodeIdx < nodeToBoneIdx.length; ++nodeIdx)
 		{
 			const GltfNode& gltfNode = gltfAsset.nodes[nodeIdx];
@@ -982,7 +982,7 @@ namespace Bk
 			}
 		}
 
-		animations = arena.Push<AnimSequence>(gltfAsset.animations.length);
+		animations = Push<AnimSequence>(arena, gltfAsset.animations.length);
 
 		for (size_t animationIdx = 0; animationIdx < animations.length; ++animationIdx)
 		{
@@ -990,9 +990,9 @@ namespace Bk
 
 			AnimSequence& animation = animations[animationIdx];
 
-			animation.name = arena.Copy(gltfAnimation.name);
+			animation.name = Copy(arena, gltfAnimation.name);
 			animation.duration = 0.0f;
-			animation.tracks = arena.PushZeroed<AnimTrack>(skeleton.bones.length);
+			animation.tracks = PushZeroed<AnimTrack>(arena, skeleton.bones.length);
 
 			for (const GltfAnimationChannel& channel : gltfAnimation.channels)
 			{
@@ -1009,7 +1009,7 @@ namespace Bk
 				BK_ASSERTF(inputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
 				BK_ASSERTF(inputAccessor.normalized == false, "Unexpected buffer layout");
 
-				TSpan<float> keyframeTimes = arena.Push<float>(inputAccessor.count * inputAccessor.componentElements);
+				TSpan<float> keyframeTimes = Push<float>(arena, inputAccessor.count * inputAccessor.componentElements);
 				CopyAccessorBuffer(gltfAsset, inputAccessor, AsBytes(keyframeTimes));
 
 				if (keyframeTimes.length == 0)
@@ -1029,7 +1029,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.translationTimes = keyframeTimes;
-						track.translations = arena.Push<Vec3f>(outputAccessor.count);
+						track.translations = Push<Vec3f>(arena, outputAccessor.count);
 						CopyAccessorBuffer(gltfAsset, outputAccessor, AsBytes(track.translations));
 
 						break;
@@ -1043,7 +1043,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.rotationTimes = keyframeTimes;
-						track.rotations = arena.Push<Quat4f>(outputAccessor.count);
+						track.rotations = Push<Quat4f>(arena, outputAccessor.count);
 						CopyAccessorBuffer(gltfAsset, outputAccessor, AsBytes(track.rotations));
 
 						break;
@@ -1057,7 +1057,7 @@ namespace Bk
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.scaleTimes = keyframeTimes;
-						track.scales = arena.Push<Vec3f>(outputAccessor.count);
+						track.scales = Push<Vec3f>(arena, outputAccessor.count);
 						CopyAccessorBuffer(gltfAsset, outputAccessor, AsBytes(track.scales));
 
 						break;

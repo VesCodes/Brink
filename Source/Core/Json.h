@@ -35,5 +35,5 @@ namespace Bk
 	JsonValue* ParseJson(Arena& arena, String json);
 	JsonValue* FindJsonValue(JsonValue* value, String path);
 	JsonValue* FindJsonValueInObject(JsonValue* object, String key);
-	JsonValue* FindJsonValueInArray(JsonValue* array, size_t index);
+	JsonValue* FindJsonValueInArray(JsonValue* array, size_t idx);
 }
