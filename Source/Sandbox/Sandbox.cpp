@@ -22,7 +22,8 @@ struct
 	uint32 window;
 	Vec2f mousePosition;
 	Vec2f mouseDelta;
-	uint32* keys;
+	BitArray keys;
+	BitArray lastKeys;
 	double lastTime;
 
 	bool initialized;
@@ -44,7 +45,14 @@ struct
 
 bool IsKeyDown(KeyCode keyCode)
 {
-	return BitsetIsSet(state.keys, static_cast<size_t>(keyCode));
+	size_t keyIdx = static_cast<size_t>(keyCode);
+	return GetBit(state.keys, keyIdx);
+}
+
+bool IsKeyPressed(KeyCode keyCode)
+{
+	size_t keyIdx = static_cast<size_t>(keyCode);
+	return GetBit(state.keys, keyIdx) && !GetBit(state.lastKeys, keyIdx);
 }
 
 void LoadGlb(TSpan<uint8> data)
@@ -329,6 +337,13 @@ bool OnAppUpdate()
 		}
 	}
 
+	if (IsKeyPressed(KeyCode::X))
+	{
+		state.activeAnimation = (state.activeAnimation + 1) % state.animations.length;
+		state.animPlayer.animation = state.animations[state.activeAnimation];
+		state.animPlayer.currentTime = 0;
+	}
+
 	Mat4f proj = PerspectiveMatrix(30.0f * (3.14f / 180.0f), 16.0f / 9.0f, 0.01f, 100.0f);
 	Mat4f view = RotationMatrix(Conjugate(state.cameraOrientation)) * TranslationMatrix(-state.cameraPosition);
 	Mat4f model = Mat4f::Identity;
@@ -379,6 +394,7 @@ bool OnAppUpdate()
 
 	state.mouseDelta = Vec2f::Zero;
 	state.lastTime = currentTime;
+	Copy(state.lastKeys, state.keys);
 
 	return result;
 }
@@ -393,18 +409,11 @@ bool OnAppEvent(const AppEvent& appEvent)
 		{
 			if (appEvent.keyPressed)
 			{
-				BitsetSet(state.keys, static_cast<size_t>(appEvent.keyCode));
+				SetBit(state.keys, static_cast<size_t>(appEvent.keyCode));
 			}
 			else
 			{
-				BitsetUnset(state.keys, static_cast<size_t>(appEvent.keyCode));
-
-				if (appEvent.keyCode == KeyCode::X)
-				{
-					state.activeAnimation = (state.activeAnimation + 1) % state.animations.length;
-					state.animPlayer.animation = state.animations[state.activeAnimation];
-					state.animPlayer.currentTime = 0;
-				}
+				ClearBit(state.keys, static_cast<size_t>(appEvent.keyCode));
 			}
 
 			break;
@@ -485,7 +494,8 @@ int32 AppMain(int32 argc, char** argv)
 		return 1;
 	}
 
-	state.keys = PushZeroed<uint32>(state.arena, (static_cast<size_t>(KeyCode::Count) + 31) / 32);
+	Allocate(state.arena, state.keys, static_cast<size_t>(KeyCode::Count));
+	Allocate(state.arena, state.lastKeys, static_cast<size_t>(KeyCode::Count));
 
 	ConfigureApp({
 		.updateCallback = OnAppUpdate,

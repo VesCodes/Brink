@@ -50,54 +50,6 @@ namespace Bk
 		return value ? static_cast<uint32>(__builtin_ctzll(value)) : 64;
 	}
 
-	bool BitsetIsSet(const uint32* bitset, size_t index)
-	{
-		size_t wordIdx = index / 32;
-		return bitset[wordIdx] & (1u << (index & 31));
-	}
-
-	void BitsetSet(uint32* bitset, size_t index)
-	{
-		size_t wordIdx = index / 32;
-		bitset[wordIdx] |= (1u << (index & 31));
-	}
-
-	void BitsetUnset(uint32* bitset, size_t index)
-	{
-		size_t wordIdx = index / 32;
-		bitset[wordIdx] &= ~(1u << (index & 31));
-	}
-
-	size_t BitsetFind(const uint32* bitset, bool value, size_t offset, size_t length)
-	{
-		BK_ASSERT(offset < length);
-
-		size_t wordIdx = offset / 32;
-		size_t wordCount = (length + 31) / 32;
-
-		uint32 test = value ? 0u : UINT32_MAX;
-		uint32 mask = UINT32_MAX << (offset & 31);
-
-		while (wordIdx < wordCount && (bitset[wordIdx] & mask) == (test & mask))
-		{
-			wordIdx += 1;
-			mask = UINT32_MAX;
-		}
-
-		if (wordIdx < wordCount)
-		{
-			uint32 bits = (value ? bitset[wordIdx] : ~bitset[wordIdx]) & mask;
-			size_t lowestBit = wordIdx * 32 + CountTrailingZeros(bits);
-
-			if (lowestBit < length)
-			{
-				return lowestBit;
-			}
-		}
-
-		return SIZE_MAX;
-	}
-
 	thread_local struct
 	{
 		Arena scratchArenas[2] = {
@@ -218,5 +170,75 @@ namespace Bk
 		}
 
 		FatalError(1, "Failed to acquire scratch arena");
+	}
+
+	void Allocate(Arena& arena, BitArray& array, size_t length)
+	{
+		array.data = PushZeroed<uint32>(arena, (length + 31) / 32);
+		array.length = length;
+	}
+
+	void Copy(BitArray& dst, BitArray src)
+	{
+		BK_ASSERT(dst.length == src.length);
+
+		if (dst.length > 0)
+		{
+			CopyMemory(dst.data, src.data, ((dst.length + 31) / 32) * sizeof(uint32));
+		}
+	}
+
+	bool GetBit(BitArray array, size_t idx)
+	{
+		BK_ASSERT(idx < array.length);
+
+		size_t wordIdx = idx / 32;
+		return array.data[wordIdx] & (1u << (idx & 31));
+	}
+
+	void SetBit(BitArray array, size_t idx)
+	{
+		BK_ASSERT(idx < array.length);
+
+		size_t wordIdx = idx / 32;
+		array.data[wordIdx] |= (1u << (idx & 31));
+	}
+
+	void ClearBit(BitArray array, size_t idx)
+	{
+		BK_ASSERT(idx < array.length);
+
+		size_t wordIdx = idx / 32;
+		array.data[wordIdx] &= ~(1u << (idx & 31));
+	}
+
+	size_t FindBit(BitArray array, bool value, size_t start)
+	{
+		BK_ASSERT(start < array.length);
+
+		size_t wordIdx = start / 32;
+		size_t wordCount = (array.length + 31) / 32;
+
+		uint32 test = value ? 0u : UINT32_MAX;
+		uint32 mask = UINT32_MAX << (start & 31);
+
+		while (wordIdx < wordCount && (array.data[wordIdx] & mask) == (test & mask))
+		{
+			wordIdx += 1;
+			mask = UINT32_MAX;
+		}
+
+		if (wordIdx < wordCount)
+		{
+			uint32 bits = (value ? array.data[wordIdx] : ~array.data[wordIdx]) & mask;
+			size_t lowestBit = wordIdx * 32 + CountTrailingZeros(bits);
+
+			if (lowestBit < array.length)
+			{
+				return lowestBit;
+			}
+		}
+
+		return SIZE_MAX;
 	}
 }

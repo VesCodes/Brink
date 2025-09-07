@@ -96,7 +96,7 @@ namespace Bk
 				generation = 1;
 			}
 
-			BitsetSet(pool.alive, idx);
+			SetBit(BitArray(pool.alive, pool.capacity), idx);
 
 			if (handle)
 			{
@@ -117,7 +117,7 @@ namespace Bk
 		BK_ASSERT(generation == pool.generations[idx]);
 
 		pool.generations[idx] += 1;
-		BitsetUnset(pool.alive, idx);
+		ClearBit(BitArray(pool.alive, pool.capacity), idx);
 
 		Type* slot = pool.slots + idx;
 		*reinterpret_cast<uintptr_t*>(slot) = pool.nextFree;
@@ -165,7 +165,7 @@ namespace Bk
 	{
 		if (start < pool.capacity)
 		{
-			idx = BitsetFind(pool.alive, true, start, pool.capacity);
+			idx = FindBit(BitArray(pool.alive, pool.capacity), true, start);
 		}
 		else
 		{
@@ -178,7 +178,7 @@ namespace Bk
 	{
 		if (idx + 1 < pool.capacity)
 		{
-			idx = BitsetFind(pool.alive, true, idx + 1, pool.capacity);
+			idx = FindBit(BitArray(pool.alive, pool.capacity), true, idx + 1);
 		}
 		else
 		{

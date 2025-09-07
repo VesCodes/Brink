@@ -26,11 +26,6 @@ namespace Bk
 	uint32 CountLeadingZeros(uint64 value);
 	uint32 CountTrailingZeros(uint64 value);
 
-	bool BitsetIsSet(const uint32* bitset, size_t index);
-	void BitsetSet(uint32* bitset, size_t index);
-	void BitsetUnset(uint32* bitset, size_t index);
-	size_t BitsetFind(const uint32* bitset, bool value, size_t offset, size_t length);
-
 	enum class ArenaFlags : uint8
 	{
 		KeepFirstBlock = (1 << 0),
@@ -88,6 +83,20 @@ namespace Bk
 	};
 
 	ArenaScope GetScratchArena(const Arena* persistentArena = nullptr);
+
+	struct BitArray
+	{
+		uint32* data;
+		size_t length;
+	};
+
+	void Allocate(Arena& arena, BitArray& array, size_t length);
+	void Copy(BitArray& dst, BitArray src);
+
+	bool GetBit(BitArray array, size_t idx);
+	void SetBit(BitArray array, size_t idx);
+	void ClearBit(BitArray array, size_t idx);
+	size_t FindBit(BitArray array, bool value, size_t start = 0);
 }
 
 namespace Bk
