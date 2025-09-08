@@ -79,6 +79,7 @@ namespace Bk
 		} attributes;
 
 		int32 indices;
+		int32 material;
 	};
 
 	struct GltfMesh
@@ -93,6 +94,61 @@ namespace Bk
 		int32 inverseBindMatrices;
 		int32 skeleton;
 		TSpan<int32> joints;
+	};
+
+	struct GltfMaterial
+	{
+		String name;
+
+		Vec4f baseColorFactor;
+		int32 baseColorTexture;
+		int32 baseColorTexCoord;
+
+		float metallicFactor;
+		float roughnessFactor;
+		int32 metallicRoughnessTexture;
+		int32 metallicRoughnessTexCoord;
+	};
+
+	struct GltfTexture
+	{
+		String name;
+		int32 source;
+		int32 sampler;
+	};
+
+	struct GltfImage
+	{
+		String name;
+		String uri;
+		String mimeType;
+		int32 bufferView;
+	};
+
+	enum class GltfFilterType : int32
+	{
+		Nearest = 9728,
+		Linear = 9729,
+		NearestMipMapNearest = 9984,
+		LinearMipMapNearest = 9985,
+		NearestMipMapLinear = 9986,
+		LinearMipMapLinear = 9987,
+	};
+
+	enum class GltfWrapType : int32
+	{
+		Repeat = 10497,
+		ClampToEdge = 33071,
+		MirroredRepeat = 33648,
+	};
+
+	struct GltfSampler
+	{
+		String name;
+		GltfFilterType minFilter;
+		GltfFilterType magFilter;
+		GltfWrapType wrapS;
+		GltfWrapType wrapT;
 	};
 
 	enum class GltfAnimationTargetPath : uint8
@@ -141,6 +197,10 @@ namespace Bk
 		TSpan<GltfNode> nodes;
 		TSpan<GltfMesh> meshes;
 		TSpan<GltfSkin> skins;
+		TSpan<GltfMaterial> materials;
+		TSpan<GltfTexture> textures;
+		TSpan<GltfImage> images;
+		TSpan<GltfSampler> samplers;
 		TSpan<GltfAnimation> animations;
 	};
 
@@ -405,6 +465,15 @@ namespace Bk
 				{
 					result.primitives[primitiveIdx].indices = -1;
 				}
+
+				if (JsonValue* material = FindJsonValueInObject(primitive, "material"))
+				{
+					result.primitives[primitiveIdx].material = static_cast<int32>(material->asNumber);
+				}
+				else
+				{
+					result.primitives[primitiveIdx].material = -1;
+				}
 			}
 		}
 
@@ -447,6 +516,199 @@ namespace Bk
 			{
 				result.joints[jointIdx] = static_cast<int32>(joint->asNumber);
 			}
+		}
+
+		return result;
+	}
+
+	GltfMaterial ParseMaterial(JsonValue* material)
+	{
+		GltfMaterial result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(material, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* pbrMetallicRoughness = FindJsonValueInObject(material, "pbrMetallicRoughness"))
+		{
+			if (JsonValue* baseColorFactor = FindJsonValueInObject(pbrMetallicRoughness, "baseColorFactor"))
+			{
+				size_t elementIdx = 0;
+				for (JsonValue* element = FindJsonValueInArray(baseColorFactor, 0); element; element = element->sibling, ++elementIdx)
+				{
+					result.baseColorFactor.elements[elementIdx] = static_cast<float>(element->asNumber);
+				}
+			}
+			else
+			{
+				result.baseColorFactor = Vec4f::One;
+			}
+
+			if (JsonValue* baseColorTexture = FindJsonValue(pbrMetallicRoughness, "baseColorTexture.index"))
+			{
+				result.baseColorTexture = static_cast<int32>(baseColorTexture->asNumber);
+			}
+			else
+			{
+				result.baseColorTexture = -1;
+			}
+
+			if (JsonValue* baseColorTexCoord = FindJsonValue(pbrMetallicRoughness, "baseColorTexture.texCoord"))
+			{
+				result.baseColorTexCoord = static_cast<int32>(baseColorTexCoord->asNumber);
+			}
+
+			if (JsonValue* metallicFactor = FindJsonValueInObject(pbrMetallicRoughness, "metallicFactor"))
+			{
+				result.metallicFactor = static_cast<float>(metallicFactor->asNumber);
+			}
+			else
+			{
+				result.metallicFactor = 1.0f;
+			}
+
+			if (JsonValue* roughnessFactor = FindJsonValueInObject(pbrMetallicRoughness, "roughnessFactor"))
+			{
+				result.roughnessFactor = static_cast<float>(roughnessFactor->asNumber);
+			}
+			else
+			{
+				result.roughnessFactor = 1.0f;
+			}
+
+			if (JsonValue* metallicRoughnessTexture = FindJsonValue(pbrMetallicRoughness, "metallicRoughnessTexture.index"))
+			{
+				result.metallicRoughnessTexture = static_cast<int32>(metallicRoughnessTexture->asNumber);
+			}
+			else
+			{
+				result.metallicRoughnessTexture = -1;
+			}
+
+			if (JsonValue* metallicRoughnessTexCoord = FindJsonValue(pbrMetallicRoughness, "metallicRoughnessTexture.texCoord"))
+			{
+				result.metallicRoughnessTexCoord = static_cast<int32>(metallicRoughnessTexCoord->asNumber);
+			}
+		}
+		else
+		{
+			result.baseColorFactor = Vec4f::One;
+			result.baseColorTexture = -1;
+			result.metallicFactor = 1.0f;
+			result.roughnessFactor = 1.0f;
+			result.metallicRoughnessTexture = -1;
+		}
+
+		// #TODO: Normal, emissive, occlusion, alpha
+
+		return result;
+	}
+
+	GltfTexture ParseTexture(JsonValue* texture)
+	{
+		GltfTexture result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(texture, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* sampler = FindJsonValueInObject(texture, "sampler"))
+		{
+			result.sampler = static_cast<int32>(sampler->asNumber);
+		}
+		else
+		{
+			result.sampler = -1;
+		}
+
+		if (JsonValue* source = FindJsonValueInObject(texture, "source"))
+		{
+			result.source = static_cast<int32>(source->asNumber);
+		}
+		else
+		{
+			result.source = -1;
+		}
+
+		return result;
+	}
+
+	GltfImage ParseImage(JsonValue* image)
+	{
+		GltfImage result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(image, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* uri = FindJsonValueInObject(image, "uri"))
+		{
+			result.uri = uri->value;
+		}
+
+		if (JsonValue* mimeType = FindJsonValueInObject(image, "mimeType"))
+		{
+			result.mimeType = mimeType->value;
+		}
+
+		if (JsonValue* bufferView = FindJsonValueInObject(image, "bufferView"))
+		{
+			result.bufferView = static_cast<int32>(bufferView->asNumber);
+		}
+		else
+		{
+			result.bufferView = -1;
+		}
+
+		return result;
+	}
+
+	GltfSampler ParseSampler(JsonValue* sampler)
+	{
+		GltfSampler result = {};
+
+		if (JsonValue* name = FindJsonValueInObject(sampler, "name"))
+		{
+			result.name = name->value;
+		}
+
+		if (JsonValue* minFilter = FindJsonValueInObject(sampler, "minFilter"))
+		{
+			result.minFilter = static_cast<GltfFilterType>(minFilter->asNumber);
+		}
+		else
+		{
+			result.minFilter = GltfFilterType::NearestMipMapLinear;
+		}
+
+		if (JsonValue* magFilter = FindJsonValueInObject(sampler, "magFilter"))
+		{
+			result.magFilter = static_cast<GltfFilterType>(magFilter->asNumber);
+		}
+		else
+		{
+			result.magFilter = GltfFilterType::Linear;
+		}
+
+		if (JsonValue* wrapS = FindJsonValueInObject(sampler, "wrapS"))
+		{
+			result.wrapS = static_cast<GltfWrapType>(wrapS->asNumber);
+		}
+		else
+		{
+			result.wrapS = GltfWrapType::Repeat;
+		}
+
+		if (JsonValue* wrapT = FindJsonValueInObject(sampler, "wrapT"))
+		{
+			result.wrapT = static_cast<GltfWrapType>(wrapT->asNumber);
+		}
+		else
+		{
+			result.wrapT = GltfWrapType::Repeat;
 		}
 
 		return result;
@@ -628,6 +890,54 @@ namespace Bk
 			for (JsonValue* gltfSkin = FindJsonValueInArray(gltfSkins, 0); gltfSkin; gltfSkin = gltfSkin->sibling, ++skinIdx)
 			{
 				asset.skins[skinIdx] = ParseSkin(arena, gltfSkin);
+			}
+		}
+
+		JsonValue* gltfMaterials = FindJsonValueInObject(gltf, "materials");
+		if (gltfMaterials && gltfMaterials->children > 0)
+		{
+			asset.materials = Push<GltfMaterial>(arena, gltfMaterials->children);
+
+			size_t materialIdx = 0;
+			for (JsonValue* gltfMaterial = FindJsonValueInArray(gltfMaterials, 0); gltfMaterial; gltfMaterial = gltfMaterial->sibling, ++materialIdx)
+			{
+				asset.materials[materialIdx] = ParseMaterial(gltfMaterial);
+			}
+		}
+
+		JsonValue* gltfTextures = FindJsonValueInObject(gltf, "textures");
+		if (gltfTextures && gltfTextures->children > 0)
+		{
+			asset.textures = Push<GltfTexture>(arena, gltfTextures->children);
+
+			size_t textureIdx = 0;
+			for (JsonValue* gltfTexture = FindJsonValueInArray(gltfTextures, 0); gltfTexture; gltfTexture = gltfTexture->sibling, ++textureIdx)
+			{
+				asset.textures[textureIdx] = ParseTexture(gltfTexture);
+			}
+		}
+
+		JsonValue* gltfImages = FindJsonValueInObject(gltf, "images");
+		if (gltfImages && gltfImages->children > 0)
+		{
+			asset.images = Push<GltfImage>(arena, gltfImages->children);
+
+			size_t imageIdx = 0;
+			for (JsonValue* gltfImage = FindJsonValueInArray(gltfImages, 0); gltfImage; gltfImage = gltfImage->sibling, ++imageIdx)
+			{
+				asset.images[imageIdx] = ParseImage(gltfImage);
+			}
+		}
+
+		JsonValue* gltfSamplers = FindJsonValueInObject(gltf, "samplers");
+		if (gltfSamplers && gltfSamplers->children > 0)
+		{
+			asset.samplers = Push<GltfSampler>(arena, gltfSamplers->children);
+
+			size_t samplerIdx = 0;
+			for (JsonValue* gltfSampler = FindJsonValueInArray(gltfSamplers, 0); gltfSampler; gltfSampler = gltfSampler->sibling, ++samplerIdx)
+			{
+				asset.samplers[samplerIdx] = ParseSampler(gltfSampler);
 			}
 		}
 
