@@ -39,7 +39,7 @@ namespace Bk
 		Uint32,
 	};
 
-	struct GpuPipelineDesc
+	struct GpuRenderPipelineDesc
 	{
 		String name;
 
@@ -58,6 +58,19 @@ namespace Bk
 
 		TSpan<uint32> bindingLayouts;
 		GpuIndexFormat indexFormat;
+	};
+
+	struct GpuComputePipelineDesc
+	{
+		String name;
+
+		struct
+		{
+			String code;
+			String entryPoint;
+		} computeShader;
+
+		TSpan<uint32> bindingLayouts;
 	};
 
 	enum class GpuBufferType : uint8
@@ -142,19 +155,25 @@ namespace Bk
 		uint32 height;
 	};
 
-	struct GpuPassDesc
+	struct GpuRenderPassDesc
 	{
 		String name;
 		uint32 surface;
 		float clearColor[4];
 	};
 
+	struct GpuComputePassDesc
+	{
+		String name;
+	};
+
 	struct GpuDrawDesc
 	{
 		uint32 pipeline;
+		TSpan<uint32> bindingGroups;
+
 		TSpan<uint32> vertexBuffers;
 		uint32 indexBuffer;
-		TSpan<uint32> bindingGroups;
 
 		uint32 vertexOffset;
 		uint32 indexOffset;
@@ -164,10 +183,23 @@ namespace Bk
 		uint32 instanceCount;
 	};
 
+	struct GpuDispatchDesc
+	{
+		uint32 pipeline;
+		TSpan<uint32> bindingGroups;
+
+		uint32 workgroupCountX;
+		uint32 workgroupCountY;
+		uint32 workgroupCountZ;
+	};
+
 	void GpuInitialize();
 
-	uint32 CreatePipeline(const GpuPipelineDesc& desc);
-	void DestroyPipeline(uint32 handle);
+	uint32 CreateRenderPipeline(const GpuRenderPipelineDesc& desc);
+	void DestroyRenderPipeline(uint32 handle);
+
+	uint32 CreateComputePipeline(const GpuComputePipelineDesc& desc);
+	void DestroyComputePipeline(uint32 handle);
 
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
 	void WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset = 0);
@@ -187,8 +219,12 @@ namespace Bk
 	bool BeginFrame();
 	bool EndFrame();
 
-	void BeginPass(const GpuPassDesc& desc);
-	void EndPass();
+	void BeginRenderPass(const GpuRenderPassDesc& desc);
+	void EndRenderPass();
+
+	void BeginComputePass(const GpuComputePassDesc& desc);
+	void EndComputePass();
 
 	void Draw(const GpuDrawDesc& desc);
+	void Dispatch(const GpuDispatchDesc& desc);
 }

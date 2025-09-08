@@ -194,7 +194,7 @@ void Initialize()
 		},
 	});
 
-	state.meshPipeline = CreatePipeline({
+	state.meshPipeline = CreateRenderPipeline({
 		.name = "Mesh Pipeline",
 		.vertexShader = {
 			.code = shaderCode,
@@ -358,7 +358,7 @@ bool OnAppUpdate()
 		WriteBuffer(state.boneTransformsBuffer, AsBytes(state.animPlayer.transforms));
 	}
 
-	BeginPass({
+	BeginRenderPass({
 		.name = "Sandbox Pass",
 		.surface = state.surface,
 		.clearColor = { 0.12f, 0.12f, 0.14f, 1.0f },
@@ -370,15 +370,15 @@ bool OnAppUpdate()
 		{
 			Draw({
 				.pipeline = state.meshPipeline,
+				.bindingGroups = {
+					state.globalBindingGroup,
+				},
 				.vertexBuffers = {
 					mesh.positionsBuffer,
 					mesh.boneIndicesBuffer,
 					mesh.boneWeightsBuffer,
 				},
 				.indexBuffer = mesh.indicesBuffer,
-				.bindingGroups = {
-					state.globalBindingGroup,
-				},
 				.vertexOffset = static_cast<uint32>(section.vertexOffset),
 				.indexOffset = static_cast<uint32>(section.indexOffset),
 				.triangleCount = static_cast<uint32>(section.triangleCount),
@@ -387,7 +387,7 @@ bool OnAppUpdate()
 		}
 	}
 
-	EndPass();
+	EndRenderPass();
 
 	EndFrame();
 	PresentSurface(state.surface);

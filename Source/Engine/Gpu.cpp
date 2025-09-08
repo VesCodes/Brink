@@ -10,10 +10,15 @@
 
 namespace Bk
 {
-	struct GpuPipeline
+	struct GpuRenderPipeline
 	{
 		WGPURenderPipeline handle;
 		WGPUIndexFormat indexFormat;
+	};
+
+	struct GpuComputePipeline
+	{
+		WGPUComputePipeline handle;
 	};
 
 	struct GpuBuffer
@@ -45,7 +50,8 @@ namespace Bk
 	{
 		Arena arena;
 
-		TPool<GpuPipeline> pipelines;
+		TPool<GpuRenderPipeline> renderPipelines;
+		TPool<GpuComputePipeline> computePipelines;
 		TPool<GpuBuffer> buffers;
 		TPool<GpuBindingLayout> bindingLayouts;
 		TPool<GpuBindingGroup> bindingGroups;
@@ -58,6 +64,7 @@ namespace Bk
 
 		WGPUCommandEncoder commandEncoder;
 		WGPURenderPassEncoder renderPassEncoder;
+		WGPUComputePassEncoder computePassEncoder;
 	} gpuContext;
 
 	static WGPUStringView WgpuConvert(String string)
@@ -122,7 +129,8 @@ namespace Bk
 
 	void GpuInitialize()
 	{
-		Allocate(gpuContext.arena, gpuContext.pipelines, 512);
+		Allocate(gpuContext.arena, gpuContext.renderPipelines, 512);
+		Allocate(gpuContext.arena, gpuContext.computePipelines, 512);
 		Allocate(gpuContext.arena, gpuContext.buffers, 512);
 		Allocate(gpuContext.arena, gpuContext.bindingLayouts, 512);
 		Allocate(gpuContext.arena, gpuContext.bindingGroups, 512);
@@ -203,7 +211,7 @@ namespace Bk
 		}
 	}
 
-	uint32 CreatePipeline(const GpuPipelineDesc& desc)
+	uint32 CreateRenderPipeline(const GpuRenderPipelineDesc& desc)
 	{
 		ArenaScope scratch = GetScratchArena();
 
@@ -322,7 +330,7 @@ namespace Bk
 		uint32 pipelineHandle = 0;
 		if (pipeline)
 		{
-			GpuPipeline* pipelineWrapper = AcquireSlot(gpuContext.pipelines, &pipelineHandle);
+			GpuRenderPipeline* pipelineWrapper = AcquireSlot(gpuContext.renderPipelines, &pipelineHandle);
 			pipelineWrapper->handle = pipeline;
 			pipelineWrapper->indexFormat = WgpuConvert(desc.indexFormat);
 		}
@@ -330,13 +338,83 @@ namespace Bk
 		return pipelineHandle;
 	}
 
-	void DestroyPipeline(uint32 handle)
+	void DestroyRenderPipeline(uint32 handle)
 	{
-		GpuPipeline* pipeline = GetSlot(gpuContext.pipelines, handle);
+		GpuRenderPipeline* pipeline = GetSlot(gpuContext.renderPipelines, handle);
 		if (pipeline)
 		{
 			wgpuRenderPipelineRelease(pipeline->handle);
-			ReleaseSlot(gpuContext.pipelines, handle);
+			ReleaseSlot(gpuContext.renderPipelines, handle);
+		}
+	}
+
+	uint32 CreateComputePipeline(const GpuComputePipelineDesc& desc)
+	{
+		ArenaScope scratch = GetScratchArena();
+
+		WGPUComputePipelineDescriptor pipelineDesc = {};
+		pipelineDesc.label = WgpuConvert(desc.name);
+
+		if (desc.computeShader.code.length != 0)
+		{
+			WGPUShaderSourceWGSL shaderSourceDesc = {};
+			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
+			shaderSourceDesc.code = WgpuConvert(desc.computeShader.code);
+
+			WGPUShaderModuleDescriptor shaderDesc = {};
+			shaderDesc.nextInChain = &shaderSourceDesc.chain;
+
+			pipelineDesc.compute.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+			pipelineDesc.compute.entryPoint = WgpuConvert(desc.computeShader.entryPoint);
+		}
+
+		if (desc.bindingLayouts.length != 0)
+		{
+			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
+			pipelineLayoutDesc.label = WgpuConvert(desc.name);
+
+			TSpan<WGPUBindGroupLayout> bindingLayouts = PushZeroed<WGPUBindGroupLayout>(scratch.arena, desc.bindingLayouts.length);
+
+			pipelineLayoutDesc.bindGroupLayouts = bindingLayouts;
+			pipelineLayoutDesc.bindGroupLayoutCount = desc.bindingLayouts.length;
+
+			for (size_t layoutIdx = 0; layoutIdx < bindingLayouts.length; ++layoutIdx)
+			{
+				bindingLayouts[layoutIdx] = GetSlot(gpuContext.bindingLayouts, desc.bindingLayouts[layoutIdx])->handle;
+			}
+
+			pipelineDesc.layout = wgpuDeviceCreatePipelineLayout(gpuContext.device, &pipelineLayoutDesc);
+		}
+
+		WGPUComputePipeline pipeline = wgpuDeviceCreateComputePipeline(gpuContext.device, &pipelineDesc);
+
+		if (pipelineDesc.compute.module)
+		{
+			wgpuShaderModuleRelease(pipelineDesc.compute.module);
+		}
+
+		if (pipelineDesc.layout)
+		{
+			wgpuPipelineLayoutRelease(pipelineDesc.layout);
+		}
+
+		uint32 pipelineHandle = 0;
+		if (pipeline)
+		{
+			GpuComputePipeline* pipelineWrapper = AcquireSlot(gpuContext.computePipelines, &pipelineHandle);
+			pipelineWrapper->handle = pipeline;
+		}
+
+		return pipelineHandle;
+	}
+
+	void DestroyComputePipeline(uint32 handle)
+	{
+		GpuComputePipeline* pipeline = GetSlot(gpuContext.computePipelines, handle);
+		if (pipeline)
+		{
+			wgpuComputePipelineRelease(pipeline->handle);
+			ReleaseSlot(gpuContext.computePipelines, handle);
 		}
 	}
 
@@ -649,7 +727,7 @@ namespace Bk
 		return true;
 	}
 
-	void BeginPass(const GpuPassDesc& desc)
+	void BeginRenderPass(const GpuRenderPassDesc& desc)
 	{
 		BK_ASSERT(gpuContext.renderPassEncoder == nullptr);
 
@@ -693,7 +771,7 @@ namespace Bk
 		gpuContext.renderPassEncoder = wgpuCommandEncoderBeginRenderPass(gpuContext.commandEncoder, &passDesc);
 	}
 
-	void EndPass()
+	void EndRenderPass()
 	{
 		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
 
@@ -702,12 +780,31 @@ namespace Bk
 		gpuContext.renderPassEncoder = nullptr;
 	}
 
+	void BeginComputePass(const GpuComputePassDesc& desc)
+	{
+		BK_ASSERT(gpuContext.computePassEncoder == nullptr);
+
+		WGPUComputePassDescriptor passDesc = {};
+		passDesc.label = WgpuConvert(desc.name);
+
+		gpuContext.computePassEncoder = wgpuCommandEncoderBeginComputePass(gpuContext.commandEncoder, &passDesc);
+	}
+
+	void EndComputePass()
+	{
+		BK_ASSERT(gpuContext.computePassEncoder != nullptr);
+
+		wgpuComputePassEncoderEnd(gpuContext.computePassEncoder);
+		wgpuComputePassEncoderRelease(gpuContext.computePassEncoder);
+		gpuContext.computePassEncoder = nullptr;
+	}
+
 	void Draw(const GpuDrawDesc& desc)
 	{
 		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
 		BK_ASSERT(desc.pipeline);
 
-		GpuPipeline* pipeline = GetSlot(gpuContext.pipelines, desc.pipeline);
+		GpuRenderPipeline* pipeline = GetSlot(gpuContext.renderPipelines, desc.pipeline);
 		wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
 
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
@@ -737,5 +834,22 @@ namespace Bk
 				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
 				desc.vertexOffset, desc.instanceOffset);
 		}
+	}
+
+	void Dispatch(const GpuDispatchDesc& desc)
+	{
+		BK_ASSERT(gpuContext.computePassEncoder != nullptr);
+		BK_ASSERT(desc.pipeline);
+
+		GpuComputePipeline* pipeline = GetSlot(gpuContext.computePipelines, desc.pipeline);
+		wgpuComputePassEncoderSetPipeline(gpuContext.computePassEncoder, pipeline->handle);
+
+		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
+		{
+			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx]);
+			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
+		}
+
+		wgpuComputePassEncoderDispatchWorkgroups(gpuContext.computePassEncoder, desc.workgroupCountX, desc.workgroupCountY, desc.workgroupCountZ);
 	}
 }
