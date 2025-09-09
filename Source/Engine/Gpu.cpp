@@ -428,12 +428,24 @@ namespace Bk
 		bufferDesc.size = AlignUp(bufferSize, 4); // Mapping requires size to be multiple of 4
 		bufferDesc.mappedAtCreation = desc.data.length != 0;
 
-		switch (desc.type)
+		if (EnumHasAnyFlags(desc.type, GpuBufferType::Uniform))
 		{
-			case GpuBufferType::Uniform: bufferDesc.usage = WGPUBufferUsage_Uniform; break;
-			case GpuBufferType::Storage: bufferDesc.usage = WGPUBufferUsage_Storage; break;
-			case GpuBufferType::Vertex: bufferDesc.usage = WGPUBufferUsage_Vertex; break;
-			case GpuBufferType::Index: bufferDesc.usage = WGPUBufferUsage_Index; break;
+			bufferDesc.usage |= WGPUBufferUsage_Uniform;
+		}
+
+		if (EnumHasAnyFlags(desc.type, GpuBufferType::Storage))
+		{
+			bufferDesc.usage |= WGPUBufferUsage_Storage;
+		}
+
+		if (EnumHasAnyFlags(desc.type, GpuBufferType::Vertex))
+		{
+			bufferDesc.usage |= WGPUBufferUsage_Vertex;
+		}
+
+		if (EnumHasAnyFlags(desc.type, GpuBufferType::Index))
+		{
+			bufferDesc.usage |= WGPUBufferUsage_Index;
 		}
 
 		switch (desc.access)
@@ -465,13 +477,32 @@ namespace Bk
 		return bufferHandle;
 	}
 
-	void WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset)
+	size_t WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset)
 	{
+		size_t result = 0;
+
 		GpuBuffer* buffer = GetSlot(gpuContext.buffers, handle);
 		if (buffer)
 		{
-			wgpuQueueWriteBuffer(gpuContext.queue, buffer->handle, offset, data.data, data.length);
+			if (data.length % 4 != 0)
+			{
+				ArenaScope scratch = GetScratchArena();
+
+				TSpan<uint8> alignedData = Push(scratch.arena, AlignUp(data.length, 4));
+				CopyMemory(alignedData.data, data.data, data.length);
+				ZeroMemory(alignedData.data + data.length, alignedData.length - data.length);
+
+				wgpuQueueWriteBuffer(gpuContext.queue, buffer->handle, offset, alignedData.data, alignedData.length);
+				result = alignedData.length;
+			}
+			else
+			{
+				wgpuQueueWriteBuffer(gpuContext.queue, buffer->handle, offset, data.data, data.length);
+				result = data.length;
+			}
 		}
+
+		return result;
 	}
 
 	void DestroyBuffer(uint32 handle)
@@ -768,6 +799,7 @@ namespace Bk
 
 		passDesc.depthStencilAttachment = &depthAttachment;
 
+		wgpuCommandEncoderPushDebugGroup(gpuContext.commandEncoder, WgpuConvert(desc.name));
 		gpuContext.renderPassEncoder = wgpuCommandEncoderBeginRenderPass(gpuContext.commandEncoder, &passDesc);
 	}
 
@@ -778,6 +810,8 @@ namespace Bk
 		wgpuRenderPassEncoderEnd(gpuContext.renderPassEncoder);
 		wgpuRenderPassEncoderRelease(gpuContext.renderPassEncoder);
 		gpuContext.renderPassEncoder = nullptr;
+
+		wgpuCommandEncoderPopDebugGroup(gpuContext.commandEncoder);
 	}
 
 	void BeginComputePass(const GpuComputePassDesc& desc)
@@ -787,6 +821,7 @@ namespace Bk
 		WGPUComputePassDescriptor passDesc = {};
 		passDesc.label = WgpuConvert(desc.name);
 
+		wgpuCommandEncoderPushDebugGroup(gpuContext.commandEncoder, WgpuConvert(desc.name));
 		gpuContext.computePassEncoder = wgpuCommandEncoderBeginComputePass(gpuContext.commandEncoder, &passDesc);
 	}
 
@@ -797,6 +832,8 @@ namespace Bk
 		wgpuComputePassEncoderEnd(gpuContext.computePassEncoder);
 		wgpuComputePassEncoderRelease(gpuContext.computePassEncoder);
 		gpuContext.computePassEncoder = nullptr;
+
+		wgpuCommandEncoderPopDebugGroup(gpuContext.commandEncoder);
 	}
 
 	void Draw(const GpuDrawDesc& desc)
@@ -847,7 +884,7 @@ namespace Bk
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
 			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx]);
-			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
+			wgpuComputePassEncoderSetBindGroup(gpuContext.computePassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
 		}
 
 		wgpuComputePassEncoderDispatchWorkgroups(gpuContext.computePassEncoder, desc.workgroupCountX, desc.workgroupCountY, desc.workgroupCountZ);

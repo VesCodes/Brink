@@ -75,11 +75,13 @@ namespace Bk
 
 	enum class GpuBufferType : uint8
 	{
-		Uniform,
-		Storage,
-		Vertex,
-		Index,
+		Uniform = (1 << 0),
+		Storage = (1 << 1),
+		Vertex = (1 << 2),
+		Index = (1 << 3),
 	};
+
+	BK_ENUM_FLAGS(GpuBufferType);
 
 	enum class GpuBufferAccess : uint8
 	{
@@ -202,7 +204,7 @@ namespace Bk
 	void DestroyComputePipeline(uint32 handle);
 
 	uint32 CreateBuffer(const GpuBufferDesc& desc);
-	void WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset = 0);
+	size_t WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset = 0);
 	void DestroyBuffer(uint32 handle);
 
 	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc);
