@@ -582,10 +582,10 @@ namespace Bk
 			binding.binding = bindingIdx;
 			if (const GpuBuffer* buffer = GetSlot(gpuContext.buffers, bindingDesc.buffer))
 			{
-				BK_ASSERT(bindingDesc.bufferOffset < buffer->size);
+				BK_ASSERT(bindingDesc.offset + bindingDesc.size <= buffer->size);
 				binding.buffer = buffer->handle;
-				binding.offset = bindingDesc.bufferOffset;
-				binding.size = buffer->size - bindingDesc.bufferOffset;
+				binding.offset = bindingDesc.offset;
+				binding.size = bindingDesc.size != 0 ? bindingDesc.size : buffer->size - bindingDesc.offset;
 			}
 		}
 
@@ -846,8 +846,10 @@ namespace Bk
 
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
-			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx]);
-			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
+			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx].bindingGroup);
+			TSpan<uint32> dynamicOffsets = desc.bindingGroups[groupIdx].dynamicOffsets;
+
+			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, dynamicOffsets.length, dynamicOffsets.data);
 		}
 
 		for (size_t bufferIdx = 0; bufferIdx < desc.vertexBuffers.length; ++bufferIdx)
@@ -883,8 +885,10 @@ namespace Bk
 
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
-			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx]);
-			wgpuComputePassEncoderSetBindGroup(gpuContext.computePassEncoder, groupIdx, group ? group->handle : nullptr, 0, nullptr);
+			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx].bindingGroup);
+			TSpan<uint32> dynamicOffsets = desc.bindingGroups[groupIdx].dynamicOffsets;
+
+			wgpuComputePassEncoderSetBindGroup(gpuContext.computePassEncoder, groupIdx, group ? group->handle : nullptr, dynamicOffsets.length, dynamicOffsets.data);
 		}
 
 		wgpuComputePassEncoderDispatchWorkgroups(gpuContext.computePassEncoder, desc.workgroupCountX, desc.workgroupCountY, desc.workgroupCountZ);

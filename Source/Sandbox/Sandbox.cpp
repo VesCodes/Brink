@@ -371,7 +371,7 @@ bool OnAppUpdate()
 			Draw({
 				.pipeline = state.meshPipeline,
 				.bindingGroups = {
-					state.globalBindingGroup,
+					{ .bindingGroup = state.globalBindingGroup },
 				},
 				.vertexBuffers = {
 					mesh.positionsBuffer,

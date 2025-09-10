@@ -139,7 +139,8 @@ namespace Bk
 	struct GpuBindingGroupEntry
 	{
 		uint32 buffer;
-		uint64 bufferOffset;
+		uint64 offset;
+		uint64 size;
 		// uint32 texture;
 		// uint32 sampler;
 	};
@@ -169,10 +170,16 @@ namespace Bk
 		String name;
 	};
 
+	struct GpuBindingGroupOffsets
+	{
+		uint32 bindingGroup;
+		TSpan<uint32> dynamicOffsets;
+	};
+
 	struct GpuDrawDesc
 	{
 		uint32 pipeline;
-		TSpan<uint32> bindingGroups;
+		TSpan<GpuBindingGroupOffsets> bindingGroups;
 
 		TSpan<uint32> vertexBuffers;
 		uint32 indexBuffer;
@@ -188,7 +195,7 @@ namespace Bk
 	struct GpuDispatchDesc
 	{
 		uint32 pipeline;
-		TSpan<uint32> bindingGroups;
+		TSpan<GpuBindingGroupOffsets> bindingGroups;
 
 		uint32 workgroupCountX;
 		uint32 workgroupCountY;
