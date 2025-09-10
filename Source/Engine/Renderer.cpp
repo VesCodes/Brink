@@ -29,7 +29,7 @@ namespace Bk
 		Vec4f weights;
 	};
 
-	struct MeshTemp
+	struct Mesh
 	{
 		TSpan<MeshSection> sections;
 
@@ -46,7 +46,7 @@ namespace Bk
 	{
 		Arena arena;
 
-		TPool<MeshTemp> meshes;
+		TPool<Mesh> meshes;
 
 		uint32 meshConstantsBuffer;
 
@@ -245,7 +245,7 @@ namespace Bk
 		ArenaScope scratch = GetScratchArena();
 
 		uint32 handle = 0;
-		if (MeshTemp* mesh = AcquireSlot(renderer.meshes, &handle))
+		if (Mesh* mesh = AcquireSlot(renderer.meshes, &handle))
 		{
 			mesh->sections = Copy(renderer.arena, desc.sections);
 			mesh->vertexCount = desc.positions.length * 3;
@@ -312,7 +312,7 @@ namespace Bk
 
 	void SkinMesh(uint32 handle, TSpan<Mat4f> boneTransforms)
 	{
-		MeshTemp* mesh = GetSlot(renderer.meshes, handle);
+		Mesh* mesh = GetSlot(renderer.meshes, handle);
 		if (!mesh)
 		{
 			return;
@@ -358,7 +358,7 @@ namespace Bk
 
 	void DrawMesh(uint32 handle, Mat4f mvp)
 	{
-		const MeshTemp* mesh = GetSlot(renderer.meshes, handle);
+		const Mesh* mesh = GetSlot(renderer.meshes, handle);
 		if (!mesh)
 		{
 			return;

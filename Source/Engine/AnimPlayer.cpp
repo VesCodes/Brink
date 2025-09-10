@@ -23,32 +23,32 @@ namespace Bk
 		return lowerBound;
 	}
 
-	void AnimPlayer::Update(float deltaTime)
+	void UpdateAnimation(AnimPlayer& player, float deltaTime)
 	{
-		currentTime += deltaTime;
-		if (currentTime > animation.duration)
+		player.currentTime += deltaTime;
+		if (player.currentTime > player.animation.duration)
 		{
-			currentTime -= animation.duration;
+			player.currentTime -= player.animation.duration;
 		}
 
-		for (size_t i = 0; i < transforms.length; ++i)
+		for (size_t i = 0; i < player.transforms.length; ++i)
 		{
-			const Bone& bone = skeleton.bones[i];
-			const AnimTrack& track = animation.tracks[i];
-			Mat4f& transform = transforms[i];
+			const Bone& bone = player.skeleton.bones[i];
+			const AnimTrack& track = player.animation.tracks[i];
+			Mat4f& transform = player.transforms[i];
 
 			transform = Mat4f::Identity;
 
 			if (track.scaleTimes.length != 0)
 			{
-				size_t keyframe = GetKeyframe(track.scaleTimes, currentTime);
+				size_t keyframe = GetKeyframe(track.scaleTimes, player.currentTime);
 				Vec3f scale = track.scales[keyframe];
 
 				if (keyframe > 0)
 				{
 					float t0 = track.scaleTimes[keyframe - 1];
 					float t1 = track.scaleTimes[keyframe];
-					float alpha = (currentTime - t0) / (t1 - t0);
+					float alpha = (player.currentTime - t0) / (t1 - t0);
 
 					scale = Lerp(track.scales[keyframe - 1], scale, alpha);
 				}
@@ -58,14 +58,14 @@ namespace Bk
 
 			if (track.rotationTimes.length != 0)
 			{
-				size_t keyframe = GetKeyframe(track.rotationTimes, currentTime);
+				size_t keyframe = GetKeyframe(track.rotationTimes, player.currentTime);
 				Quat4f rotation = track.rotations[keyframe];
 
 				if (keyframe > 0)
 				{
 					float t0 = track.rotationTimes[keyframe - 1];
 					float t1 = track.rotationTimes[keyframe];
-					float alpha = (currentTime - t0) / (t1 - t0);
+					float alpha = (player.currentTime - t0) / (t1 - t0);
 
 					if (Dot(track.rotations[keyframe - 1], rotation) < 0)
 					{
@@ -83,14 +83,14 @@ namespace Bk
 
 			if (track.translationTimes.length != 0)
 			{
-				size_t keyframe = GetKeyframe(track.translationTimes, currentTime);
+				size_t keyframe = GetKeyframe(track.translationTimes, player.currentTime);
 				Vec3f translation = track.translations[keyframe];
 
 				if (keyframe > 0)
 				{
 					float t0 = track.translationTimes[keyframe - 1];
 					float t1 = track.translationTimes[keyframe];
-					float alpha = (currentTime - t0) / (t1 - t0);
+					float alpha = (player.currentTime - t0) / (t1 - t0);
 
 					translation = Lerp(track.translations[keyframe - 1], translation, alpha);
 				}
@@ -100,13 +100,13 @@ namespace Bk
 
 			if (bone.parentIdx != -1)
 			{
-				transform = transforms[bone.parentIdx] * transform;
+				transform = player.transforms[bone.parentIdx] * transform;
 			}
 		}
 
-		for (size_t i = 0; i < transforms.length; ++i)
+		for (size_t i = 0; i < player.transforms.length; ++i)
 		{
-			transforms[i] = transforms[i] * skeleton.invBindPose[i];
+			player.transforms[i] *= player.skeleton.invBindPose[i];
 		}
 	}
 }

@@ -9,6 +9,7 @@
 #include "Engine/AnimSequence.h"
 #include "Engine/Gpu.h"
 #include "Engine/Mesh.h"
+#include "Engine/Renderer.h"
 #include "Engine/Skeleton.h"
 
 #include "GltfLoader.h"
@@ -28,12 +29,8 @@ struct
 
 	bool initialized;
 	uint32 surface;
-	uint32 meshPipeline;
-	uint32 globalsBuffer;
-	uint32 boneTransformsBuffer;
-	uint32 globalBindingGroup;
 
-	TSpan<Mesh> meshes;
+	TSpan<uint32> meshes;
 	TSpan<AnimSequence> animations;
 	AnimPlayer animPlayer;
 	size_t activeAnimation;
@@ -59,10 +56,9 @@ void LoadGlb(TSpan<uint8> data)
 {
 	ArenaScope scratch = GetScratchArena();
 
-	for (Mesh& mesh : state.meshes)
+	for (uint32 mesh : state.meshes)
 	{
-		DestroyBuffer(mesh.positionsBuffer);
-		DestroyBuffer(mesh.indicesBuffer);
+		DestroyMesh(mesh);
 	}
 
 	state.meshes = {};
@@ -74,49 +70,10 @@ void LoadGlb(TSpan<uint8> data)
 	TSpan<MeshDesc> meshes = {};
 	if (LoadGlbMeshes(scratch.arena, data, meshes))
 	{
-		state.meshes = Push<Mesh>(state.arena, meshes.length);
+		state.meshes = Push<uint32>(state.arena, meshes.length);
 		for (size_t meshIdx = 0; meshIdx < state.meshes.length; ++meshIdx)
 		{
-			const MeshDesc& meshDesc = meshes[meshIdx];
-			Mesh& mesh = state.meshes[meshIdx];
-
-			mesh.sections = Copy(state.arena, meshDesc.sections);
-
-			Reset(resourceNameBuilder);
-			Appendf(resourceNameBuilder, "Mesh%02d_Positions", meshIdx);
-
-			mesh.positionsBuffer = CreateBuffer({
-				.name = ToString(resourceNameBuilder, scratch.arena),
-				.type = GpuBufferType::Vertex,
-				.data = AsBytes(meshDesc.positions),
-			});
-
-			Reset(resourceNameBuilder);
-			Appendf(resourceNameBuilder, "Mesh%02d_BoneIndices", meshIdx);
-
-			mesh.boneIndicesBuffer = CreateBuffer({
-				.name = ToString(resourceNameBuilder, scratch.arena),
-				.type = GpuBufferType::Vertex,
-				.data = AsBytes(meshDesc.boneIndices),
-			});
-
-			Reset(resourceNameBuilder);
-			Appendf(resourceNameBuilder, "Mesh%02d_BoneWeights", meshIdx);
-
-			mesh.boneWeightsBuffer = CreateBuffer({
-				.name = ToString(resourceNameBuilder, scratch.arena),
-				.type = GpuBufferType::Vertex,
-				.data = AsBytes(meshDesc.boneWeights),
-			});
-
-			Reset(resourceNameBuilder);
-			Appendf(resourceNameBuilder, "Mesh%02d_Indices", meshIdx);
-
-			mesh.indicesBuffer = CreateBuffer({
-				.name = ToString(resourceNameBuilder, scratch.arena),
-				.type = GpuBufferType::Index,
-				.data = AsBytes(meshDesc.indices),
-			});
+			state.meshes[meshIdx] = CreateMesh(meshes[meshIdx]);
 		}
 	}
 
@@ -163,6 +120,8 @@ void Initialize()
 	state.cameraOrientation = Quat4f::Identity;
 	state.cameraSpeed = 5.0f;
 
+	InitializeRenderer();
+
 	if (FileHandle fileHandle = OpenFile("Assets/Hiker.glb", FileAccess::Read))
 	{
 		TSpan<uint8> fileData = Push(scratch.arena, GetFileSize(fileHandle));
@@ -173,82 +132,6 @@ void Initialize()
 
 		CloseFile(fileHandle);
 	}
-
-	String shaderCode = {};
-	if (FileHandle fileHandle = OpenFile("Assets/Basic.wgsl", FileAccess::Read))
-	{
-		TSpan<uint8> fileData = Push(scratch.arena, GetFileSize(fileHandle));
-		if (ReadFile(fileHandle, fileData) == fileData.length)
-		{
-			shaderCode = String(reinterpret_cast<char*>(fileData.data), fileData.length);
-		}
-
-		CloseFile(fileHandle);
-	}
-
-	uint32 globalBindingLayout = CreateBindingLayout({
-		.name = "Global Binding Layout",
-		.bindings = {
-			{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex },
-			{ .type = GpuBindingType::ReadOnlyStorageBuffer, .stage = GpuBindingStage::Vertex },
-		},
-	});
-
-	state.meshPipeline = CreateRenderPipeline({
-		.name = "Mesh Pipeline",
-		.vertexShader = {
-			.code = shaderCode,
-			.buffers = {
-				{
-					.stride = 12,
-					.attributes = {
-						{ .offset = 0, .format = GpuVertexFormat::Float32x3 },
-					},
-				},
-				{
-					.stride = 4,
-					.attributes = {
-						{ .offset = 0, .format = GpuVertexFormat::Uint8x4 },
-					},
-				},
-				{
-					.stride = 16,
-					.attributes = {
-						{ .offset = 0, .format = GpuVertexFormat::Float32x4 },
-					},
-				},
-			},
-		},
-		.pixelShader = {
-			.code = shaderCode,
-		},
-		.bindingLayouts = {
-			globalBindingLayout,
-		},
-	});
-
-	state.globalsBuffer = CreateBuffer({
-		.name = "Globals",
-		.type = GpuBufferType::Uniform,
-		.access = GpuBufferAccess::GpuOnly,
-		.size = sizeof(Mat4f),
-	});
-
-	state.boneTransformsBuffer = CreateBuffer({
-		.name = "Bone Transforms",
-		.type = GpuBufferType::Storage,
-		.access = GpuBufferAccess::GpuOnly,
-		.size = sizeof(Mat4f) * 512,
-	});
-
-	state.globalBindingGroup = CreateBindingGroup({
-		.name = "Global Binding Group",
-		.bindingLayout = globalBindingLayout,
-		.bindings = {
-			{ .buffer = state.globalsBuffer },
-			{ .buffer = state.boneTransformsBuffer },
-		},
-	});
 }
 
 bool OnAppUpdate()
@@ -350,41 +233,29 @@ bool OnAppUpdate()
 
 	Mat4f mvp = proj * view * model;
 
-	WriteBuffer(state.globalsBuffer, AsBytes(&mvp, 1));
-
 	if (state.animPlayer.transforms.length != 0)
 	{
-		state.animPlayer.Update(deltaTime);
-		WriteBuffer(state.boneTransformsBuffer, AsBytes(state.animPlayer.transforms));
+		BeginComputePass({ .name = "Compute Pass" });
+
+		UpdateAnimation(state.animPlayer, deltaTime);
+
+		for (uint32 mesh : state.meshes)
+		{
+			SkinMesh(mesh, state.animPlayer.transforms);
+		}
+
+		EndComputePass();
 	}
 
 	BeginRenderPass({
-		.name = "Sandbox Pass",
+		.name = "Render Pass",
 		.surface = state.surface,
 		.clearColor = { 0.12f, 0.12f, 0.14f, 1.0f },
 	});
 
-	for (const Mesh& mesh : state.meshes)
+	for (uint32 mesh : state.meshes)
 	{
-		for (const MeshSection& section : mesh.sections)
-		{
-			Draw({
-				.pipeline = state.meshPipeline,
-				.bindingGroups = {
-					{ .bindingGroup = state.globalBindingGroup },
-				},
-				.vertexBuffers = {
-					mesh.positionsBuffer,
-					mesh.boneIndicesBuffer,
-					mesh.boneWeightsBuffer,
-				},
-				.indexBuffer = mesh.indicesBuffer,
-				.vertexOffset = static_cast<uint32>(section.vertexOffset),
-				.indexOffset = static_cast<uint32>(section.indexOffset),
-				.triangleCount = static_cast<uint32>(section.triangleCount),
-				.instanceCount = 1,
-			});
-		}
+		DrawMesh(mesh, mvp);
 	}
 
 	EndRenderPass();

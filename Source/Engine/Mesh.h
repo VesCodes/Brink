@@ -23,13 +23,4 @@ namespace Bk
 		TSpan<float> boneWeights;
 		TSpan<uint16> indices;
 	};
-
-	struct Mesh
-	{
-		TSpan<MeshSection> sections;
-		uint32 positionsBuffer;
-		uint32 boneIndicesBuffer;
-		uint32 boneWeightsBuffer;
-		uint32 indicesBuffer;
-	};
 }

@@ -10,12 +10,12 @@ namespace Bk
 {
 	struct AnimPlayer
 	{
-		void Update(float deltaTime);
-
 		Skeleton skeleton;
 		AnimSequence animation;
 
 		float currentTime;
 		TSpan<Mat4f> transforms;
 	};
+
+	void UpdateAnimation(AnimPlayer& player, float deltaTime);
 }
