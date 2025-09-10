@@ -176,13 +176,20 @@ namespace Bk
 		TSpan<uint32> dynamicOffsets;
 	};
 
+	struct GfxBufferOffset
+	{
+		uint32 buffer;
+		uint64 offset;
+		uint64 size;
+	};
+
 	struct GfxDrawDesc
 	{
 		uint32 pipeline;
 		TSpan<GfxBindingGroupOffsets> bindingGroups;
 
-		TSpan<uint32> vertexBuffers;
-		uint32 indexBuffer;
+		TSpan<GfxBufferOffset> vertexBuffers;
+		GfxBufferOffset indexBuffer;
 
 		uint32 vertexOffset;
 		uint32 indexOffset;

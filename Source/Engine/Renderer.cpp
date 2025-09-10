@@ -14,32 +14,40 @@ namespace Bk
 		Mat4f mvp;
 	};
 
+	// #TODO: uint32 -> uint64 offset/size
+
 	struct SkinningConstants
 	{
 		uint32 positionsOffset;
-		uint32 boneInfluencesOffset;
+		uint32 boneIndicesOffset;
+		uint32 boneWeightsOffset;
 		uint32 boneTransformsOffset;
 		uint32 skinnedPositionsOffset;
 		uint32 vertexCount;
 	};
 
-	struct BoneInfluence
-	{
-		Vec4u indices;
-		Vec4f weights;
-	};
-
 	struct Mesh
 	{
 		TSpan<MeshSection> sections;
-
-		uint32 positionsOffset;
-		uint32 indicesOffset;
 		uint32 vertexCount;
 
+		uint32 positionsOffset;
+		uint32 positionsSize;
+
+		uint32 indicesOffset;
+		uint32 indicesSize;
+
 		uint32 skinningPositionsOffset;
-		uint32 skinningBoneInfluencesOffset;
+		uint32 skinningPositionsSize;
+
+		uint32 skinningBoneIndicesOffset;
+		uint32 skinningBoneIndicesSize;
+
+		uint32 skinningBoneWeightsOffset;
+		uint32 skinningBoneWeightsSize;
+
 		uint32 skinningBoneTransformsOffset;
+		uint32 skinningBoneTransformsSize;
 	};
 
 	struct
@@ -48,35 +56,15 @@ namespace Bk
 
 		TPool<Mesh> meshes;
 
+		uint32 meshBufferOffset;
+		uint32 meshBufferSize;
+		uint32 meshBuffer;
+
 		uint32 meshConstantsBuffer;
-
-		// #TODO: Single mesh storage buffer for everything?
-
-		size_t meshPositionsBufferOffset;
-		size_t meshPositionsBufferSize;
-		uint32 meshPositionsBuffer;
-
-		size_t meshIndicesBufferOffset;
-		size_t meshIndicesBufferSize;
-		uint32 meshIndicesBuffer;
-
 		uint32 meshBindingGroup;
 		uint32 meshPipeline;
 
 		uint32 skinningConstantsBuffer;
-
-		size_t skinningPositionsBufferOffset;
-		size_t skinningPositionsBufferSize;
-		uint32 skinningPositionsBuffer;
-
-		size_t skinningBoneInfluencesBufferOffset;
-		size_t skinningBoneInfluencesBufferSize;
-		uint32 skinningBoneInfluencesBuffer;
-
-		size_t skinningBoneTransformsBufferOffset;
-		size_t skinningBoneTransformsBufferSize;
-		uint32 skinningBoneTransformsBuffer;
-
 		uint32 skinningBindingGroup;
 		uint32 skinningPipeline;
 	} renderer;
@@ -105,29 +93,20 @@ namespace Bk
 
 		Allocate(renderer.arena, renderer.meshes, 512);
 
+		renderer.meshBufferOffset = 0;
+		renderer.meshBufferSize = BK_MEGABYTES(16);
+		renderer.meshBuffer = CreateBuffer({
+			.name = "Mesh Buffer",
+			.type = GfxBufferType::Storage | GfxBufferType::Vertex | GfxBufferType::Index,
+			.access = GfxBufferAccess::GpuOnly,
+			.size = renderer.meshBufferSize,
+		});
+
 		renderer.meshConstantsBuffer = CreateBuffer({
 			.name = "Mesh Constants",
 			.type = GfxBufferType::Uniform,
 			.access = GfxBufferAccess::GpuOnly,
 			.size = sizeof(MeshConstants),
-		});
-
-		renderer.meshPositionsBufferOffset = 0;
-		renderer.meshPositionsBufferSize = BK_MEGABYTES(4);
-		renderer.meshPositionsBuffer = CreateBuffer({
-			.name = "Mesh Positions",
-			.type = GfxBufferType::Vertex | GfxBufferType::Storage,
-			.access = GfxBufferAccess::GpuOnly,
-			.size = renderer.meshPositionsBufferSize,
-		});
-
-		renderer.meshIndicesBufferOffset = 0;
-		renderer.meshIndicesBufferSize = BK_MEGABYTES(4);
-		renderer.meshIndicesBuffer = CreateBuffer({
-			.name = "Mesh Indices",
-			.type = GfxBufferType::Index,
-			.access = GfxBufferAccess::GpuOnly,
-			.size = renderer.meshIndicesBufferSize,
 		});
 
 		uint32 meshBindingLayout = CreateBindingLayout({
@@ -168,8 +147,6 @@ namespace Bk
 			},
 		});
 
-		// ---
-
 		renderer.skinningConstantsBuffer = CreateBuffer({
 			.name = "Skinning Constants",
 			.type = GfxBufferType::Storage,
@@ -177,40 +154,10 @@ namespace Bk
 			.size = AlignUp(sizeof(SkinningConstants), 256) * renderer.meshes.capacity,
 		});
 
-		renderer.skinningPositionsBufferOffset = 0;
-		renderer.skinningPositionsBufferSize = BK_MEGABYTES(4);
-		renderer.skinningPositionsBuffer = CreateBuffer({
-			.name = "Skinning Positions",
-			.type = GfxBufferType::Storage,
-			.access = GfxBufferAccess::GpuOnly,
-			.size = renderer.skinningPositionsBufferSize,
-		});
-
-		renderer.skinningBoneInfluencesBufferOffset = 0;
-		renderer.skinningBoneInfluencesBufferSize = BK_MEGABYTES(4);
-		renderer.skinningBoneInfluencesBuffer = CreateBuffer({
-			.name = "Skinning Bone Influences",
-			.type = GfxBufferType::Storage,
-			.access = GfxBufferAccess::GpuOnly,
-			.size = renderer.skinningBoneInfluencesBufferSize,
-		});
-
-		renderer.skinningBoneTransformsBufferOffset = 0;
-		renderer.skinningBoneTransformsBufferSize = BK_MEGABYTES(4);
-		renderer.skinningBoneTransformsBuffer = CreateBuffer({
-			.name = "Skinning Bone Transforms",
-			.type = GfxBufferType::Storage,
-			.access = GfxBufferAccess::GpuOnly,
-			.size = renderer.skinningBoneTransformsBufferSize,
-		});
-
 		uint32 skinningBindingLayout = CreateBindingLayout({
 			.name = "Skinning Layout",
 			.bindings = {
 				{ .type = GfxBindingType::DynamicReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
-				{ .type = GfxBindingType::ReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
-				{ .type = GfxBindingType::ReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
-				{ .type = GfxBindingType::ReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
 				{ .type = GfxBindingType::StorageBuffer, .stage = GfxBindingStage::Compute },
 			},
 		});
@@ -220,10 +167,7 @@ namespace Bk
 			.bindingLayout = skinningBindingLayout,
 			.bindings = {
 				{ .buffer = renderer.skinningConstantsBuffer, .size = AlignUp(sizeof(SkinningConstants), 256) },
-				{ .buffer = renderer.skinningPositionsBuffer },
-				{ .buffer = renderer.skinningBoneInfluencesBuffer },
-				{ .buffer = renderer.skinningBoneTransformsBuffer },
-				{ .buffer = renderer.meshPositionsBuffer },
+				{ .buffer = renderer.meshBuffer },
 			},
 		});
 
@@ -248,53 +192,54 @@ namespace Bk
 		if (Mesh* mesh = AcquireSlot(renderer.meshes, &handle))
 		{
 			mesh->sections = Copy(renderer.arena, desc.sections);
-			mesh->vertexCount = desc.positions.length * 3;
+			mesh->vertexCount = desc.positions.length;
 
 			TSpan<uint8> meshPositions = AsBytes(desc.positions);
 			TSpan<uint8> meshIndices = AsBytes(desc.indices);
 
-			BK_ASSERT(renderer.meshPositionsBufferOffset + meshPositions.length <= renderer.meshPositionsBufferSize);
-			mesh->positionsOffset = renderer.meshPositionsBufferOffset / sizeof(Vec3f);
-			renderer.meshPositionsBufferOffset += WriteBuffer(renderer.meshPositionsBuffer, meshPositions, renderer.meshPositionsBufferOffset);
+			BK_ASSERT(renderer.meshBufferOffset + meshPositions.length <= renderer.meshBufferSize);
+			mesh->positionsOffset = renderer.meshBufferOffset;
+			mesh->positionsSize = WriteBuffer(renderer.meshBuffer, meshPositions, renderer.meshBufferOffset);
+			renderer.meshBufferOffset += mesh->positionsSize;
 
-			BK_ASSERT(renderer.meshIndicesBufferOffset + meshIndices.length <= renderer.meshIndicesBufferSize);
-			mesh->indicesOffset = renderer.meshIndicesBufferOffset / sizeof(uint16);
-			renderer.meshIndicesBufferOffset += WriteBuffer(renderer.meshIndicesBuffer, meshIndices, renderer.meshIndicesBufferOffset);
+			BK_ASSERT(renderer.meshBufferOffset + meshIndices.length <= renderer.meshBufferSize);
+			mesh->indicesOffset = renderer.meshBufferOffset;
+			mesh->indicesSize = WriteBuffer(renderer.meshBuffer, meshIndices, renderer.meshBufferOffset);
+			renderer.meshBufferOffset += mesh->indicesSize;
 
 			mesh->skinningPositionsOffset = UINT32_MAX;
-			mesh->skinningBoneInfluencesOffset = UINT32_MAX;
+			mesh->skinningBoneIndicesOffset = UINT32_MAX;
+			mesh->skinningBoneWeightsOffset = UINT32_MAX;
 			mesh->skinningBoneTransformsOffset = UINT32_MAX;
 
 			if (desc.boneIndices.length != 0)
 			{
 				BK_ASSERT(desc.boneIndices.length == desc.boneWeights.length);
 
-				BK_ASSERT(renderer.skinningPositionsBufferOffset + meshPositions.length <= renderer.skinningPositionsBufferSize);
-				mesh->skinningPositionsOffset = renderer.skinningPositionsBufferOffset / sizeof(Vec3f);
-				renderer.skinningPositionsBufferOffset += WriteBuffer(renderer.skinningPositionsBuffer, meshPositions, renderer.skinningPositionsBufferOffset);
+				BK_ASSERT(renderer.meshBufferOffset + meshPositions.length <= renderer.meshBufferSize);
+				mesh->skinningPositionsOffset = renderer.meshBufferOffset;
+				mesh->skinningPositionsSize = WriteBuffer(renderer.meshBuffer, meshPositions, renderer.meshBufferOffset);
+				renderer.meshBufferOffset += mesh->skinningPositionsSize;
 
-				TSpan<BoneInfluence> boneInfluences = Push<BoneInfluence>(scratch.arena, desc.boneIndices.length / 4);
-				for (size_t boneIdx = 0; boneIdx < boneInfluences.length; ++boneIdx)
+				// #TODO: Change bone indices to uint16 in skinning shader + when loading MeshDesc
+				TSpan<uint32> boneIndicesU32 = Push<uint32>(scratch.arena, desc.boneIndices.length);
+				for (size_t i = 0; i < boneIndicesU32.length; ++i)
 				{
-					BoneInfluence& boneInfluence = boneInfluences[boneIdx];
-
-					// #TODO: Pack indices down to 16b each once validated
-					boneInfluence.indices[0] = desc.boneIndices[boneIdx * 4 + 0];
-					boneInfluence.indices[1] = desc.boneIndices[boneIdx * 4 + 1];
-					boneInfluence.indices[2] = desc.boneIndices[boneIdx * 4 + 2];
-					boneInfluence.indices[3] = desc.boneIndices[boneIdx * 4 + 3];
-
-					boneInfluence.weights[0] = desc.boneWeights[boneIdx * 4 + 0];
-					boneInfluence.weights[1] = desc.boneWeights[boneIdx * 4 + 1];
-					boneInfluence.weights[2] = desc.boneWeights[boneIdx * 4 + 2];
-					boneInfluence.weights[3] = desc.boneWeights[boneIdx * 4 + 3];
+					boneIndicesU32[i] = desc.boneIndices[i];
 				}
 
-				TSpan<uint8> boneInfluencesU8 = AsBytes(boneInfluences);
+				TSpan<uint8> boneIndices = AsBytes(boneIndicesU32);
+				TSpan<uint8> boneWeights = AsBytes(desc.boneWeights);
 
-				BK_ASSERT(renderer.skinningBoneInfluencesBufferOffset + boneInfluencesU8.length <= renderer.skinningBoneInfluencesBufferSize);
-				mesh->skinningBoneInfluencesOffset = renderer.skinningBoneInfluencesBufferOffset / sizeof(BoneInfluence);
-				renderer.skinningBoneInfluencesBufferOffset += WriteBuffer(renderer.skinningBoneInfluencesBuffer, boneInfluencesU8, renderer.skinningBoneInfluencesBufferOffset);
+				BK_ASSERT(renderer.meshBufferOffset + boneIndices.length <= renderer.meshBufferSize);
+				mesh->skinningBoneIndicesOffset = renderer.meshBufferOffset;
+				mesh->skinningBoneIndicesSize = WriteBuffer(renderer.meshBuffer, boneIndices, renderer.meshBufferOffset);
+				renderer.meshBufferOffset += mesh->skinningBoneIndicesSize;
+
+				BK_ASSERT(renderer.meshBufferOffset + boneWeights.length <= renderer.meshBufferSize);
+				mesh->skinningBoneWeightsOffset = renderer.meshBufferOffset;
+				mesh->skinningBoneWeightsSize = WriteBuffer(renderer.meshBuffer, boneWeights, renderer.meshBufferOffset);
+				renderer.meshBufferOffset += mesh->skinningBoneWeightsSize;
 			}
 		}
 
@@ -303,7 +248,7 @@ namespace Bk
 
 	void DestroyMesh(uint32 handle)
 	{
-		// #TODO: Buffer fragmentation; mesh sections allocation
+		// #TODO: Mesh buffer fragmentation; mesh sections allocation
 		// Some sort of allocation manager should suffice; e.g. https://github.com/sebbbi/OffsetAllocator
 		ReleaseSlot(renderer.meshes, handle);
 	}
@@ -321,16 +266,21 @@ namespace Bk
 		TSpan<uint8> skinningBoneTransforms = AsBytes(boneTransforms);
 		if (mesh->skinningBoneTransformsOffset == UINT32_MAX)
 		{
-			BK_ASSERT(renderer.skinningBoneTransformsBufferOffset + skinningBoneTransforms.length <= renderer.skinningBoneTransformsBufferSize);
-			mesh->skinningBoneTransformsOffset = renderer.skinningBoneTransformsBufferOffset / sizeof(Mat4f);
-			renderer.skinningBoneTransformsBufferOffset += skinningBoneTransforms.length;
+			BK_ASSERT(renderer.meshBufferOffset + skinningBoneTransforms.length <= renderer.meshBufferSize);
+			mesh->skinningBoneTransformsOffset = renderer.meshBufferOffset;
+			mesh->skinningBoneTransformsSize = WriteBuffer(renderer.meshBuffer, skinningBoneTransforms, mesh->skinningBoneTransformsOffset);
+			renderer.meshBufferOffset += mesh->skinningBoneTransformsSize;
 		}
-
-		WriteBuffer(renderer.skinningBoneTransformsBuffer, skinningBoneTransforms, mesh->skinningBoneTransformsOffset * sizeof(Mat4f));
+		else
+		{
+			BK_ASSERT(skinningBoneTransforms.length <= mesh->skinningBoneTransformsSize);
+			WriteBuffer(renderer.meshBuffer, skinningBoneTransforms, mesh->skinningBoneTransformsOffset);
+		}
 
 		SkinningConstants skinningConstants;
 		skinningConstants.positionsOffset = mesh->skinningPositionsOffset;
-		skinningConstants.boneInfluencesOffset = mesh->skinningBoneInfluencesOffset;
+		skinningConstants.boneIndicesOffset = mesh->skinningBoneIndicesOffset;
+		skinningConstants.boneWeightsOffset = mesh->skinningBoneWeightsOffset;
 		skinningConstants.boneTransformsOffset = mesh->skinningBoneTransformsOffset;
 		skinningConstants.skinnedPositionsOffset = mesh->positionsOffset;
 		skinningConstants.vertexCount = mesh->vertexCount;
@@ -375,11 +325,11 @@ namespace Bk
 					{ .bindingGroup = renderer.meshBindingGroup },
 				},
 				.vertexBuffers = {
-					renderer.meshPositionsBuffer,
+					{ .buffer = renderer.meshBuffer, .offset = mesh->positionsOffset, .size = mesh->positionsSize },
 				},
-				.indexBuffer = renderer.meshIndicesBuffer,
-				.vertexOffset = static_cast<uint32>(mesh->positionsOffset + section.vertexOffset),
-				.indexOffset = static_cast<uint32>(mesh->indicesOffset + section.indexOffset),
+				.indexBuffer = { .buffer = renderer.meshBuffer, .offset = mesh->indicesOffset, .size = mesh->indicesSize },
+				.vertexOffset = static_cast<uint32>(section.vertexOffset),
+				.indexOffset = static_cast<uint32>(section.indexOffset),
 				.triangleCount = static_cast<uint32>(section.triangleCount),
 				.instanceCount = 1,
 			});

@@ -862,18 +862,24 @@ namespace Bk
 
 		for (size_t bufferIdx = 0; bufferIdx < desc.vertexBuffers.length; ++bufferIdx)
 		{
-			GfxBuffer* buffer = GetSlot(gfx.buffers, desc.vertexBuffers[bufferIdx]);
-			wgpuRenderPassEncoderSetVertexBuffer(gfx.renderPassEncoder, bufferIdx, buffer->handle, 0, buffer->size);
+			GfxBuffer* buffer = GetSlot(gfx.buffers, desc.vertexBuffers[bufferIdx].buffer);
+			uint64 bufferOffset = desc.vertexBuffers[bufferIdx].offset;
+			uint64 bufferSize = desc.vertexBuffers[bufferIdx].size != 0 ? desc.vertexBuffers[bufferIdx].size : buffer->size - bufferOffset;
+
+			wgpuRenderPassEncoderSetVertexBuffer(gfx.renderPassEncoder, bufferIdx, buffer->handle, bufferOffset, bufferSize);
 		}
 
-		if (desc.indexBuffer)
+		if (desc.indexBuffer.buffer)
 		{
-			GfxBuffer* buffer = GetSlot(gfx.buffers, desc.indexBuffer);
-			wgpuRenderPassEncoderSetIndexBuffer(gfx.renderPassEncoder, buffer->handle, pipeline->indexFormat, 0, buffer->size);
+			GfxBuffer* buffer = GetSlot(gfx.buffers, desc.indexBuffer.buffer);
+			uint64 bufferOffset = desc.indexBuffer.offset;
+			uint64 bufferSize = desc.indexBuffer.size != 0 ? desc.indexBuffer.size : buffer->size - bufferOffset;
+
+			wgpuRenderPassEncoderSetIndexBuffer(gfx.renderPassEncoder, buffer->handle, pipeline->indexFormat, bufferOffset, bufferSize);
 
 			wgpuRenderPassEncoderDrawIndexed(
 				gfx.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
-				desc.indexOffset, static_cast<int32>(desc.vertexOffset), desc.instanceOffset); // #TODO: Why is baseVertex signed?
+				desc.indexOffset, static_cast<int32>(desc.vertexOffset), desc.instanceOffset);
 		}
 		else
 		{
