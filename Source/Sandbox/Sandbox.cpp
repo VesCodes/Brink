@@ -7,7 +7,7 @@
 
 #include "Engine/AnimPlayer.h"
 #include "Engine/AnimSequence.h"
-#include "Engine/Gpu.h"
+#include "Engine/Graphics.h"
 #include "Engine/Mesh.h"
 #include "Engine/Renderer.h"
 #include "Engine/Skeleton.h"
@@ -373,7 +373,7 @@ int32 AppMain(int32 argc, char** argv)
 		.eventCallback = OnAppEvent,
 	});
 
-	GpuInitialize();
+	InitializeGraphics();
 
 	return 0;
 }

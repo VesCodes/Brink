@@ -1,4 +1,4 @@
-#include "Gpu.h"
+#include "Graphics.h"
 
 #include "Core/Pool.h"
 
@@ -10,34 +10,34 @@
 
 namespace Bk
 {
-	struct GpuRenderPipeline
+	struct GfxRenderPipeline
 	{
 		WGPURenderPipeline handle;
 		WGPUIndexFormat indexFormat;
 	};
 
-	struct GpuComputePipeline
+	struct GfxComputePipeline
 	{
 		WGPUComputePipeline handle;
 	};
 
-	struct GpuBuffer
+	struct GfxBuffer
 	{
 		WGPUBuffer handle;
 		uint64 size;
 	};
 
-	struct GpuBindingLayout
+	struct GfxBindingLayout
 	{
 		WGPUBindGroupLayout handle;
 	};
 
-	struct GpuBindingGroup
+	struct GfxBindingGroup
 	{
 		WGPUBindGroup handle;
 	};
 
-	struct GpuSurface
+	struct GfxSurface
 	{
 		WGPUSurface handle;
 		WGPUSurfaceConfiguration config;
@@ -46,16 +46,16 @@ namespace Bk
 		WGPUTextureView depthTextureView;
 	};
 
-	struct GpuContext
+	struct
 	{
 		Arena arena;
 
-		TPool<GpuRenderPipeline> renderPipelines;
-		TPool<GpuComputePipeline> computePipelines;
-		TPool<GpuBuffer> buffers;
-		TPool<GpuBindingLayout> bindingLayouts;
-		TPool<GpuBindingGroup> bindingGroups;
-		TPool<GpuSurface> surfaces;
+		TPool<GfxRenderPipeline> renderPipelines;
+		TPool<GfxComputePipeline> computePipelines;
+		TPool<GfxBuffer> buffers;
+		TPool<GfxBindingLayout> bindingLayouts;
+		TPool<GfxBindingGroup> bindingGroups;
+		TPool<GfxSurface> surfaces;
 
 		WGPUInstance instance;
 		WGPUAdapter adapter;
@@ -65,11 +65,80 @@ namespace Bk
 		WGPUCommandEncoder commandEncoder;
 		WGPURenderPassEncoder renderPassEncoder;
 		WGPUComputePassEncoder computePassEncoder;
-	} gpuContext;
+	} gfx;
 
-	static WGPUStringView WgpuConvert(String string)
+	static WGPUStringView Convert(String string)
 	{
 		return WGPUStringView{ .data = string.data, .length = string.length != 0 ? string.length : WGPU_STRLEN };
+	}
+
+	static WGPUVertexFormat Convert(const GfxVertexFormat value)
+	{
+		switch (value)
+		{
+			case GfxVertexFormat::Uint8: return WGPUVertexFormat_Uint8;
+			case GfxVertexFormat::Uint8x2: return WGPUVertexFormat_Uint8x2;
+			case GfxVertexFormat::Uint8x4: return WGPUVertexFormat_Uint8x4;
+			case GfxVertexFormat::Uint16: return WGPUVertexFormat_Uint16;
+			case GfxVertexFormat::Uint16x2: return WGPUVertexFormat_Uint16x2;
+			case GfxVertexFormat::Uint16x4: return WGPUVertexFormat_Uint16x4;
+			case GfxVertexFormat::Float32: return WGPUVertexFormat_Float32;
+			case GfxVertexFormat::Float32x2: return WGPUVertexFormat_Float32x2;
+			case GfxVertexFormat::Float32x3: return WGPUVertexFormat_Float32x3;
+			case GfxVertexFormat::Float32x4: return WGPUVertexFormat_Float32x4;
+		}
+	}
+
+	static WGPUIndexFormat Convert(const GfxIndexFormat value)
+	{
+		switch (value)
+		{
+			case GfxIndexFormat::Uint16: return WGPUIndexFormat_Uint16;
+			case GfxIndexFormat::Uint32: return WGPUIndexFormat_Uint32;
+		}
+	};
+
+	static WGPUShaderStage Convert(const GfxBindingStage value)
+	{
+		WGPUShaderStage result = WGPUShaderStage_None;
+
+		if (EnumHasAnyFlags(value, GfxBindingStage::Vertex))
+		{
+			result |= WGPUShaderStage_Vertex;
+		}
+
+		if (EnumHasAnyFlags(value, GfxBindingStage::Pixel))
+		{
+			result |= WGPUShaderStage_Fragment;
+		}
+
+		if (EnumHasAnyFlags(value, GfxBindingStage::Compute))
+		{
+			result |= WGPUShaderStage_Compute;
+		}
+
+		return result;
+	}
+
+	static WGPUBufferBindingType Convert(const GfxBindingType value)
+	{
+		switch (value)
+		{
+			case GfxBindingType::None:
+				return WGPUBufferBindingType_Undefined;
+
+			case GfxBindingType::UniformBuffer:
+			case GfxBindingType::DynamicUniformBuffer:
+				return WGPUBufferBindingType_Uniform;
+
+			case GfxBindingType::StorageBuffer:
+			case GfxBindingType::DynamicStorageBuffer:
+				return WGPUBufferBindingType_Storage;
+
+			case GfxBindingType::ReadOnlyStorageBuffer:
+			case GfxBindingType::DynamicReadOnlyStorageBuffer:
+				return WGPUBufferBindingType_ReadOnlyStorage;
+		}
 	}
 
 	void OnDeviceError(const WGPUDevice* device, WGPUErrorType type, WGPUStringView message, void* userdata1, void* userdata2)
@@ -86,25 +155,25 @@ namespace Bk
 	{
 		if (status != WGPURequestDeviceStatus_Success)
 		{
-			FatalError(1, "Failed to acquire WebGPU device: %.*s", static_cast<int32>(message.length), message.data);
+			FatalError(1, "Failed to acquire graphics device: %.*s", static_cast<int32>(message.length), message.data);
 		}
 
-		gpuContext.device = device;
-		BK_ASSERTF(gpuContext.device, "Failed to acquire WebGPU device");
+		gfx.device = device;
+		BK_ASSERTF(gfx.device, "Failed to acquire graphics device");
 
-		gpuContext.queue = wgpuDeviceGetQueue(gpuContext.device);
-		BK_ASSERTF(gpuContext.queue, "Failed to acquire WebGPU device queue");
+		gfx.queue = wgpuDeviceGetQueue(gfx.device);
+		BK_ASSERTF(gfx.queue, "Failed to acquire graphics device queue");
 	}
 
 	void OnAdapterAcquired(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata1, void* userdata2)
 	{
 		if (status != WGPURequestAdapterStatus_Success)
 		{
-			FatalError(1, "Failed to acquire WebGPU adapter: %.*s", static_cast<int32>(message.length), message.data);
+			FatalError(1, "Failed to acquire graphics adapter: %.*s", static_cast<int32>(message.length), message.data);
 		}
 
-		gpuContext.adapter = adapter;
-		BK_ASSERTF(gpuContext.adapter, "Failed to acquire WebGPU adapter");
+		gfx.adapter = adapter;
+		BK_ASSERTF(gfx.adapter, "Failed to acquire graphics adapter");
 
 		WGPUDeviceDescriptor deviceDesc = {};
 		deviceDesc.uncapturedErrorCallbackInfo.callback = OnDeviceError;
@@ -126,91 +195,22 @@ namespace Bk
 		deviceDesc.nextInChain = &dawnTogglesDesc.chain;
 #endif
 
-		wgpuAdapterRequestDevice(gpuContext.adapter, &deviceDesc, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnDeviceAcquired });
+		wgpuAdapterRequestDevice(gfx.adapter, &deviceDesc, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnDeviceAcquired });
 	}
 
-	void GpuInitialize()
+	void InitializeGraphics()
 	{
-		Allocate(gpuContext.arena, gpuContext.renderPipelines, 512);
-		Allocate(gpuContext.arena, gpuContext.computePipelines, 512);
-		Allocate(gpuContext.arena, gpuContext.buffers, 512);
-		Allocate(gpuContext.arena, gpuContext.bindingLayouts, 512);
-		Allocate(gpuContext.arena, gpuContext.bindingGroups, 512);
-		Allocate(gpuContext.arena, gpuContext.surfaces, 32);
+		Allocate(gfx.arena, gfx.renderPipelines, 512);
+		Allocate(gfx.arena, gfx.computePipelines, 512);
+		Allocate(gfx.arena, gfx.buffers, 512);
+		Allocate(gfx.arena, gfx.bindingLayouts, 512);
+		Allocate(gfx.arena, gfx.bindingGroups, 512);
+		Allocate(gfx.arena, gfx.surfaces, 32);
 
-		gpuContext.instance = wgpuCreateInstance(nullptr);
-		BK_ASSERTF(gpuContext.instance, "Failed to create WebGPU instance");
+		gfx.instance = wgpuCreateInstance(nullptr);
+		BK_ASSERTF(gfx.instance, "Failed to create graphics context");
 
-		wgpuInstanceRequestAdapter(gpuContext.instance, nullptr, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnAdapterAcquired });
-	}
-
-	static WGPUVertexFormat WgpuConvert(const GpuVertexFormat value)
-	{
-		switch (value)
-		{
-			case GpuVertexFormat::Uint8: return WGPUVertexFormat_Uint8;
-			case GpuVertexFormat::Uint8x2: return WGPUVertexFormat_Uint8x2;
-			case GpuVertexFormat::Uint8x4: return WGPUVertexFormat_Uint8x4;
-			case GpuVertexFormat::Uint16: return WGPUVertexFormat_Uint16;
-			case GpuVertexFormat::Uint16x2: return WGPUVertexFormat_Uint16x2;
-			case GpuVertexFormat::Uint16x4: return WGPUVertexFormat_Uint16x4;
-			case GpuVertexFormat::Float32: return WGPUVertexFormat_Float32;
-			case GpuVertexFormat::Float32x2: return WGPUVertexFormat_Float32x2;
-			case GpuVertexFormat::Float32x3: return WGPUVertexFormat_Float32x3;
-			case GpuVertexFormat::Float32x4: return WGPUVertexFormat_Float32x4;
-		}
-	}
-
-	static WGPUIndexFormat WgpuConvert(const GpuIndexFormat value)
-	{
-		switch (value)
-		{
-			case GpuIndexFormat::Uint16: return WGPUIndexFormat_Uint16;
-			case GpuIndexFormat::Uint32: return WGPUIndexFormat_Uint32;
-		}
-	};
-
-	static WGPUShaderStage WgpuConvert(const GpuBindingStage value)
-	{
-		WGPUShaderStage result = WGPUShaderStage_None;
-
-		if (EnumHasAnyFlags(value, GpuBindingStage::Vertex))
-		{
-			result |= WGPUShaderStage_Vertex;
-		}
-
-		if (EnumHasAnyFlags(value, GpuBindingStage::Pixel))
-		{
-			result |= WGPUShaderStage_Fragment;
-		}
-
-		if (EnumHasAnyFlags(value, GpuBindingStage::Compute))
-		{
-			result |= WGPUShaderStage_Compute;
-		}
-
-		return result;
-	}
-
-	static WGPUBufferBindingType WgpuConvert(const GpuBindingType value)
-	{
-		switch (value)
-		{
-			case GpuBindingType::None:
-				return WGPUBufferBindingType_Undefined;
-
-			case GpuBindingType::UniformBuffer:
-			case GpuBindingType::DynamicUniformBuffer:
-				return WGPUBufferBindingType_Uniform;
-
-			case GpuBindingType::StorageBuffer:
-			case GpuBindingType::DynamicStorageBuffer:
-				return WGPUBufferBindingType_Storage;
-
-			case GpuBindingType::ReadOnlyStorageBuffer:
-			case GpuBindingType::DynamicReadOnlyStorageBuffer:
-				return WGPUBufferBindingType_ReadOnlyStorage;
-		}
+		wgpuInstanceRequestAdapter(gfx.instance, nullptr, { .mode = WGPUCallbackMode_AllowSpontaneous, .callback = OnAdapterAcquired });
 	}
 
 	void OnShaderModuleCompiled(WGPUCompilationInfoRequestStatus status, const WGPUCompilationInfo* info, void* userdata1, void* userdata2)
@@ -224,12 +224,12 @@ namespace Bk
 	{
 		WGPUShaderSourceWGSL shaderSourceDesc = {};
 		shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-		shaderSourceDesc.code = WgpuConvert(code);
+		shaderSourceDesc.code = Convert(code);
 
 		WGPUShaderModuleDescriptor shaderDesc = {};
 		shaderDesc.nextInChain = &shaderSourceDesc.chain;
 
-		WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+		WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(gfx.device, &shaderDesc);
 
 		WGPUCompilationInfoCallbackInfo compilationCallback = {};
 		compilationCallback.mode = WGPUCallbackMode_AllowSpontaneous;
@@ -240,12 +240,12 @@ namespace Bk
 		return shaderModule;
 	}
 
-	uint32 CreateRenderPipeline(const GpuRenderPipelineDesc& desc)
+	uint32 CreateRenderPipeline(const GfxRenderPipelineDesc& desc)
 	{
 		ArenaScope scratch = GetScratchArena();
 
 		WGPURenderPipelineDescriptor pipelineDesc = {};
-		pipelineDesc.label = WgpuConvert(desc.name);
+		pipelineDesc.label = Convert(desc.name);
 		pipelineDesc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
 		pipelineDesc.primitive.frontFace = WGPUFrontFace_CW;
 		pipelineDesc.primitive.cullMode = WGPUCullMode_Front;
@@ -263,7 +263,7 @@ namespace Bk
 		if (desc.vertexShader.code.length != 0)
 		{
 			pipelineDesc.vertex.module = CreateShaderModule(desc.vertexShader.code);
-			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.vertexShader.entryPoint);
+			pipelineDesc.vertex.entryPoint = Convert(desc.vertexShader.entryPoint);
 
 			TSpan<WGPUVertexBufferLayout> vertexBuffers = PushZeroed<WGPUVertexBufferLayout>(scratch.arena, desc.vertexShader.buffers.length);
 
@@ -274,7 +274,7 @@ namespace Bk
 			for (size_t bufferIdx = 0; bufferIdx < vertexBuffers.length; ++bufferIdx)
 			{
 				WGPUVertexBufferLayout& buffer = vertexBuffers[bufferIdx];
-				const GpuVertexBufferDesc& bufferDesc = desc.vertexShader.buffers[bufferIdx];
+				const GfxVertexBufferDesc& bufferDesc = desc.vertexShader.buffers[bufferIdx];
 
 				TSpan<WGPUVertexAttribute> vertexAttributes = PushZeroed<WGPUVertexAttribute>(scratch.arena, bufferDesc.attributes.length);
 
@@ -285,9 +285,9 @@ namespace Bk
 				for (size_t attributeIdx = 0; attributeIdx < vertexAttributes.length; ++attributeIdx)
 				{
 					WGPUVertexAttribute& attribute = vertexAttributes[attributeIdx];
-					const GpuVertexBufferAttribute& attributeDesc = bufferDesc.attributes[attributeIdx];
+					const GfxVertexBufferAttribute& attributeDesc = bufferDesc.attributes[attributeIdx];
 
-					attribute.format = WgpuConvert(attributeDesc.format);
+					attribute.format = Convert(attributeDesc.format);
 					attribute.offset = attributeDesc.offset;
 					attribute.shaderLocation = attributeLocation++;
 				}
@@ -298,7 +298,7 @@ namespace Bk
 		{
 			WGPUFragmentState fragmentState = {};
 			fragmentState.module = CreateShaderModule(desc.pixelShader.code);
-			fragmentState.entryPoint = WgpuConvert(desc.pixelShader.entryPoint);
+			fragmentState.entryPoint = Convert(desc.pixelShader.entryPoint);
 
 			WGPUColorTargetState surfaceTarget = { .format = WGPUTextureFormat_BGRA8Unorm, .writeMask = WGPUColorWriteMask_All };
 			fragmentState.targets = &surfaceTarget;
@@ -310,7 +310,7 @@ namespace Bk
 		if (desc.bindingLayouts.length != 0)
 		{
 			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
-			pipelineLayoutDesc.label = WgpuConvert(desc.name);
+			pipelineLayoutDesc.label = Convert(desc.name);
 
 			TSpan<WGPUBindGroupLayout> bindingLayouts = PushZeroed<WGPUBindGroupLayout>(scratch.arena, desc.bindingLayouts.length);
 
@@ -319,13 +319,13 @@ namespace Bk
 
 			for (size_t layoutIdx = 0; layoutIdx < bindingLayouts.length; ++layoutIdx)
 			{
-				bindingLayouts[layoutIdx] = GetSlot(gpuContext.bindingLayouts, desc.bindingLayouts[layoutIdx])->handle;
+				bindingLayouts[layoutIdx] = GetSlot(gfx.bindingLayouts, desc.bindingLayouts[layoutIdx])->handle;
 			}
 
-			pipelineDesc.layout = wgpuDeviceCreatePipelineLayout(gpuContext.device, &pipelineLayoutDesc);
+			pipelineDesc.layout = wgpuDeviceCreatePipelineLayout(gfx.device, &pipelineLayoutDesc);
 		}
 
-		WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(gpuContext.device, &pipelineDesc);
+		WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(gfx.device, &pipelineDesc);
 
 		if (pipelineDesc.vertex.module)
 		{
@@ -345,9 +345,9 @@ namespace Bk
 		uint32 pipelineHandle = 0;
 		if (pipeline)
 		{
-			GpuRenderPipeline* pipelineWrapper = AcquireSlot(gpuContext.renderPipelines, &pipelineHandle);
+			GfxRenderPipeline* pipelineWrapper = AcquireSlot(gfx.renderPipelines, &pipelineHandle);
 			pipelineWrapper->handle = pipeline;
-			pipelineWrapper->indexFormat = WgpuConvert(desc.indexFormat);
+			pipelineWrapper->indexFormat = Convert(desc.indexFormat);
 		}
 
 		return pipelineHandle;
@@ -355,31 +355,31 @@ namespace Bk
 
 	void DestroyRenderPipeline(uint32 handle)
 	{
-		GpuRenderPipeline* pipeline = GetSlot(gpuContext.renderPipelines, handle);
+		GfxRenderPipeline* pipeline = GetSlot(gfx.renderPipelines, handle);
 		if (pipeline)
 		{
 			wgpuRenderPipelineRelease(pipeline->handle);
-			ReleaseSlot(gpuContext.renderPipelines, handle);
+			ReleaseSlot(gfx.renderPipelines, handle);
 		}
 	}
 
-	uint32 CreateComputePipeline(const GpuComputePipelineDesc& desc)
+	uint32 CreateComputePipeline(const GfxComputePipelineDesc& desc)
 	{
 		ArenaScope scratch = GetScratchArena();
 
 		WGPUComputePipelineDescriptor pipelineDesc = {};
-		pipelineDesc.label = WgpuConvert(desc.name);
+		pipelineDesc.label = Convert(desc.name);
 
 		if (desc.computeShader.code.length != 0)
 		{
 			pipelineDesc.compute.module = CreateShaderModule(desc.computeShader.code);
-			pipelineDesc.compute.entryPoint = WgpuConvert(desc.computeShader.entryPoint);
+			pipelineDesc.compute.entryPoint = Convert(desc.computeShader.entryPoint);
 		}
 
 		if (desc.bindingLayouts.length != 0)
 		{
 			WGPUPipelineLayoutDescriptor pipelineLayoutDesc = {};
-			pipelineLayoutDesc.label = WgpuConvert(desc.name);
+			pipelineLayoutDesc.label = Convert(desc.name);
 
 			TSpan<WGPUBindGroupLayout> bindingLayouts = PushZeroed<WGPUBindGroupLayout>(scratch.arena, desc.bindingLayouts.length);
 
@@ -388,13 +388,13 @@ namespace Bk
 
 			for (size_t layoutIdx = 0; layoutIdx < bindingLayouts.length; ++layoutIdx)
 			{
-				bindingLayouts[layoutIdx] = GetSlot(gpuContext.bindingLayouts, desc.bindingLayouts[layoutIdx])->handle;
+				bindingLayouts[layoutIdx] = GetSlot(gfx.bindingLayouts, desc.bindingLayouts[layoutIdx])->handle;
 			}
 
-			pipelineDesc.layout = wgpuDeviceCreatePipelineLayout(gpuContext.device, &pipelineLayoutDesc);
+			pipelineDesc.layout = wgpuDeviceCreatePipelineLayout(gfx.device, &pipelineLayoutDesc);
 		}
 
-		WGPUComputePipeline pipeline = wgpuDeviceCreateComputePipeline(gpuContext.device, &pipelineDesc);
+		WGPUComputePipeline pipeline = wgpuDeviceCreateComputePipeline(gfx.device, &pipelineDesc);
 
 		if (pipelineDesc.compute.module)
 		{
@@ -409,7 +409,7 @@ namespace Bk
 		uint32 pipelineHandle = 0;
 		if (pipeline)
 		{
-			GpuComputePipeline* pipelineWrapper = AcquireSlot(gpuContext.computePipelines, &pipelineHandle);
+			GfxComputePipeline* pipelineWrapper = AcquireSlot(gfx.computePipelines, &pipelineHandle);
 			pipelineWrapper->handle = pipeline;
 		}
 
@@ -418,52 +418,52 @@ namespace Bk
 
 	void DestroyComputePipeline(uint32 handle)
 	{
-		GpuComputePipeline* pipeline = GetSlot(gpuContext.computePipelines, handle);
+		GfxComputePipeline* pipeline = GetSlot(gfx.computePipelines, handle);
 		if (pipeline)
 		{
 			wgpuComputePipelineRelease(pipeline->handle);
-			ReleaseSlot(gpuContext.computePipelines, handle);
+			ReleaseSlot(gfx.computePipelines, handle);
 		}
 	}
 
-	uint32 CreateBuffer(const GpuBufferDesc& desc)
+	uint32 CreateBuffer(const GfxBufferDesc& desc)
 	{
 		// Allow shorthand of not specifying buffer size if passing data
 		const uint64 bufferSize = desc.size == 0 ? desc.data.length : desc.size;
 
 		WGPUBufferDescriptor bufferDesc = {};
-		bufferDesc.label = WgpuConvert(desc.name);
+		bufferDesc.label = Convert(desc.name);
 		bufferDesc.size = AlignUp(bufferSize, 4); // Mapping requires size to be multiple of 4
 		bufferDesc.mappedAtCreation = desc.data.length != 0;
 
-		if (EnumHasAnyFlags(desc.type, GpuBufferType::Uniform))
+		if (EnumHasAnyFlags(desc.type, GfxBufferType::Uniform))
 		{
 			bufferDesc.usage |= WGPUBufferUsage_Uniform;
 		}
 
-		if (EnumHasAnyFlags(desc.type, GpuBufferType::Storage))
+		if (EnumHasAnyFlags(desc.type, GfxBufferType::Storage))
 		{
 			bufferDesc.usage |= WGPUBufferUsage_Storage;
 		}
 
-		if (EnumHasAnyFlags(desc.type, GpuBufferType::Vertex))
+		if (EnumHasAnyFlags(desc.type, GfxBufferType::Vertex))
 		{
 			bufferDesc.usage |= WGPUBufferUsage_Vertex;
 		}
 
-		if (EnumHasAnyFlags(desc.type, GpuBufferType::Index))
+		if (EnumHasAnyFlags(desc.type, GfxBufferType::Index))
 		{
 			bufferDesc.usage |= WGPUBufferUsage_Index;
 		}
 
 		switch (desc.access)
 		{
-			case GpuBufferAccess::GpuOnly: bufferDesc.usage |= WGPUBufferUsage_CopySrc | WGPUBufferUsage_CopyDst; break;
-			case GpuBufferAccess::CpuRead: bufferDesc.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst; break;
-			case GpuBufferAccess::CpuWrite: bufferDesc.usage = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc; break;
+			case GfxBufferAccess::GpuOnly: bufferDesc.usage |= WGPUBufferUsage_CopySrc | WGPUBufferUsage_CopyDst; break;
+			case GfxBufferAccess::CpuRead: bufferDesc.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst; break;
+			case GfxBufferAccess::CpuWrite: bufferDesc.usage = WGPUBufferUsage_MapWrite | WGPUBufferUsage_CopySrc; break;
 		}
 
-		WGPUBuffer buffer = wgpuDeviceCreateBuffer(gpuContext.device, &bufferDesc);
+		WGPUBuffer buffer = wgpuDeviceCreateBuffer(gfx.device, &bufferDesc);
 		if (buffer && bufferDesc.mappedAtCreation)
 		{
 			const size_t bufferMappedSize = Min(bufferSize, desc.data.length);
@@ -477,7 +477,7 @@ namespace Bk
 		uint32 bufferHandle = 0;
 		if (buffer)
 		{
-			GpuBuffer* bufferWrapper = AcquireSlot(gpuContext.buffers, &bufferHandle);
+			GfxBuffer* bufferWrapper = AcquireSlot(gfx.buffers, &bufferHandle);
 			bufferWrapper->handle = buffer;
 			bufferWrapper->size = bufferSize;
 		}
@@ -489,7 +489,7 @@ namespace Bk
 	{
 		size_t result = 0;
 
-		GpuBuffer* buffer = GetSlot(gpuContext.buffers, handle);
+		GfxBuffer* buffer = GetSlot(gfx.buffers, handle);
 		if (buffer)
 		{
 			if (data.length % 4 != 0)
@@ -500,12 +500,12 @@ namespace Bk
 				CopyMemory(alignedData.data, data.data, data.length);
 				ZeroMemory(alignedData.data + data.length, alignedData.length - data.length);
 
-				wgpuQueueWriteBuffer(gpuContext.queue, buffer->handle, offset, alignedData.data, alignedData.length);
+				wgpuQueueWriteBuffer(gfx.queue, buffer->handle, offset, alignedData.data, alignedData.length);
 				result = alignedData.length;
 			}
 			else
 			{
-				wgpuQueueWriteBuffer(gpuContext.queue, buffer->handle, offset, data.data, data.length);
+				wgpuQueueWriteBuffer(gfx.queue, buffer->handle, offset, data.data, data.length);
 				result = data.length;
 			}
 		}
@@ -515,20 +515,20 @@ namespace Bk
 
 	void DestroyBuffer(uint32 handle)
 	{
-		GpuBuffer* buffer = GetSlot(gpuContext.buffers, handle);
+		GfxBuffer* buffer = GetSlot(gfx.buffers, handle);
 		if (buffer)
 		{
 			wgpuBufferRelease(buffer->handle);
-			ReleaseSlot(gpuContext.buffers, handle);
+			ReleaseSlot(gfx.buffers, handle);
 		}
 	}
 
-	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc)
+	uint32 CreateBindingLayout(const GfxBindingLayoutDesc& desc)
 	{
 		ArenaScope scratch = GetScratchArena();
 
 		WGPUBindGroupLayoutDescriptor bindingLayoutDesc = {};
-		bindingLayoutDesc.label = WgpuConvert(desc.name);
+		bindingLayoutDesc.label = Convert(desc.name);
 
 		TSpan<WGPUBindGroupLayoutEntry> bindings = PushZeroed<WGPUBindGroupLayoutEntry>(scratch.arena, desc.bindings.length);
 
@@ -538,21 +538,21 @@ namespace Bk
 		for (size_t bindingIdx = 0; bindingIdx < desc.bindings.length; ++bindingIdx)
 		{
 			WGPUBindGroupLayoutEntry& binding = bindings[bindingIdx];
-			const GpuBindingLayoutEntry& bindingDesc = desc.bindings[bindingIdx];
+			const GfxBindingLayoutEntry& bindingDesc = desc.bindings[bindingIdx];
 
 			binding.binding = bindingIdx;
-			binding.visibility = WgpuConvert(bindingDesc.stage);
+			binding.visibility = Convert(bindingDesc.stage);
 			binding.bindingArraySize = 1; // #TODO: https://github.com/gpuweb/gpuweb/blob/main/proposals/sized-binding-arrays.md
-			binding.buffer.type = WgpuConvert(bindingDesc.type);
-			binding.buffer.hasDynamicOffset = (bindingDesc.type == GpuBindingType::DynamicUniformBuffer || bindingDesc.type == GpuBindingType::DynamicStorageBuffer || bindingDesc.type == GpuBindingType::DynamicReadOnlyStorageBuffer);
+			binding.buffer.type = Convert(bindingDesc.type);
+			binding.buffer.hasDynamicOffset = (bindingDesc.type == GfxBindingType::DynamicUniformBuffer || bindingDesc.type == GfxBindingType::DynamicStorageBuffer || bindingDesc.type == GfxBindingType::DynamicReadOnlyStorageBuffer);
 		}
 
-		WGPUBindGroupLayout bindingLayout = wgpuDeviceCreateBindGroupLayout(gpuContext.device, &bindingLayoutDesc);
+		WGPUBindGroupLayout bindingLayout = wgpuDeviceCreateBindGroupLayout(gfx.device, &bindingLayoutDesc);
 
 		uint32 bindingLayoutHandle = 0;
 		if (bindingLayout)
 		{
-			GpuBindingLayout* bindingLayoutWrapper = AcquireSlot(gpuContext.bindingLayouts, &bindingLayoutHandle);
+			GfxBindingLayout* bindingLayoutWrapper = AcquireSlot(gfx.bindingLayouts, &bindingLayoutHandle);
 			bindingLayoutWrapper->handle = bindingLayout;
 		}
 
@@ -561,21 +561,21 @@ namespace Bk
 
 	void DestroyBindingLayout(uint32 handle)
 	{
-		GpuBindingLayout* bindingLayout = GetSlot(gpuContext.bindingLayouts, handle);
+		GfxBindingLayout* bindingLayout = GetSlot(gfx.bindingLayouts, handle);
 		if (bindingLayout)
 		{
 			wgpuBindGroupLayoutRelease(bindingLayout->handle);
-			ReleaseSlot(gpuContext.bindingLayouts, handle);
+			ReleaseSlot(gfx.bindingLayouts, handle);
 		}
 	}
 
-	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc)
+	uint32 CreateBindingGroup(const GfxBindingGroupDesc& desc)
 	{
 		ArenaScope scratch = GetScratchArena();
 
 		WGPUBindGroupDescriptor bindingGroupDesc = {};
-		bindingGroupDesc.label = WgpuConvert(desc.name);
-		bindingGroupDesc.layout = GetSlot(gpuContext.bindingLayouts, desc.bindingLayout)->handle;
+		bindingGroupDesc.label = Convert(desc.name);
+		bindingGroupDesc.layout = GetSlot(gfx.bindingLayouts, desc.bindingLayout)->handle;
 
 		TSpan<WGPUBindGroupEntry> bindings = PushZeroed<WGPUBindGroupEntry>(scratch.arena, desc.bindings.length);
 
@@ -585,10 +585,10 @@ namespace Bk
 		for (size_t bindingIdx = 0; bindingIdx < bindings.length; ++bindingIdx)
 		{
 			WGPUBindGroupEntry& binding = bindings[bindingIdx];
-			const GpuBindingGroupEntry& bindingDesc = desc.bindings[bindingIdx];
+			const GfxBindingGroupEntry& bindingDesc = desc.bindings[bindingIdx];
 
 			binding.binding = bindingIdx;
-			if (const GpuBuffer* buffer = GetSlot(gpuContext.buffers, bindingDesc.buffer))
+			if (const GfxBuffer* buffer = GetSlot(gfx.buffers, bindingDesc.buffer))
 			{
 				BK_ASSERT(bindingDesc.offset + bindingDesc.size <= buffer->size);
 				binding.buffer = buffer->handle;
@@ -597,12 +597,12 @@ namespace Bk
 			}
 		}
 
-		WGPUBindGroup bindingGroup = wgpuDeviceCreateBindGroup(gpuContext.device, &bindingGroupDesc);
+		WGPUBindGroup bindingGroup = wgpuDeviceCreateBindGroup(gfx.device, &bindingGroupDesc);
 
 		uint32 bindingGroupHandle = 0;
 		if (bindingGroup)
 		{
-			GpuBindingGroup* bindingGroupWrapper = AcquireSlot(gpuContext.bindingGroups, &bindingGroupHandle);
+			GfxBindingGroup* bindingGroupWrapper = AcquireSlot(gfx.bindingGroups, &bindingGroupHandle);
 			bindingGroupWrapper->handle = bindingGroup;
 		}
 
@@ -611,15 +611,15 @@ namespace Bk
 
 	void DestroyBindingGroup(uint32 handle)
 	{
-		GpuBindingGroup* bindingGroup = GetSlot(gpuContext.bindingGroups, handle);
+		GfxBindingGroup* bindingGroup = GetSlot(gfx.bindingGroups, handle);
 		if (bindingGroup)
 		{
 			wgpuBindGroupRelease(bindingGroup->handle);
-			ReleaseSlot(gpuContext.bindingGroups, handle);
+			ReleaseSlot(gfx.bindingGroups, handle);
 		}
 	}
 
-	uint32 CreateSurface(void* target, const GpuSurfaceDesc& desc)
+	uint32 CreateSurface(void* target, const GfxSurfaceDesc& desc)
 	{
 		WGPUSurfaceDescriptor surfaceDesc = {};
 
@@ -638,17 +638,17 @@ namespace Bk
 #elif BK_PLATFORM_EMSCRIPTEN
 		WGPUEmscriptenSurfaceSourceCanvasHTMLSelector surfaceSource = {};
 		surfaceSource.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
-		surfaceSource.selector = WgpuConvert((const char*)target);
+		surfaceSource.selector = Convert((const char*)target);
 
 		surfaceDesc.nextInChain = &surfaceSource.chain;
 #endif
 
-		WGPUSurface surface = wgpuInstanceCreateSurface(gpuContext.instance, &surfaceDesc);
+		WGPUSurface surface = wgpuInstanceCreateSurface(gfx.instance, &surfaceDesc);
 
 		uint32 surfaceHandle = 0;
 		if (surface)
 		{
-			GpuSurface* surfaceWrapper = AcquireSlot(gpuContext.surfaces, &surfaceHandle);
+			GfxSurface* surfaceWrapper = AcquireSlot(gfx.surfaces, &surfaceHandle);
 			surfaceWrapper->handle = surface;
 
 			ConfigureSurface(surfaceHandle, desc);
@@ -657,15 +657,15 @@ namespace Bk
 		return surfaceHandle;
 	}
 
-	void ConfigureSurface(uint32 handle, const GpuSurfaceDesc& desc)
+	void ConfigureSurface(uint32 handle, const GfxSurfaceDesc& desc)
 	{
-		GpuSurface* surface = GetSlot(gpuContext.surfaces, handle);
+		GfxSurface* surface = GetSlot(gfx.surfaces, handle);
 		if (surface)
 		{
 			WGPUSurfaceCapabilities surfaceCaps = {};
-			wgpuSurfaceGetCapabilities(surface->handle, gpuContext.adapter, &surfaceCaps);
+			wgpuSurfaceGetCapabilities(surface->handle, gfx.adapter, &surfaceCaps);
 
-			surface->config.device = gpuContext.device;
+			surface->config.device = gfx.device;
 			surface->config.format = surfaceCaps.formatCount > 0 ? surfaceCaps.formats[0] : WGPUTextureFormat_Undefined;
 			surface->config.usage = WGPUTextureUsage_RenderAttachment;
 			surface->config.alphaMode = WGPUCompositeAlphaMode_Auto;
@@ -699,7 +699,7 @@ namespace Bk
 			depthTextureDesc.viewFormatCount = 1;
 			depthTextureDesc.viewFormats = &depthTextureDesc.format;
 
-			surface->depthTexture = wgpuDeviceCreateTexture(gpuContext.device, &depthTextureDesc);
+			surface->depthTexture = wgpuDeviceCreateTexture(gfx.device, &depthTextureDesc);
 			surface->depthTextureView = wgpuTextureCreateView(surface->depthTexture, nullptr);
 		}
 	}
@@ -707,7 +707,7 @@ namespace Bk
 	void PresentSurface(uint32 handle)
 	{
 #if !BK_PLATFORM_EMSCRIPTEN
-		GpuSurface* surface = GetSlot(gpuContext.surfaces, handle);
+		GfxSurface* surface = GetSlot(gfx.surfaces, handle);
 		if (surface)
 		{
 			wgpuSurfacePresent(surface->handle);
@@ -717,7 +717,7 @@ namespace Bk
 
 	void DestroySurface(uint32 handle)
 	{
-		GpuSurface* surface = GetSlot(gpuContext.surfaces, handle);
+		GfxSurface* surface = GetSlot(gfx.surfaces, handle);
 		if (surface)
 		{
 			if (surface->depthTextureView)
@@ -733,50 +733,50 @@ namespace Bk
 			}
 
 			wgpuSurfaceRelease(surface->handle);
-			ReleaseSlot(gpuContext.surfaces, handle);
+			ReleaseSlot(gfx.surfaces, handle);
 		}
 	}
 
 	bool BeginFrame()
 	{
-		if (!gpuContext.device)
+		if (!gfx.device)
 		{
 			return false;
 		}
 
-		gpuContext.commandEncoder = wgpuDeviceCreateCommandEncoder(gpuContext.device, nullptr);
+		gfx.commandEncoder = wgpuDeviceCreateCommandEncoder(gfx.device, nullptr);
 
 		return true;
 	}
 
 	bool EndFrame()
 	{
-		if (!gpuContext.commandEncoder)
+		if (!gfx.commandEncoder)
 		{
 			return false;
 		}
 
-		WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(gpuContext.commandEncoder, nullptr);
-		wgpuQueueSubmit(gpuContext.queue, 1, &commandBuffer);
+		WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(gfx.commandEncoder, nullptr);
+		wgpuQueueSubmit(gfx.queue, 1, &commandBuffer);
 		wgpuCommandBufferRelease(commandBuffer);
 
-		wgpuCommandEncoderRelease(gpuContext.commandEncoder);
-		gpuContext.commandEncoder = nullptr;
+		wgpuCommandEncoderRelease(gfx.commandEncoder);
+		gfx.commandEncoder = nullptr;
 
 		return true;
 	}
 
-	void BeginRenderPass(const GpuRenderPassDesc& desc)
+	void BeginRenderPass(const GfxRenderPassDesc& desc)
 	{
-		BK_ASSERT(gpuContext.renderPassEncoder == nullptr);
+		BK_ASSERT(gfx.renderPassEncoder == nullptr);
 
 		WGPURenderPassDescriptor passDesc = {};
-		passDesc.label = WgpuConvert(desc.name);
+		passDesc.label = Convert(desc.name);
 
 		WGPUTextureView colorTextureView = nullptr;
 		WGPUTextureView depthTextureView = nullptr;
 
-		if (GpuSurface* surface = GetSlot(gpuContext.surfaces, desc.surface))
+		if (GfxSurface* surface = GetSlot(gfx.surfaces, desc.surface))
 		{
 			WGPUSurfaceTexture surfaceTexture = {};
 			wgpuSurfaceGetCurrentTexture(surface->handle, &surfaceTexture);
@@ -807,98 +807,98 @@ namespace Bk
 
 		passDesc.depthStencilAttachment = &depthAttachment;
 
-		wgpuCommandEncoderPushDebugGroup(gpuContext.commandEncoder, WgpuConvert(desc.name));
-		gpuContext.renderPassEncoder = wgpuCommandEncoderBeginRenderPass(gpuContext.commandEncoder, &passDesc);
+		wgpuCommandEncoderPushDebugGroup(gfx.commandEncoder, Convert(desc.name));
+		gfx.renderPassEncoder = wgpuCommandEncoderBeginRenderPass(gfx.commandEncoder, &passDesc);
 	}
 
 	void EndRenderPass()
 	{
-		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
+		BK_ASSERT(gfx.renderPassEncoder != nullptr);
 
-		wgpuRenderPassEncoderEnd(gpuContext.renderPassEncoder);
-		wgpuRenderPassEncoderRelease(gpuContext.renderPassEncoder);
-		gpuContext.renderPassEncoder = nullptr;
+		wgpuRenderPassEncoderEnd(gfx.renderPassEncoder);
+		wgpuRenderPassEncoderRelease(gfx.renderPassEncoder);
+		gfx.renderPassEncoder = nullptr;
 
-		wgpuCommandEncoderPopDebugGroup(gpuContext.commandEncoder);
+		wgpuCommandEncoderPopDebugGroup(gfx.commandEncoder);
 	}
 
-	void BeginComputePass(const GpuComputePassDesc& desc)
+	void BeginComputePass(const GfxComputePassDesc& desc)
 	{
-		BK_ASSERT(gpuContext.computePassEncoder == nullptr);
+		BK_ASSERT(gfx.computePassEncoder == nullptr);
 
 		WGPUComputePassDescriptor passDesc = {};
-		passDesc.label = WgpuConvert(desc.name);
+		passDesc.label = Convert(desc.name);
 
-		wgpuCommandEncoderPushDebugGroup(gpuContext.commandEncoder, WgpuConvert(desc.name));
-		gpuContext.computePassEncoder = wgpuCommandEncoderBeginComputePass(gpuContext.commandEncoder, &passDesc);
+		wgpuCommandEncoderPushDebugGroup(gfx.commandEncoder, Convert(desc.name));
+		gfx.computePassEncoder = wgpuCommandEncoderBeginComputePass(gfx.commandEncoder, &passDesc);
 	}
 
 	void EndComputePass()
 	{
-		BK_ASSERT(gpuContext.computePassEncoder != nullptr);
+		BK_ASSERT(gfx.computePassEncoder != nullptr);
 
-		wgpuComputePassEncoderEnd(gpuContext.computePassEncoder);
-		wgpuComputePassEncoderRelease(gpuContext.computePassEncoder);
-		gpuContext.computePassEncoder = nullptr;
+		wgpuComputePassEncoderEnd(gfx.computePassEncoder);
+		wgpuComputePassEncoderRelease(gfx.computePassEncoder);
+		gfx.computePassEncoder = nullptr;
 
-		wgpuCommandEncoderPopDebugGroup(gpuContext.commandEncoder);
+		wgpuCommandEncoderPopDebugGroup(gfx.commandEncoder);
 	}
 
-	void Draw(const GpuDrawDesc& desc)
+	void Draw(const GfxDrawDesc& desc)
 	{
-		BK_ASSERT(gpuContext.renderPassEncoder != nullptr);
+		BK_ASSERT(gfx.renderPassEncoder != nullptr);
 		BK_ASSERT(desc.pipeline);
 
-		GpuRenderPipeline* pipeline = GetSlot(gpuContext.renderPipelines, desc.pipeline);
-		wgpuRenderPassEncoderSetPipeline(gpuContext.renderPassEncoder, pipeline->handle);
+		GfxRenderPipeline* pipeline = GetSlot(gfx.renderPipelines, desc.pipeline);
+		wgpuRenderPassEncoderSetPipeline(gfx.renderPassEncoder, pipeline->handle);
 
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
-			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx].bindingGroup);
+			GfxBindingGroup* group = GetSlot(gfx.bindingGroups, desc.bindingGroups[groupIdx].bindingGroup);
 			TSpan<uint32> dynamicOffsets = desc.bindingGroups[groupIdx].dynamicOffsets;
 
-			wgpuRenderPassEncoderSetBindGroup(gpuContext.renderPassEncoder, groupIdx, group ? group->handle : nullptr, dynamicOffsets.length, dynamicOffsets.data);
+			wgpuRenderPassEncoderSetBindGroup(gfx.renderPassEncoder, groupIdx, group ? group->handle : nullptr, dynamicOffsets.length, dynamicOffsets.data);
 		}
 
 		for (size_t bufferIdx = 0; bufferIdx < desc.vertexBuffers.length; ++bufferIdx)
 		{
-			GpuBuffer* buffer = GetSlot(gpuContext.buffers, desc.vertexBuffers[bufferIdx]);
-			wgpuRenderPassEncoderSetVertexBuffer(gpuContext.renderPassEncoder, bufferIdx, buffer->handle, 0, buffer->size);
+			GfxBuffer* buffer = GetSlot(gfx.buffers, desc.vertexBuffers[bufferIdx]);
+			wgpuRenderPassEncoderSetVertexBuffer(gfx.renderPassEncoder, bufferIdx, buffer->handle, 0, buffer->size);
 		}
 
 		if (desc.indexBuffer)
 		{
-			GpuBuffer* buffer = GetSlot(gpuContext.buffers, desc.indexBuffer);
-			wgpuRenderPassEncoderSetIndexBuffer(gpuContext.renderPassEncoder, buffer->handle, pipeline->indexFormat, 0, buffer->size);
+			GfxBuffer* buffer = GetSlot(gfx.buffers, desc.indexBuffer);
+			wgpuRenderPassEncoderSetIndexBuffer(gfx.renderPassEncoder, buffer->handle, pipeline->indexFormat, 0, buffer->size);
 
 			wgpuRenderPassEncoderDrawIndexed(
-				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
+				gfx.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
 				desc.indexOffset, static_cast<int32>(desc.vertexOffset), desc.instanceOffset); // #TODO: Why is baseVertex signed?
 		}
 		else
 		{
 			wgpuRenderPassEncoderDraw(
-				gpuContext.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
+				gfx.renderPassEncoder, desc.triangleCount * 3, desc.instanceCount,
 				desc.vertexOffset, desc.instanceOffset);
 		}
 	}
 
-	void Dispatch(const GpuDispatchDesc& desc)
+	void Dispatch(const GfxDispatchDesc& desc)
 	{
-		BK_ASSERT(gpuContext.computePassEncoder != nullptr);
+		BK_ASSERT(gfx.computePassEncoder != nullptr);
 		BK_ASSERT(desc.pipeline);
 
-		GpuComputePipeline* pipeline = GetSlot(gpuContext.computePipelines, desc.pipeline);
-		wgpuComputePassEncoderSetPipeline(gpuContext.computePassEncoder, pipeline->handle);
+		GfxComputePipeline* pipeline = GetSlot(gfx.computePipelines, desc.pipeline);
+		wgpuComputePassEncoderSetPipeline(gfx.computePassEncoder, pipeline->handle);
 
 		for (size_t groupIdx = 0; groupIdx < desc.bindingGroups.length; ++groupIdx)
 		{
-			GpuBindingGroup* group = GetSlot(gpuContext.bindingGroups, desc.bindingGroups[groupIdx].bindingGroup);
+			GfxBindingGroup* group = GetSlot(gfx.bindingGroups, desc.bindingGroups[groupIdx].bindingGroup);
 			TSpan<uint32> dynamicOffsets = desc.bindingGroups[groupIdx].dynamicOffsets;
 
-			wgpuComputePassEncoderSetBindGroup(gpuContext.computePassEncoder, groupIdx, group ? group->handle : nullptr, dynamicOffsets.length, dynamicOffsets.data);
+			wgpuComputePassEncoderSetBindGroup(gfx.computePassEncoder, groupIdx, group ? group->handle : nullptr, dynamicOffsets.length, dynamicOffsets.data);
 		}
 
-		wgpuComputePassEncoderDispatchWorkgroups(gpuContext.computePassEncoder, desc.workgroupCountX, desc.workgroupCountY, desc.workgroupCountZ);
+		wgpuComputePassEncoderDispatchWorkgroups(gfx.computePassEncoder, desc.workgroupCountX, desc.workgroupCountY, desc.workgroupCountZ);
 	}
 }

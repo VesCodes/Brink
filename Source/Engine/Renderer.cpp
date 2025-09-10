@@ -5,7 +5,7 @@
 #include "Core/Platform.h"
 #include "Core/Pool.h"
 
-#include "Gpu.h"
+#include "Graphics.h"
 
 namespace Bk
 {
@@ -107,8 +107,8 @@ namespace Bk
 
 		renderer.meshConstantsBuffer = CreateBuffer({
 			.name = "Mesh Constants",
-			.type = GpuBufferType::Uniform,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Uniform,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = sizeof(MeshConstants),
 		});
 
@@ -116,8 +116,8 @@ namespace Bk
 		renderer.meshPositionsBufferSize = BK_MEGABYTES(4);
 		renderer.meshPositionsBuffer = CreateBuffer({
 			.name = "Mesh Positions",
-			.type = GpuBufferType::Vertex | GpuBufferType::Storage,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Vertex | GfxBufferType::Storage,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = renderer.meshPositionsBufferSize,
 		});
 
@@ -125,15 +125,15 @@ namespace Bk
 		renderer.meshIndicesBufferSize = BK_MEGABYTES(4);
 		renderer.meshIndicesBuffer = CreateBuffer({
 			.name = "Mesh Indices",
-			.type = GpuBufferType::Index,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Index,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = renderer.meshIndicesBufferSize,
 		});
 
 		uint32 meshBindingLayout = CreateBindingLayout({
 			.name = "Mesh Layout",
 			.bindings = {
-				{ .type = GpuBindingType::UniformBuffer, .stage = GpuBindingStage::Vertex },
+				{ .type = GfxBindingType::UniformBuffer, .stage = GfxBindingStage::Vertex },
 			},
 		});
 
@@ -155,7 +155,7 @@ namespace Bk
 					{
 						.stride = 12,
 						.attributes = {
-							{ .offset = 0, .format = GpuVertexFormat::Float32x3 },
+							{ .offset = 0, .format = GfxVertexFormat::Float32x3 },
 						},
 					},
 				},
@@ -172,8 +172,8 @@ namespace Bk
 
 		renderer.skinningConstantsBuffer = CreateBuffer({
 			.name = "Skinning Constants",
-			.type = GpuBufferType::Storage,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Storage,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = AlignUp(sizeof(SkinningConstants), 256) * renderer.meshes.capacity,
 		});
 
@@ -181,8 +181,8 @@ namespace Bk
 		renderer.skinningPositionsBufferSize = BK_MEGABYTES(4);
 		renderer.skinningPositionsBuffer = CreateBuffer({
 			.name = "Skinning Positions",
-			.type = GpuBufferType::Storage,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Storage,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = renderer.skinningPositionsBufferSize,
 		});
 
@@ -190,8 +190,8 @@ namespace Bk
 		renderer.skinningBoneInfluencesBufferSize = BK_MEGABYTES(4);
 		renderer.skinningBoneInfluencesBuffer = CreateBuffer({
 			.name = "Skinning Bone Influences",
-			.type = GpuBufferType::Storage,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Storage,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = renderer.skinningBoneInfluencesBufferSize,
 		});
 
@@ -199,19 +199,19 @@ namespace Bk
 		renderer.skinningBoneTransformsBufferSize = BK_MEGABYTES(4);
 		renderer.skinningBoneTransformsBuffer = CreateBuffer({
 			.name = "Skinning Bone Transforms",
-			.type = GpuBufferType::Storage,
-			.access = GpuBufferAccess::GpuOnly,
+			.type = GfxBufferType::Storage,
+			.access = GfxBufferAccess::GpuOnly,
 			.size = renderer.skinningBoneTransformsBufferSize,
 		});
 
 		uint32 skinningBindingLayout = CreateBindingLayout({
 			.name = "Skinning Layout",
 			.bindings = {
-				{ .type = GpuBindingType::DynamicReadOnlyStorageBuffer, .stage = GpuBindingStage::Compute },
-				{ .type = GpuBindingType::ReadOnlyStorageBuffer, .stage = GpuBindingStage::Compute },
-				{ .type = GpuBindingType::ReadOnlyStorageBuffer, .stage = GpuBindingStage::Compute },
-				{ .type = GpuBindingType::ReadOnlyStorageBuffer, .stage = GpuBindingStage::Compute },
-				{ .type = GpuBindingType::StorageBuffer, .stage = GpuBindingStage::Compute },
+				{ .type = GfxBindingType::DynamicReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
+				{ .type = GfxBindingType::ReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
+				{ .type = GfxBindingType::ReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
+				{ .type = GfxBindingType::ReadOnlyStorageBuffer, .stage = GfxBindingStage::Compute },
+				{ .type = GfxBindingType::StorageBuffer, .stage = GfxBindingStage::Compute },
 			},
 		});
 

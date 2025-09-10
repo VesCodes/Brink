@@ -6,7 +6,7 @@
 
 namespace Bk
 {
-	enum class GpuVertexFormat : uint8
+	enum class GfxVertexFormat : uint8
 	{
 		// #TODO: WGPUVertexFormat
 		Uint8,
@@ -21,25 +21,25 @@ namespace Bk
 		Float32x4,
 	};
 
-	struct GpuVertexBufferAttribute
+	struct GfxVertexBufferAttribute
 	{
 		uint64 offset;
-		GpuVertexFormat format;
+		GfxVertexFormat format;
 	};
 
-	struct GpuVertexBufferDesc
+	struct GfxVertexBufferDesc
 	{
 		uint64 stride;
-		TSpan<GpuVertexBufferAttribute> attributes;
+		TSpan<GfxVertexBufferAttribute> attributes;
 	};
 
-	enum class GpuIndexFormat : uint8
+	enum class GfxIndexFormat : uint8
 	{
 		Uint16,
 		Uint32,
 	};
 
-	struct GpuRenderPipelineDesc
+	struct GfxRenderPipelineDesc
 	{
 		String name;
 
@@ -47,7 +47,7 @@ namespace Bk
 		{
 			String code;
 			String entryPoint;
-			TSpan<GpuVertexBufferDesc> buffers;
+			TSpan<GfxVertexBufferDesc> buffers;
 		} vertexShader;
 
 		struct
@@ -57,10 +57,10 @@ namespace Bk
 		} pixelShader;
 
 		TSpan<uint32> bindingLayouts;
-		GpuIndexFormat indexFormat;
+		GfxIndexFormat indexFormat;
 	};
 
-	struct GpuComputePipelineDesc
+	struct GfxComputePipelineDesc
 	{
 		String name;
 
@@ -73,7 +73,7 @@ namespace Bk
 		TSpan<uint32> bindingLayouts;
 	};
 
-	enum class GpuBufferType : uint8
+	enum class GfxBufferType : uint8
 	{
 		Uniform = (1 << 0),
 		Storage = (1 << 1),
@@ -81,27 +81,27 @@ namespace Bk
 		Index = (1 << 3),
 	};
 
-	BK_ENUM_FLAGS(GpuBufferType);
+	BK_ENUM_FLAGS(GfxBufferType);
 
-	enum class GpuBufferAccess : uint8
+	enum class GfxBufferAccess : uint8
 	{
 		GpuOnly,
 		CpuRead,
 		CpuWrite,
 	};
 
-	struct GpuBufferDesc
+	struct GfxBufferDesc
 	{
 		String name;
 
-		GpuBufferType type;
-		GpuBufferAccess access;
+		GfxBufferType type;
+		GfxBufferAccess access;
 		uint64 size;
 
 		TSpan<uint8> data;
 	};
 
-	enum class GpuBindingType : uint8
+	enum class GfxBindingType : uint8
 	{
 		None,
 		UniformBuffer,
@@ -114,7 +114,7 @@ namespace Bk
 		// Sampler,
 	};
 
-	enum class GpuBindingStage : uint8
+	enum class GfxBindingStage : uint8
 	{
 		Vertex = (1 << 0),
 		Pixel = (1 << 1),
@@ -122,21 +122,21 @@ namespace Bk
 		All = (Vertex | Pixel | Compute),
 	};
 
-	BK_ENUM_FLAGS(GpuBindingStage);
+	BK_ENUM_FLAGS(GfxBindingStage);
 
-	struct GpuBindingLayoutEntry
+	struct GfxBindingLayoutEntry
 	{
-		GpuBindingType type;
-		GpuBindingStage stage;
+		GfxBindingType type;
+		GfxBindingStage stage;
 	};
 
-	struct GpuBindingLayoutDesc
+	struct GfxBindingLayoutDesc
 	{
 		String name;
-		TSpan<GpuBindingLayoutEntry> bindings;
+		TSpan<GfxBindingLayoutEntry> bindings;
 	};
 
-	struct GpuBindingGroupEntry
+	struct GfxBindingGroupEntry
 	{
 		uint32 buffer;
 		uint64 offset;
@@ -145,41 +145,41 @@ namespace Bk
 		// uint32 sampler;
 	};
 
-	struct GpuBindingGroupDesc
+	struct GfxBindingGroupDesc
 	{
 		String name;
 		uint32 bindingLayout;
-		TSpan<GpuBindingGroupEntry> bindings;
+		TSpan<GfxBindingGroupEntry> bindings;
 	};
 
-	struct GpuSurfaceDesc
+	struct GfxSurfaceDesc
 	{
 		uint32 width;
 		uint32 height;
 	};
 
-	struct GpuRenderPassDesc
+	struct GfxRenderPassDesc
 	{
 		String name;
 		uint32 surface;
 		float clearColor[4];
 	};
 
-	struct GpuComputePassDesc
+	struct GfxComputePassDesc
 	{
 		String name;
 	};
 
-	struct GpuBindingGroupOffsets
+	struct GfxBindingGroupOffsets
 	{
 		uint32 bindingGroup;
 		TSpan<uint32> dynamicOffsets;
 	};
 
-	struct GpuDrawDesc
+	struct GfxDrawDesc
 	{
 		uint32 pipeline;
-		TSpan<GpuBindingGroupOffsets> bindingGroups;
+		TSpan<GfxBindingGroupOffsets> bindingGroups;
 
 		TSpan<uint32> vertexBuffers;
 		uint32 indexBuffer;
@@ -192,48 +192,48 @@ namespace Bk
 		uint32 instanceCount;
 	};
 
-	struct GpuDispatchDesc
+	struct GfxDispatchDesc
 	{
 		uint32 pipeline;
-		TSpan<GpuBindingGroupOffsets> bindingGroups;
+		TSpan<GfxBindingGroupOffsets> bindingGroups;
 
 		uint32 workgroupCountX;
 		uint32 workgroupCountY;
 		uint32 workgroupCountZ;
 	};
 
-	void GpuInitialize();
+	void InitializeGraphics();
 
-	uint32 CreateRenderPipeline(const GpuRenderPipelineDesc& desc);
+	uint32 CreateRenderPipeline(const GfxRenderPipelineDesc& desc);
 	void DestroyRenderPipeline(uint32 handle);
 
-	uint32 CreateComputePipeline(const GpuComputePipelineDesc& desc);
+	uint32 CreateComputePipeline(const GfxComputePipelineDesc& desc);
 	void DestroyComputePipeline(uint32 handle);
 
-	uint32 CreateBuffer(const GpuBufferDesc& desc);
+	uint32 CreateBuffer(const GfxBufferDesc& desc);
 	size_t WriteBuffer(uint32 handle, TSpan<const uint8> data, uint64 offset = 0);
 	void DestroyBuffer(uint32 handle);
 
-	uint32 CreateBindingLayout(const GpuBindingLayoutDesc& desc);
+	uint32 CreateBindingLayout(const GfxBindingLayoutDesc& desc);
 	void DestroyBindingLayout(uint32 handle);
 
-	uint32 CreateBindingGroup(const GpuBindingGroupDesc& desc);
+	uint32 CreateBindingGroup(const GfxBindingGroupDesc& desc);
 	void DestroyBindingGroup(uint32 handle);
 
-	uint32 CreateSurface(void* target, const GpuSurfaceDesc& desc);
-	void ConfigureSurface(uint32 handle, const GpuSurfaceDesc& desc);
+	uint32 CreateSurface(void* target, const GfxSurfaceDesc& desc);
+	void ConfigureSurface(uint32 handle, const GfxSurfaceDesc& desc);
 	void PresentSurface(uint32 handle);
 	void DestroySurface(uint32 handle);
 
 	bool BeginFrame();
 	bool EndFrame();
 
-	void BeginRenderPass(const GpuRenderPassDesc& desc);
+	void BeginRenderPass(const GfxRenderPassDesc& desc);
 	void EndRenderPass();
 
-	void BeginComputePass(const GpuComputePassDesc& desc);
+	void BeginComputePass(const GfxComputePassDesc& desc);
 	void EndComputePass();
 
-	void Draw(const GpuDrawDesc& desc);
-	void Dispatch(const GpuDispatchDesc& desc);
+	void Draw(const GfxDrawDesc& desc);
+	void Dispatch(const GfxDispatchDesc& desc);
 }
