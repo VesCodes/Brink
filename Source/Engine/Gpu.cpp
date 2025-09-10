@@ -114,6 +114,8 @@ namespace Bk
 #if !BK_PLATFORM_EMSCRIPTEN
 		const char* enabledToggles[] = {
 			"use_user_defined_labels_in_backend",
+			"emit_hlsl_debug_symbols",
+			"disable_symbol_renaming",
 		};
 
 		WGPUDawnTogglesDescriptor dawnTogglesDesc = {};
@@ -211,6 +213,33 @@ namespace Bk
 		}
 	}
 
+	void OnShaderModuleCompiled(WGPUCompilationInfoRequestStatus status, const WGPUCompilationInfo* info, void* userdata1, void* userdata2)
+	{
+		// #TODO: Handle compilation issues
+		BK_ASSERT(status == WGPUCompilationInfoRequestStatus_Success);
+		BK_ASSERT(info->messageCount == 0);
+	}
+
+	WGPUShaderModule CreateShaderModule(String code)
+	{
+		WGPUShaderSourceWGSL shaderSourceDesc = {};
+		shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
+		shaderSourceDesc.code = WgpuConvert(code);
+
+		WGPUShaderModuleDescriptor shaderDesc = {};
+		shaderDesc.nextInChain = &shaderSourceDesc.chain;
+
+		WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+
+		WGPUCompilationInfoCallbackInfo compilationCallback = {};
+		compilationCallback.mode = WGPUCallbackMode_AllowSpontaneous;
+		compilationCallback.callback = OnShaderModuleCompiled;
+
+		wgpuShaderModuleGetCompilationInfo(shaderModule, compilationCallback);
+
+		return shaderModule;
+	}
+
 	uint32 CreateRenderPipeline(const GpuRenderPipelineDesc& desc)
 	{
 		ArenaScope scratch = GetScratchArena();
@@ -233,14 +262,7 @@ namespace Bk
 
 		if (desc.vertexShader.code.length != 0)
 		{
-			WGPUShaderSourceWGSL shaderSourceDesc = {};
-			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-			shaderSourceDesc.code = WgpuConvert(desc.vertexShader.code);
-
-			WGPUShaderModuleDescriptor shaderDesc = {};
-			shaderDesc.nextInChain = &shaderSourceDesc.chain;
-
-			pipelineDesc.vertex.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+			pipelineDesc.vertex.module = CreateShaderModule(desc.vertexShader.code);
 			pipelineDesc.vertex.entryPoint = WgpuConvert(desc.vertexShader.entryPoint);
 
 			TSpan<WGPUVertexBufferLayout> vertexBuffers = PushZeroed<WGPUVertexBufferLayout>(scratch.arena, desc.vertexShader.buffers.length);
@@ -274,15 +296,8 @@ namespace Bk
 
 		if (desc.pixelShader.code.length != 0)
 		{
-			WGPUShaderSourceWGSL shaderSourceDesc = {};
-			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-			shaderSourceDesc.code = WgpuConvert(desc.pixelShader.code);
-
-			WGPUShaderModuleDescriptor shaderDesc = {};
-			shaderDesc.nextInChain = &shaderSourceDesc.chain;
-
 			WGPUFragmentState fragmentState = {};
-			fragmentState.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+			fragmentState.module = CreateShaderModule(desc.pixelShader.code);
 			fragmentState.entryPoint = WgpuConvert(desc.pixelShader.entryPoint);
 
 			WGPUColorTargetState surfaceTarget = { .format = WGPUTextureFormat_BGRA8Unorm, .writeMask = WGPUColorWriteMask_All };
@@ -357,14 +372,7 @@ namespace Bk
 
 		if (desc.computeShader.code.length != 0)
 		{
-			WGPUShaderSourceWGSL shaderSourceDesc = {};
-			shaderSourceDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-			shaderSourceDesc.code = WgpuConvert(desc.computeShader.code);
-
-			WGPUShaderModuleDescriptor shaderDesc = {};
-			shaderDesc.nextInChain = &shaderSourceDesc.chain;
-
-			pipelineDesc.compute.module = wgpuDeviceCreateShaderModule(gpuContext.device, &shaderDesc);
+			pipelineDesc.compute.module = CreateShaderModule(desc.computeShader.code);
 			pipelineDesc.compute.entryPoint = WgpuConvert(desc.computeShader.entryPoint);
 		}
 
