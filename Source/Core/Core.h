@@ -11,6 +11,14 @@
 #endif
 #endif
 
+#ifndef BK_PLATFORM_LINUX
+#if defined(__linux__)
+#define BK_PLATFORM_LINUX 1
+#else
+#define BK_PLATFORM_LINUX 0
+#endif
+#endif
+
 #ifndef BK_PLATFORM_MACOS
 #if defined(__APPLE__)
 #define BK_PLATFORM_MACOS 1

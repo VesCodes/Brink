@@ -9,6 +9,7 @@
 #include "Core/Application.cpp"
 #include "Core/Core.cpp"
 #include "Core/Memory.cpp"
+#include "Core/PlatformLinux.cpp"
 #include "Core/PlatformMacOS.cpp"
 #include "Core/PlatformWindows.cpp"
 #include "Core/String.cpp"
@@ -853,6 +854,10 @@ int32 AppMain(int32 argc, char** argv)
 			if (Equals(argValue, "Windows", true))
 			{
 				context.platform = Platform::Windows;
+			}
+			else if (Equals(argValue, "Linux", true))
+			{
+				context.platform = Platform::Linux;
 			}
 			else if (Equals(argValue, "MacOS", true))
 			{

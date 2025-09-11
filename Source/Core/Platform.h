@@ -9,6 +9,7 @@ namespace Bk
 	enum class Platform : uint8
 	{
 		Windows,
+		Linux,
 		MacOS,
 		Emscripten,
 	};
