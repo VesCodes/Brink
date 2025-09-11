@@ -1,0 +1,61 @@
+name: Build
+
+on:
+  push:
+    branches: [Main]
+
+  workflow_dispatch:
+
+jobs:
+  build-emscripten:
+    name: Build (Emscripten)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Toolchain
+        uses: mymindstorm/setup-emsdk@v14
+
+      - name: Build
+        run: |
+          chmod +x ./Build.sh
+          ./Build.sh -Platform=Emscripten
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-emscripten
+          path: Build/Sandbox
+
+  deploy-pages:
+    name: Deploy Pages
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Download Build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-emscripten
+          path: Build
+
+      - name: Upload Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: Build
+
+      - name: Deploy Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
