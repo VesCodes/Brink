@@ -8,10 +8,10 @@ struct SkinningConstants
 	vertexCount : u32,
 }
 
-@group(0) @binding(0) var<storage> constants: SkinningConstants;
-@group(0) @binding(1) var<storage, read_write> meshBuffer: array<u32>;
+@group(0) @binding(0) var<storage> constants : SkinningConstants;
+@group(0) @binding(1) var<storage, read_write> meshBuffer : array<u32>;
 
-fn LoadVec3_f32(byteOffset: u32, idx: u32) -> vec3<f32>
+fn LoadVec3_f32(byteOffset : u32, idx : u32) -> vec3<f32>
 {
 	let offset = (byteOffset + idx * 12u) / 4u;
 
@@ -22,7 +22,22 @@ fn LoadVec3_f32(byteOffset: u32, idx: u32) -> vec3<f32>
 	);
 }
 
-fn LoadVec4_u32(byteOffset: u32, idx: u32) -> vec4<u32>
+fn LoadVec4_u16(byteOffset : u32, idx : u32) -> vec4<u32>
+{
+	let offset = (byteOffset + idx * 8u) / 4u;
+
+	let lo = meshBuffer[offset];
+	let hi = meshBuffer[offset + 1u];
+
+	return vec4<u32>(
+		lo & 0xFFFFu,
+		(lo >> 16u) & 0xFFFFu,
+		hi & 0xFFFFu,
+		(hi >> 16u) & 0xFFFFu,
+	);
+}
+
+fn LoadVec4_u32(byteOffset : u32, idx : u32) -> vec4<u32>
 {
 	let offset = (byteOffset + idx * 16u) / 4u;
 
@@ -34,7 +49,7 @@ fn LoadVec4_u32(byteOffset: u32, idx: u32) -> vec4<u32>
 	);
 }
 
-fn LoadVec4_f32(byteOffset: u32, idx: u32) -> vec4<f32>
+fn LoadVec4_f32(byteOffset : u32, idx : u32) -> vec4<f32>
 {
 	let offset = (byteOffset + idx * 16u) / 4u;
 
@@ -46,7 +61,7 @@ fn LoadVec4_f32(byteOffset: u32, idx: u32) -> vec4<f32>
 	);
 }
 
-fn LoadMat4_f32(byteOffset: u32, idx: u32) -> mat4x4<f32>
+fn LoadMat4_f32(byteOffset : u32, idx : u32) -> mat4x4<f32>
 {
 	let offset = (byteOffset + idx * 64u) / 4u;
 
@@ -78,7 +93,7 @@ fn LoadMat4_f32(byteOffset: u32, idx: u32) -> mat4x4<f32>
 	);
 }
 
-fn StoreVec3_f32(byteOffset: u32, idx: u32, value: vec3<f32>)
+fn StoreVec3_f32(byteOffset : u32, idx : u32, value : vec3<f32>)
 {
 	let offset = (byteOffset + idx * 12u) / 4u;
 
@@ -88,7 +103,7 @@ fn StoreVec3_f32(byteOffset: u32, idx: u32, value: vec3<f32>)
 }
 
 @compute @workgroup_size(64)
-fn CsMain(@builtin(global_invocation_id) threadId: vec3u)
+fn CsMain(@builtin(global_invocation_id) threadId : vec3u)
 {
 	let idx = threadId.x;
 	if (idx < constants.vertexCount)
@@ -96,7 +111,7 @@ fn CsMain(@builtin(global_invocation_id) threadId: vec3u)
 		let position = vec4f(LoadVec3_f32(constants.positionsOffset, idx), 1.0);
 		var skinnedPosition = vec3f(0.0);
 
-		let boneIndices = LoadVec4_u32(constants.boneIndicesOffset, idx);
+		let boneIndices = LoadVec4_u16(constants.boneIndicesOffset, idx);
 		let boneWeights = LoadVec4_f32(constants.boneWeightsOffset, idx);
 
 		for (var i = 0; i < 4; i++)
