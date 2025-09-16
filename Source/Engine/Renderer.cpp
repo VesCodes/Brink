@@ -221,14 +221,7 @@ namespace Bk
 				mesh->skinningPositionsSize = WriteBuffer(renderer.meshBuffer, meshPositions, renderer.meshBufferOffset);
 				renderer.meshBufferOffset += mesh->skinningPositionsSize;
 
-				// #TODO: Change bone indices to uint16 when loading MeshDesc
-				TSpan<uint16> boneIndicesU16 = Push<uint16>(scratch.arena, desc.boneIndices.length);
-				for (size_t i = 0; i < boneIndicesU16.length; ++i)
-				{
-					boneIndicesU16[i] = desc.boneIndices[i];
-				}
-
-				TSpan<uint8> boneIndices = AsBytes(boneIndicesU16);
+				TSpan<uint8> boneIndices = AsBytes(desc.boneIndices);
 				TSpan<uint8> boneWeights = AsBytes(desc.boneWeights);
 
 				BK_ASSERT(renderer.meshBufferOffset + boneIndices.length <= renderer.meshBufferSize);

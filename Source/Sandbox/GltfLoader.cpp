@@ -38,7 +38,7 @@ namespace Bk
 		int32 bufferView;
 		int32 byteOffset;
 		GltfComponentType componentType;
-		int32 componentElements;
+		int32 componentCount;
 		bool normalized;
 		int32 count;
 	};
@@ -251,27 +251,27 @@ namespace Bk
 		{
 			if (type->value == "SCALAR")
 			{
-				result.componentElements = 1;
+				result.componentCount = 1;
 			}
 			else if (type->value == "VEC2")
 			{
-				result.componentElements = 2;
+				result.componentCount = 2;
 			}
 			else if (type->value == "VEC3")
 			{
-				result.componentElements = 3;
+				result.componentCount = 3;
 			}
 			else if (type->value == "VEC4" || type->value == "MAT2")
 			{
-				result.componentElements = 4;
+				result.componentCount = 4;
 			}
 			else if (type->value == "MAT3")
 			{
-				result.componentElements = 9;
+				result.componentCount = 9;
 			}
 			else if (type->value == "MAT4")
 			{
-				result.componentElements = 16;
+				result.componentCount = 16;
 			}
 		}
 
@@ -1016,17 +1016,19 @@ namespace Bk
 
 	size_t GetAccessorBufferSize(const GltfAccessor& accessor)
 	{
-		return GetComponentTypeSize(accessor.componentType) * accessor.componentElements * accessor.count;
+		return GetComponentTypeSize(accessor.componentType) * accessor.componentCount * accessor.count;
 	}
 
 	void CopyAccessorBuffer(const GltfAsset& asset, const GltfAccessor& accessor, TSpan<uint8> result)
 	{
-		size_t componentSize = GetComponentTypeSize(accessor.componentType) * accessor.componentElements;
-		BK_ASSERT(result.length >= componentSize * accessor.count);
+		// #TODO: Sparse accessors
+
+		size_t elementSize = GetComponentTypeSize(accessor.componentType) * accessor.componentCount;
+		BK_ASSERT(result.length >= elementSize * accessor.count);
 
 		if (accessor.bufferView == -1)
 		{
-			ZeroMemory(result.data, componentSize * accessor.count);
+			ZeroMemory(result.data, elementSize * accessor.count);
 		}
 		else
 		{
@@ -1038,21 +1040,70 @@ namespace Bk
 
 			if (bufferView.byteStride == 0)
 			{
-				CopyMemory(dstBufferPtr, srcBufferPtr, componentSize * accessor.count);
+				CopyMemory(dstBufferPtr, srcBufferPtr, elementSize * accessor.count);
 			}
 			else
 			{
-				for (size_t componentIdx = 0; componentIdx < accessor.count; ++componentIdx)
+				for (size_t elementIdx = 0; elementIdx < accessor.count; ++elementIdx)
 				{
-					CopyMemory(dstBufferPtr, srcBufferPtr, componentSize);
+					CopyMemory(dstBufferPtr, srcBufferPtr, elementSize);
 
 					srcBufferPtr += bufferView.byteStride;
-					dstBufferPtr += componentSize;
+					dstBufferPtr += elementSize;
 				}
 			}
 		}
+	}
 
+	struct GltfAccessorIterator
+	{
+		size_t index;
+		size_t elementSize;
+		size_t elementCount;
+		size_t stride;
+		TSpan<uint8> buffer;
+	};
+
+	GltfAccessorIterator CreateAccessorIterator(const GltfAsset& asset, const GltfAccessor& accessor)
+	{
+		GltfAccessorIterator iterator = {};
+		iterator.elementSize = GetComponentTypeSize(accessor.componentType) * accessor.componentCount;
+		iterator.elementCount = accessor.count;
+
+		const GltfBufferView& bufferView = asset.bufferViews[accessor.bufferView];
+
+		iterator.stride = bufferView.byteStride != 0 ? bufferView.byteStride : iterator.elementSize;
+		iterator.buffer = GetBuffer(asset, bufferView);
+
+		if (accessor.byteOffset != 0)
+		{
+			iterator.buffer.data += accessor.byteOffset;
+			iterator.buffer.length -= accessor.byteOffset;
+		}
+
+		return iterator;
+	}
+
+	template<typename Type>
+	bool AdvanceAccessorIterator(GltfAccessorIterator& iterator, Type* element)
+	{
 		// #TODO: Sparse accessors
+
+		if (iterator.index >= iterator.elementCount)
+		{
+			return false;
+		}
+
+		size_t offset = iterator.index * iterator.stride;
+
+		BK_ASSERT(iterator.elementSize == sizeof(Type));
+		BK_ASSERT(offset + iterator.elementSize <= iterator.buffer.length);
+
+		CopyMemory(element, iterator.buffer.data + offset, iterator.elementSize);
+
+		iterator.index += 1;
+
+		return true;
 	}
 
 	bool LoadGlbMeshes(Arena& arena, TSpan<uint8> fileData, TSpan<MeshDesc>& meshes)
@@ -1104,7 +1155,7 @@ namespace Bk
 				{
 					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.position];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-					BK_ASSERTF(accessor.componentElements == 3, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentCount == 3, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
 					positionBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
@@ -1119,21 +1170,48 @@ namespace Bk
 				if (gltfPrimitive.attributes.joints_0 != -1)
 				{
 					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.joints_0];
-					BK_ASSERTF(accessor.componentType == GltfComponentType::Uint8, "Unexpected buffer layout");
-					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentCount == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
-					jointIndexBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
-					CopyAccessorBuffer(gltfAsset, accessor, jointIndexBuffers[sectionIdx]);
+					if (accessor.componentType == GltfComponentType::Uint16)
+					{
+						jointIndexBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
+						CopyAccessorBuffer(gltfAsset, accessor, jointIndexBuffers[sectionIdx]);
+					}
+					else
+					{
+						BK_ASSERTF(accessor.componentType == GltfComponentType::Uint8, "Unexpected buffer layout");
+
+						TSpan<uint16> jointIndices = Push<uint16>(scratch.arena, accessor.count * 4);
+						if (accessor.bufferView == -1)
+						{
+							ZeroMemory(jointIndices.data, jointIndices.length * sizeof(uint16));
+						}
+						else
+						{
+							GltfAccessorIterator it = CreateAccessorIterator(gltfAsset, accessor);
+							for (uint8 element[4]; AdvanceAccessorIterator(it, &element);)
+							{
+								size_t offset = (it.index - 1) * 4;
+								jointIndices[offset + 0] = element[0];
+								jointIndices[offset + 1] = element[1];
+								jointIndices[offset + 2] = element[2];
+								jointIndices[offset + 3] = element[3];
+							}
+						}
+
+						jointIndexBuffers[sectionIdx] = AsBytes(jointIndices);
+					}
 
 					jointIndexBufferSize += jointIndexBuffers[sectionIdx].length;
 				}
 
 				if (gltfPrimitive.attributes.weights_0 != -1)
 				{
+					// #TODO: Can also be u8norm/u16norm
 					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.weights_0];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-					BK_ASSERTF(accessor.componentElements == 4, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentCount == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
 					jointWeightBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
@@ -1146,7 +1224,7 @@ namespace Bk
 				{
 					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.indices];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Uint16, "Unexpected buffer layout");
-					BK_ASSERTF(accessor.componentElements == 1, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentCount == 1, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
 					indexBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
@@ -1168,9 +1246,9 @@ namespace Bk
 				positionBuffer += buffer.length;
 			}
 
-			mesh.boneIndices = Push(arena, jointIndexBufferSize);
+			mesh.boneIndices = Push<uint16>(arena, jointIndexBufferSize / sizeof(uint16));
 
-			uint8* jointIndexBuffer = mesh.boneIndices.data;
+			uint8* jointIndexBuffer = reinterpret_cast<uint8*>(mesh.boneIndices.data);
 			for (TSpan buffer : jointIndexBuffers)
 			{
 				CopyMemory(jointIndexBuffer, buffer.data, buffer.length);
@@ -1254,7 +1332,7 @@ namespace Bk
 			{
 				const GltfAccessor& accessor = gltfAsset.accessors[gltfSkin.inverseBindMatrices];
 				BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-				BK_ASSERTF(accessor.componentElements == 16, "Unexpected buffer layout");
+				BK_ASSERTF(accessor.componentCount == 16, "Unexpected buffer layout");
 				BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
 				skeleton.invBindPose = Push<Mat4f>(arena, accessor.count);
@@ -1319,7 +1397,7 @@ namespace Bk
 				BK_ASSERTF(inputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
 				BK_ASSERTF(inputAccessor.normalized == false, "Unexpected buffer layout");
 
-				TSpan<float> keyframeTimes = Push<float>(arena, inputAccessor.count * inputAccessor.componentElements);
+				TSpan<float> keyframeTimes = Push<float>(arena, inputAccessor.count * inputAccessor.componentCount);
 				CopyAccessorBuffer(gltfAsset, inputAccessor, AsBytes(keyframeTimes));
 
 				if (keyframeTimes.length == 0)
@@ -1335,7 +1413,7 @@ namespace Bk
 					{
 						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
 						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-						BK_ASSERTF(outputAccessor.componentElements == 3, "Unexpected buffer layout");
+						BK_ASSERTF(outputAccessor.componentCount == 3, "Unexpected buffer layout");
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.translationTimes = keyframeTimes;
@@ -1349,7 +1427,7 @@ namespace Bk
 					{
 						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
 						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-						BK_ASSERTF(outputAccessor.componentElements == 4, "Unexpected buffer layout");
+						BK_ASSERTF(outputAccessor.componentCount == 4, "Unexpected buffer layout");
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.rotationTimes = keyframeTimes;
@@ -1363,7 +1441,7 @@ namespace Bk
 					{
 						const GltfAccessor& outputAccessor = gltfAsset.accessors[sampler.output];
 						BK_ASSERTF(outputAccessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
-						BK_ASSERTF(outputAccessor.componentElements == 3, "Unexpected buffer layout");
+						BK_ASSERTF(outputAccessor.componentCount == 3, "Unexpected buffer layout");
 						BK_ASSERTF(outputAccessor.normalized == false, "Unexpected buffer layout");
 
 						track.scaleTimes = keyframeTimes;
