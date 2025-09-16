@@ -773,6 +773,23 @@ namespace Bk
 				break;
 			}
 
+			case WM_WINDOWPOSCHANGED:
+			{
+				WINDOWPOS* windowPos = reinterpret_cast<WINDOWPOS*>(lParam);
+				if ((windowPos->flags & SWP_NOSIZE) == 0)
+				{
+					AppEvent appEvent = {};
+					appEvent.type = AppEventType::WindowResize;
+					appEvent.target = GetHandle(platformContext.windows, window);
+					appEvent.windowWidth = windowPos->cx;
+					appEvent.windowHeight = windowPos->cy;
+
+					ProcessAppEvent(appEvent);
+				}
+
+				return 0;
+			}
+
 			case WM_KEYDOWN:
 			case WM_SYSKEYDOWN:
 			case WM_KEYUP:
