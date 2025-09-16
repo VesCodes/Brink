@@ -29,6 +29,7 @@ struct
 
 	bool initialized;
 	uint32 surface;
+	float surfaceAspectRatio;
 
 	TSpan<uint32> meshes;
 	TSpan<AnimSequence> animations;
@@ -114,6 +115,8 @@ void Initialize()
 				.width = surfaceWidth,
 				.height = surfaceHeight,
 			});
+
+		state.surfaceAspectRatio = static_cast<float>(surfaceWidth) / static_cast<float>(surfaceHeight);
 	}
 
 	state.cameraPosition = Vec3f(0, 1, 4);
@@ -227,7 +230,7 @@ bool OnAppUpdate()
 		state.animPlayer.currentTime = 0;
 	}
 
-	Mat4f proj = PerspectiveMatrix(30.0f * (3.14f / 180.0f), 16.0f / 9.0f, 0.01f, 100.0f);
+	Mat4f proj = PerspectiveMatrix(30.0f * (3.14f / 180.0f), state.surfaceAspectRatio, 0.01f, 100.0f);
 	Mat4f view = RotationMatrix(Conjugate(state.cameraOrientation)) * TranslationMatrix(-state.cameraPosition);
 	Mat4f model = Mat4f::Identity;
 
@@ -333,6 +336,8 @@ bool OnAppEvent(const AppEvent& appEvent)
 				if (GetWindowSurfaceSize(state.window, surfaceWidth, surfaceHeight))
 				{
 					ConfigureSurface(state.surface, { .width = surfaceWidth, .height = surfaceHeight });
+					state.surfaceAspectRatio = static_cast<float>(surfaceWidth) / static_cast<float>(surfaceHeight);
+
 					result = true;
 				}
 			}
