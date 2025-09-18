@@ -79,6 +79,20 @@ bool WriteTextFile(String filePath, String content)
 	return result;
 }
 
+String GetCompilerPath(const BuildContext& context)
+{
+	if (context.platform == Platform::Emscripten)
+	{
+#if BK_PLATFORM_WINDOWS
+		return "em++.bat";
+#else
+		return "em++";
+#endif
+	}
+
+	return "clang++";
+}
+
 String GetResponseFilePath(Arena& arena, const BuildContext& context, String targetFile)
 {
 	ArenaScope scratch = GetScratchArena(&arena);
@@ -170,33 +184,6 @@ bool ShouldCompile(const BuildContext& context, String outputFile)
 	return result;
 }
 
-ProcessHandle RunCompiler(const BuildContext& context, String arguments)
-{
-	ArenaScope scratch = GetScratchArena();
-
-	String executable = "clang++";
-
-	if (context.platform == Platform::Emscripten)
-	{
-#if BK_PLATFORM_WINDOWS
-		executable = "cmd.exe";
-
-		StringBuilder builder(scratch.arena);
-		Append(builder, "/c em++ ");
-		Append(builder, arguments);
-
-		arguments = ToString(builder, scratch.arena);
-#else
-		executable = "em++";
-#endif
-	}
-
-	return CreateProcess({
-		.executable = executable,
-		.arguments = arguments,
-	});
-}
-
 ProcessHandle CompileFile(const BuildContext& context, String inputFile, String outputFile)
 {
 	ArenaScope scratch = GetScratchArena();
@@ -273,7 +260,10 @@ ProcessHandle CompileFile(const BuildContext& context, String inputFile, String 
 	Append(arguments, '@');
 	Append(arguments, responseFile);
 
-	return RunCompiler(context, ToString(arguments, scratch.arena));
+	return CreateProcess({
+		.executable = GetCompilerPath(context),
+		.arguments = ToString(arguments, scratch.arena),
+	});
 }
 
 ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, String outputFile)
@@ -318,7 +308,10 @@ ProcessHandle LinkFiles(const BuildContext& context, TSpan<String> inputFiles, S
 	Append(arguments, '@');
 	Append(arguments, responseFile);
 
-	return RunCompiler(context, ToString(arguments, scratch.arena));
+	return CreateProcess({
+		.executable = GetCompilerPath(context),
+		.arguments = ToString(arguments, scratch.arena),
+	});
 }
 
 enum class ActionResult : uint8

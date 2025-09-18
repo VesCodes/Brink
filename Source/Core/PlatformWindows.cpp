@@ -527,19 +527,22 @@ namespace Bk
 	{
 		ArenaScope scratch = GetScratchArena();
 
-		int32 executableLength = MultiByteToWideChar(CP_UTF8, 0, params.executable.data, params.executable.length, nullptr, 0);
-		int32 argumentsLength = MultiByteToWideChar(CP_UTF8, 0, params.arguments.data, params.arguments.length, nullptr, 0);
+		StringBuilder builder(scratch.arena);
+		if (Contains(params.executable, ' '))
+		{
+			Append(builder, '\"');
+			Append(builder, params.executable);
+			Append(builder, '\"');
+		}
+		else
+		{
+			Append(builder, params.executable);
+		}
 
-		size_t commandLineLength = executableLength + 3 + argumentsLength;
-		wchar_t* commandLine = Push<wchar_t>(scratch.arena, commandLineLength + 1);
+		Append(builder, ' ');
+		Append(builder, params.arguments);
 
-		MultiByteToWideChar(CP_UTF8, 0, params.executable.data, params.executable.length, commandLine + 1, executableLength);
-		commandLine[0] = '\"';
-		commandLine[executableLength + 1] = '\"';
-		commandLine[executableLength + 2] = ' ';
-
-		MultiByteToWideChar(CP_UTF8, 0, params.arguments.data, params.arguments.length, commandLine + executableLength + 3, argumentsLength);
-		commandLine[commandLineLength] = '\0';
+		wchar_t* commandLine = ConvertString(scratch.arena, ToString(builder, scratch.arena));
 
 		STARTUPINFOW startupInfo = {};
 		startupInfo.cb = sizeof(startupInfo);
