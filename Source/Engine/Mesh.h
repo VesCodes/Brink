@@ -19,6 +19,7 @@ namespace Bk
 		String name;
 		TSpan<MeshSection> sections;
 		TSpan<Vec3f> positions;
+		TSpan<Vec2f> texCoords;
 		TSpan<uint16> boneIndices;
 		TSpan<float> boneWeights;
 		TSpan<uint16> indices;

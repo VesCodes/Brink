@@ -34,6 +34,9 @@ namespace Bk
 		uint32 positionsOffset;
 		uint32 positionsSize;
 
+		uint32 texCoordsOffset;
+		uint32 texCoordsSize;
+
 		uint32 indicesOffset;
 		uint32 indicesSize;
 
@@ -137,6 +140,12 @@ namespace Bk
 							{ .offset = 0, .format = GfxVertexFormat::Float32x3 },
 						},
 					},
+					{
+						.stride = 8,
+						.attributes = {
+							{ .offset = 0, .format = GfxVertexFormat::Float32x2 },
+						},
+					},
 				},
 			},
 			.pixelShader = {
@@ -194,17 +203,22 @@ namespace Bk
 			mesh->sections = Copy(renderer.arena, desc.sections);
 			mesh->vertexCount = desc.positions.length;
 
-			TSpan<uint8> meshPositions = AsBytes(desc.positions);
-			TSpan<uint8> meshIndices = AsBytes(desc.indices);
-
-			BK_ASSERT(renderer.meshBufferOffset + meshPositions.length <= renderer.meshBufferSize);
+			TSpan<uint8> positions = AsBytes(desc.positions);
+			BK_ASSERT(renderer.meshBufferOffset + positions.length <= renderer.meshBufferSize);
 			mesh->positionsOffset = renderer.meshBufferOffset;
-			mesh->positionsSize = WriteBuffer(renderer.meshBuffer, meshPositions, renderer.meshBufferOffset);
+			mesh->positionsSize = WriteBuffer(renderer.meshBuffer, positions, renderer.meshBufferOffset);
 			renderer.meshBufferOffset += mesh->positionsSize;
 
-			BK_ASSERT(renderer.meshBufferOffset + meshIndices.length <= renderer.meshBufferSize);
+			TSpan<uint8> texCoords = AsBytes(desc.texCoords);
+			BK_ASSERT(renderer.meshBufferOffset + texCoords.length <= renderer.meshBufferSize);
+			mesh->texCoordsOffset = renderer.meshBufferOffset;
+			mesh->texCoordsSize = WriteBuffer(renderer.meshBuffer, texCoords, renderer.meshBufferOffset);
+			renderer.meshBufferOffset += mesh->texCoordsSize;
+
+			TSpan<uint8> indices = AsBytes(desc.indices);
+			BK_ASSERT(renderer.meshBufferOffset + indices.length <= renderer.meshBufferSize);
 			mesh->indicesOffset = renderer.meshBufferOffset;
-			mesh->indicesSize = WriteBuffer(renderer.meshBuffer, meshIndices, renderer.meshBufferOffset);
+			mesh->indicesSize = WriteBuffer(renderer.meshBuffer, indices, renderer.meshBufferOffset);
 			renderer.meshBufferOffset += mesh->indicesSize;
 
 			mesh->skinningPositionsOffset = UINT32_MAX;
@@ -216,19 +230,18 @@ namespace Bk
 			{
 				BK_ASSERT(desc.boneIndices.length == desc.boneWeights.length);
 
-				BK_ASSERT(renderer.meshBufferOffset + meshPositions.length <= renderer.meshBufferSize);
+				BK_ASSERT(renderer.meshBufferOffset + positions.length <= renderer.meshBufferSize);
 				mesh->skinningPositionsOffset = renderer.meshBufferOffset;
-				mesh->skinningPositionsSize = WriteBuffer(renderer.meshBuffer, meshPositions, renderer.meshBufferOffset);
+				mesh->skinningPositionsSize = WriteBuffer(renderer.meshBuffer, positions, renderer.meshBufferOffset);
 				renderer.meshBufferOffset += mesh->skinningPositionsSize;
 
 				TSpan<uint8> boneIndices = AsBytes(desc.boneIndices);
-				TSpan<uint8> boneWeights = AsBytes(desc.boneWeights);
-
 				BK_ASSERT(renderer.meshBufferOffset + boneIndices.length <= renderer.meshBufferSize);
 				mesh->skinningBoneIndicesOffset = renderer.meshBufferOffset;
 				mesh->skinningBoneIndicesSize = WriteBuffer(renderer.meshBuffer, boneIndices, renderer.meshBufferOffset);
 				renderer.meshBufferOffset += mesh->skinningBoneIndicesSize;
 
+				TSpan<uint8> boneWeights = AsBytes(desc.boneWeights);
 				BK_ASSERT(renderer.meshBufferOffset + boneWeights.length <= renderer.meshBufferSize);
 				mesh->skinningBoneWeightsOffset = renderer.meshBufferOffset;
 				mesh->skinningBoneWeightsSize = WriteBuffer(renderer.meshBuffer, boneWeights, renderer.meshBufferOffset);
@@ -319,6 +332,7 @@ namespace Bk
 				},
 				.vertexBuffers = {
 					{ .buffer = renderer.meshBuffer, .offset = mesh->positionsOffset, .size = mesh->positionsSize },
+					{ .buffer = renderer.meshBuffer, .offset = mesh->texCoordsOffset, .size = mesh->texCoordsSize },
 				},
 				.indexBuffer = { .buffer = renderer.meshBuffer, .offset = mesh->indicesOffset, .size = mesh->indicesSize },
 				.vertexOffset = static_cast<uint32>(section.vertexOffset),

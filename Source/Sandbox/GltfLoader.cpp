@@ -74,8 +74,9 @@ namespace Bk
 		struct
 		{
 			int32 position;
-			int32 joints_0;
-			int32 weights_0;
+			int32 texCoord0;
+			int32 joints0;
+			int32 weights0;
 		} attributes;
 
 		int32 indices;
@@ -439,22 +440,31 @@ namespace Bk
 					result.primitives[primitiveIdx].attributes.position = -1;
 				}
 
-				if (JsonValue* joints0Attrib = FindJsonValueInObject(attribs, "JOINTS_0"))
+				if (JsonValue* texCoord0Attrib = FindJsonValueInObject(attribs, "TEXCOORD_0"))
 				{
-					result.primitives[primitiveIdx].attributes.joints_0 = static_cast<int32>(joints0Attrib->asNumber);
+					result.primitives[primitiveIdx].attributes.texCoord0 = static_cast<int32>(texCoord0Attrib->asNumber);
 				}
 				else
 				{
-					result.primitives[primitiveIdx].attributes.joints_0 = -1;
+					result.primitives[primitiveIdx].attributes.texCoord0 = -1;
+				}
+
+				if (JsonValue* joints0Attrib = FindJsonValueInObject(attribs, "JOINTS_0"))
+				{
+					result.primitives[primitiveIdx].attributes.joints0 = static_cast<int32>(joints0Attrib->asNumber);
+				}
+				else
+				{
+					result.primitives[primitiveIdx].attributes.joints0 = -1;
 				}
 
 				if (JsonValue* weights0Attrib = FindJsonValueInObject(attribs, "WEIGHTS_0"))
 				{
-					result.primitives[primitiveIdx].attributes.weights_0 = static_cast<int32>(weights0Attrib->asNumber);
+					result.primitives[primitiveIdx].attributes.weights0 = static_cast<int32>(weights0Attrib->asNumber);
 				}
 				else
 				{
-					result.primitives[primitiveIdx].attributes.weights_0 = -1;
+					result.primitives[primitiveIdx].attributes.weights0 = -1;
 				}
 
 				if (JsonValue* indices = FindJsonValueInObject(primitive, "indices"))
@@ -1131,6 +1141,9 @@ namespace Bk
 			size_t positionBufferSize = 0;
 			size_t vertexCount = 0;
 
+			TSpan<TSpan<uint8>> texCoordsBuffers = PushZeroed<TSpan<uint8>>(scratch.arena, mesh.sections.length);
+			size_t texCoordsBufferSize = 0;
+
 			TSpan<TSpan<uint8>> jointIndexBuffers = PushZeroed<TSpan<uint8>>(scratch.arena, mesh.sections.length);
 			size_t jointIndexBufferSize = 0;
 
@@ -1167,9 +1180,23 @@ namespace Bk
 					section.triangleCount = accessor.count / 3;
 				}
 
-				if (gltfPrimitive.attributes.joints_0 != -1)
+				if (gltfPrimitive.attributes.texCoord0 != -1)
 				{
-					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.joints_0];
+					// #TODO: Can also be u8norm/u16norm
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.texCoord0];
+					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.componentCount == 2, "Unexpected buffer layout");
+					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
+
+					texCoordsBuffers[sectionIdx] = Push(scratch.arena, GetAccessorBufferSize(accessor));
+					CopyAccessorBuffer(gltfAsset, accessor, texCoordsBuffers[sectionIdx]);
+
+					texCoordsBufferSize += texCoordsBuffers[sectionIdx].length;
+				}
+
+				if (gltfPrimitive.attributes.joints0 != -1)
+				{
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.joints0];
 					BK_ASSERTF(accessor.componentCount == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
 
@@ -1206,10 +1233,10 @@ namespace Bk
 					jointIndexBufferSize += jointIndexBuffers[sectionIdx].length;
 				}
 
-				if (gltfPrimitive.attributes.weights_0 != -1)
+				if (gltfPrimitive.attributes.weights0 != -1)
 				{
 					// #TODO: Can also be u8norm/u16norm
-					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.weights_0];
+					const GltfAccessor& accessor = gltfAsset.accessors[gltfPrimitive.attributes.weights0];
 					BK_ASSERTF(accessor.componentType == GltfComponentType::Float32, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.componentCount == 4, "Unexpected buffer layout");
 					BK_ASSERTF(accessor.normalized == false, "Unexpected buffer layout");
@@ -1238,7 +1265,6 @@ namespace Bk
 			}
 
 			mesh.positions = Push<Vec3f>(arena, positionBufferSize / sizeof(Vec3f));
-
 			uint8* positionBuffer = reinterpret_cast<uint8*>(mesh.positions.data);
 			for (TSpan buffer : positionBuffers)
 			{
@@ -1246,8 +1272,15 @@ namespace Bk
 				positionBuffer += buffer.length;
 			}
 
-			mesh.boneIndices = Push<uint16>(arena, jointIndexBufferSize / sizeof(uint16));
+			mesh.texCoords = Push<Vec2f>(arena, texCoordsBufferSize / sizeof(Vec2f));
+			uint8* texCoordsBuffer = reinterpret_cast<uint8*>(mesh.texCoords.data);
+			for (TSpan buffer : texCoordsBuffers)
+			{
+				CopyMemory(texCoordsBuffer, buffer.data, buffer.length);
+				texCoordsBuffer += buffer.length;
+			}
 
+			mesh.boneIndices = Push<uint16>(arena, jointIndexBufferSize / sizeof(uint16));
 			uint8* jointIndexBuffer = reinterpret_cast<uint8*>(mesh.boneIndices.data);
 			for (TSpan buffer : jointIndexBuffers)
 			{
@@ -1256,7 +1289,6 @@ namespace Bk
 			}
 
 			mesh.boneWeights = Push<float>(arena, jointWeightBufferSize / sizeof(float));
-
 			uint8* jointWeightBuffer = reinterpret_cast<uint8*>(mesh.boneWeights.data);
 			for (TSpan buffer : jointWeightBuffers)
 			{
@@ -1265,7 +1297,6 @@ namespace Bk
 			}
 
 			mesh.indices = Push<uint16>(arena, indexBufferSize / sizeof(uint16));
-
 			uint8* indexBuffer = reinterpret_cast<uint8*>(mesh.indices.data);
 			for (TSpan buffer : indexBuffers)
 			{

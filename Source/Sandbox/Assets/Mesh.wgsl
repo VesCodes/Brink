@@ -8,12 +8,14 @@ struct MeshConstants
 struct VsInput
 {
 	@location(0) position: vec3f,
+	@location(1) texCoords: vec2f,
 }
 
 struct VsOutput
 {
 	@builtin(position) position: vec4f,
 	@location(0) worldPosition: vec3f,
+	@location(1) texCoords: vec2f,
 }
 
 @vertex fn VsMain(input: VsInput) -> VsOutput
@@ -22,6 +24,7 @@ struct VsOutput
 
 	output.position = constants.mvp * vec4f(input.position, 1);
 	output.worldPosition = input.position;
+	output.texCoords = input.texCoords;
 
 	return output;
 }
