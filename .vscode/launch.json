@@ -2,6 +2,18 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
+			"name": "Sandbox (MacOS)",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/Build/Sandbox/Sandbox",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}/Build/Sandbox",
+			"environment": [],
+			"externalConsole": false,
+			"MIMode": "lldb"
+		},
+		{
 			"name": "Emscripten",
 			"type": "chrome",
 			"request": "launch",

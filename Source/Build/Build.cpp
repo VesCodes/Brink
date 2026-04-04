@@ -191,7 +191,16 @@ ProcessHandle CompileFile(const BuildContext& context, String inputFile, String 
 	StringBuilder arguments(scratch.arena);
 
 	AppendLine(arguments, "-c");
-	AppendLine(arguments, "-x c++");
+
+	if (context.platform == Platform::MacOS)
+	{
+		AppendLine(arguments, "-x objective-c++");
+	}
+	else
+	{
+		AppendLine(arguments, "-x c++");
+	}
+
 	AppendLine(arguments, "-std=c++20");
 
 	switch (context.config)
@@ -925,6 +934,16 @@ int32 AppMain(int32 argc, char** argv)
 				"-ldxguid",
 			};
 		}
+		else if (context.platform == Platform::MacOS)
+		{
+			outputFile = "Build/Sandbox/Sandbox";
+
+			context.extraLinkerArguments = {
+				"ThirdParty/dawn/libwebgpu_dawn.a",
+				"-framework IOKit",
+				"-framework IOSurface",
+			};
+		}
 		else if (context.platform == Platform::Emscripten)
 		{
 			outputFile = "Build/Sandbox/index.html";
@@ -945,7 +964,7 @@ int32 AppMain(int32 argc, char** argv)
 
 		ActionResult compileResult = CompileModules(context, modules);
 
-		if (compileResult == ActionResult::Succeeded)
+		if (compileResult == ActionResult::Succeeded || compileResult == ActionResult::Skipped)
 		{
 			double compileTime = GetTimeSec();
 			printf("Compiled modules for Sandbox in %0.4fs\n", compileTime - buildStartTime);
