@@ -10,7 +10,7 @@
 #include "Core/Core.cpp"
 #include "Core/Memory.cpp"
 #include "Core/PlatformLinux.cpp"
-#include "Core/PlatformMacOS.cpp"
+#include "Core/PlatformMacOS.mm"
 #include "Core/PlatformWindows.cpp"
 #include "Core/String.cpp"
 #endif
@@ -364,7 +364,7 @@ ActionResult CompileModule(const BuildContext& context, String moduleName)
 	FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, moduleSourceDir);
 	for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
 	{
-		if (EndsWith(file.path, ".cpp", true))
+		if (EndsWith(file.path, ".cpp", true) || EndsWith(file.path, ".mm", true))
 		{
 			String sourceFile = Slice(file.path, moduleSourceDirPrefixLength);
 			AppendLinef(builder, "#include \"%.*s\"", sourceFile.length, sourceFile.data);
@@ -472,7 +472,7 @@ bool GenerateCompileCommands(const BuildContext& context, TSpan<String> moduleNa
 		FileIteratorHandle fileIt = CreateFileIterator(scratch.arena, moduleSourceDir);
 		for (FileIteratorEntry file; AdvanceFileIterator(fileIt, file);)
 		{
-			if (!EndsWith(file.path, ".cpp", true))
+			if (!EndsWith(file.path, ".cpp", true) && !EndsWith(file.path, ".mm", true))
 			{
 				continue;
 			}
@@ -538,7 +538,7 @@ void GenerateProjectFiles(StringBuilder& builder, String path)
 
 		String fileExt = GetExtension(file.path);
 
-		if (Equals(fileExt, "cpp", true))
+		if (Equals(fileExt, "cpp", true) || Equals(fileExt, "mm", true))
 		{
 			AppendLinef(fileBuilder, "\t<ClCompile Include=\"%.*s\"/>", file.path.length, file.path.data);
 		}
@@ -585,7 +585,7 @@ void GenerateProjectFilters(StringBuilder& builder, String path)
 
 		String fileExt = GetExtension(file.path);
 
-		if (Equals(fileExt, "cpp", true))
+		if (Equals(fileExt, "cpp", true) || Equals(fileExt, "mm", true))
 		{
 			AppendLinef(fileBuilder, "\t<ClCompile Include=\"%.*s\">", file.path.length, file.path.data);
 			AppendLinef(fileBuilder, "\t\t<Filter>%.*s</Filter>", filterPath.length, filterPath.data);
