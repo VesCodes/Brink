@@ -91,7 +91,7 @@ namespace Bk
 	};
 
 	void Allocate(Arena& arena, BitArray& array, size_t length);
-	void Copy(BitArray& dst, BitArray src);
+	void Copy(BitArray dst, BitArray src);
 
 	bool GetBit(BitArray array, size_t idx);
 	void SetBit(BitArray array, size_t idx);

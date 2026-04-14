@@ -177,7 +177,7 @@ namespace Bk
 			return false;
 		}
 
-		return Equals(Slice(0, prefix.length), prefix, ignoreCase);
+		return Equals(Slice(string, 0, prefix.length), prefix, ignoreCase);
 	}
 
 	bool EndsWith(String string, String suffix, bool ignoreCase)

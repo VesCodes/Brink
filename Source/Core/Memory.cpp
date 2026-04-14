@@ -178,7 +178,7 @@ namespace Bk
 		array.length = length;
 	}
 
-	void Copy(BitArray& dst, BitArray src)
+	void Copy(BitArray dst, BitArray src)
 	{
 		BK_ASSERT(dst.length == src.length);
 

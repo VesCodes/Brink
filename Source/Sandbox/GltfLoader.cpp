@@ -190,8 +190,6 @@ namespace Bk
 
 	struct GltfAsset
 	{
-		String filePath;
-
 		TSpan<GltfAccessor> accessors;
 		TSpan<GltfBufferView> bufferViews;
 		TSpan<GltfBuffer> buffers;

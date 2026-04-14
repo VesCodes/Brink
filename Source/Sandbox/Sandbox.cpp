@@ -66,8 +66,6 @@ void LoadGlb(TSpan<uint8> data)
 	state.animations = {};
 	state.animPlayer = {};
 
-	StringBuilder resourceNameBuilder(scratch.arena);
-
 	TSpan<MeshDesc> meshes = {};
 	if (LoadGlbMeshes(scratch.arena, data, meshes))
 	{

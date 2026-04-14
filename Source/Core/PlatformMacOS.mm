@@ -37,15 +37,15 @@ asm(".linker_option \"-framework\", \"Metal\"");
 
 	NSWindow* window = notification.object;
 	NSView* contentView = window.contentView;
-	
+
 	CAMetalLayer* metalLayer = (CAMetalLayer*)contentView.layer;
 	metalLayer.drawableSize = [contentView convertSizeToBacking:contentView.frame.size];
 
 	AppEvent appEvent = {};
 	appEvent.type = AppEventType::WindowResize;
 	appEvent.target = self.windowHandle;
-	appEvent.windowWidth = static_cast<uint32>(contentView.frame.size.width);
-	appEvent.windowHeight = static_cast<uint32>(contentView.frame.size.height);
+	appEvent.windowWidth = static_cast<int32>(contentView.frame.size.width);
+	appEvent.windowHeight = static_cast<int32>(contentView.frame.size.height);
 
 	ProcessAppEvent(appEvent);
 }
@@ -104,7 +104,7 @@ namespace Bk
 
 			BkWindowDelegate* delegate = [[BkWindowDelegate alloc] init];
 			delegate.windowHandle = handle;
-			
+
 			[window->handle setDelegate:delegate];
 
 			NSView* contentView = window->handle.contentView;
@@ -117,7 +117,7 @@ namespace Bk
 
 			contentView.layer = metalLayer;
 		}
-		
+
 		return handle;
 	}
 
@@ -143,7 +143,7 @@ namespace Bk
 		if (window)
 		{
 			CAMetalLayer* metalLayer = (CAMetalLayer*)window->handle.contentView.layer;
-			
+
 			width = static_cast<uint32>(metalLayer.drawableSize.width);
 			height = static_cast<uint32>(metalLayer.drawableSize.height);
 
@@ -162,7 +162,7 @@ namespace Bk
 						untilDate:nil
 						inMode:NSDefaultRunLoopMode
 						dequeue:YES];
-			
+
 			if (event)
 			{
 				[NSApp sendEvent:event];

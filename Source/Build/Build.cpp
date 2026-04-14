@@ -980,7 +980,7 @@ int32 AppMain(int32 argc, char** argv)
 				result = 1;
 			}
 		}
-		else if (compileResult == ActionResult::Failed)
+		else
 		{
 			printf("Failed to compile Sandbox modules\n");
 			result = 1;
